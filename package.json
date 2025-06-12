@@ -21,7 +21,8 @@
   "dependencies": {
     "@vueuse/core": "^13.3.0",
     "es-toolkit": "^1.39.3",
-    "vue": "^3.5.16"
+    "vue": "^3.5.16",
+    "vue-router": "^4.5.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.28.0",
@@ -33,6 +34,7 @@
     "globals": "^16.2.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
+    "oxlint": "^1.0.0",
     "prettier": "3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.12",
     "tailwindcss": "^4.1.8",
@@ -42,11 +44,7 @@
     "wxt": "^0.20.7"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,vue}": [
-      "eslint --fix"
-    ],
-    "*.{json,js,ts,jsx,tsx,html,vue}": [
-      "prettier --write --ignore-unknown"
-    ]
+    "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,astro,svelte}": "oxlint --fix",
+    "**/*.{json,js,ts,jsx,tsx,html,vue}": "prettier --write --ignore-unknown"
   }
 }
