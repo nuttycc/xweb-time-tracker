@@ -1,79 +1,65 @@
 # Sync 配置同步核心模块
 
 ## 模块职责
-负责用户配置的跨设备同步业务逻辑，实现PRD中定义的配置管理需求，确保用户在不同设备间的一致体验。
+本模块负责用户配置（如偏好设置、数据保留策略等）在不同设备间的同步业务逻辑。其核心目标是确保用户在切换设备时能获得一致的应用体验。
 
-## 功能范围
-
-### 核心功能
-- **配置同步**：用户偏好设置的跨设备自动同步
-- **冲突处理**：采用"整体覆盖+用户透明"策略处理同步冲突
-- **变更通知**：配置变更时的用户界面提示机制
-- **导入导出**：支持配置的手动备份和迁移
-
-### 同步策略
-1. **同步范围**：数据保留策略、界面主题、过滤规则、显示偏好等
-2. **同步时机**：配置变更后立即同步，新设备安装后自动获取
-3. **冲突解决**：以最后修改时间最新的完整配置覆盖旧配置
-4. **用户感知**：明确展示配置来源和同步状态
+## 核心功能与策略
+-   **配置自动同步**：用户的偏好设置（如数据保留策略、界面主题、过滤规则等）在发生变更后，会自动尝试同步到云端存储。新设备安装扩展后也会尝试从云端获取最新配置。
+-   **冲突处理**：
+    *   **策略**：默认采用“最后修改者优先”的整体覆盖策略。即，以时间戳最新的那份完整配置为准，覆盖本地或云端的旧配置。
+    *   **用户透明**：冲突解决后，会明确通知用户配置已更新及其来源。
+-   **变更通知**：当配置因同步而发生变更时，会通过适当的机制（如 UI 提示）通知用户。
+-   **手动导入/导出**：支持用户手动备份当前配置或从备份文件中恢复配置，作为自动同步的补充。
 
 ## 文件结构
-```
+```typescript
 sync/
-├── README.md           # 本文档
-├── config-sync.ts      # 配置同步主逻辑
-├── conflict.ts         # 冲突处理策略
-├── recovery.ts         # 同步恢复机制
-└── notification.ts     # 变更通知逻辑
+├── README.md             // 本文档
+├── config-synchronizer.ts // 配置同步的主要逻辑实现 (原 config-sync.ts)
+├── conflict-resolver.ts  // 冲突处理策略的实现 (原 conflict.ts)
+├── sync-recovery.ts      // 同步失败时的恢复与重试机制 (原 recovery.ts)
+└── change-notifier.ts    // 配置变更通知逻辑 (原 notification.ts)
 ```
 
-## 业务规则实现
+## 关键业务逻辑与流程
 
-### 冲突处理策略
+### 配置版本与元数据
+-   每个同步的配置对象都包含元数据，如：
+    *   `version`: 配置结构的版本号。
+    *   `lastModified`: 最后修改的时间戳。
+    *   `deviceId`: 最后修改该配置的设备标识。
+-   这些元数据用于冲突检测、版本控制和问题追溯。
+
+### 同步触发与执行流程
+-   **上传（本地变更时）**：
+    1.  监听到用户配置发生本地修改。
+    2.  更新配置的 `lastModified` 时间戳和 `deviceId`。
+    3.  通过 `services/chrome-api/` 将配置写入 `chrome.storage.sync`。
+    4.  向用户反馈同步状态（成功、失败、等待中）。
+-   **下载（远程变更时）**：
+    1.  通过 `chrome.storage.onChanged` 事件监听到云端配置发生变化。
+    2.  获取本地配置和远程配置，比较其 `lastModified` 时间戳。
+    3.  根据冲突解决策略（通常是远程覆盖本地，如果远程更新），更新本地配置。
+    4.  触发变更通知，告知用户配置已更新。
+
+### 核心数据结构示例
 ```typescript
-// 伪代码示例
-interface ConflictResolution {
-  strategy: 'overwrite'; // 整体覆盖策略
-  basis: 'lastModified'; // 基于最后修改时间
-  notification: boolean; // 必须通知用户
-}
-```
+interface IUserSyncableConfiguration {
+  version: string;           // 配置的版本，用于结构迁移
+  lastModified: number;      // 最后修改的时间戳 (Unix ms)
+  modifiedByDeviceId: string; // 最后修改此配置的设备ID
 
-### 配置版本管理
-- **版本标识**：每个配置包含版本号和时间戳
-- **设备标识**：记录最后修改的设备信息
-- **变更追踪**：跟踪配置项的具体变更内容
-
-## 同步流程
-
-### 配置上传流程
-1. **变更检测**：监听用户配置修改
-2. **版本更新**：更新时间戳和设备标识
-3. **云端同步**：写入chrome.storage.sync
-4. **状态反馈**：向用户反馈同步状态
-
-### 配置下载流程
-1. **变更监听**：监听chrome.storage.onChanged事件
-2. **冲突检测**：比较本地和远程配置的时间戳
-3. **策略执行**：执行覆盖策略
-4. **用户通知**：显示配置变更通知
-
-## 数据结构
-
-### 用户配置对象
-```typescript
-interface UserConfiguration {
-  version: string;           // 配置版本
-  lastModified: number;      // 最后修改时间戳
-  deviceId: string;          // 修改设备标识
-  retentionPolicy: string;   // 数据保留策略
-  uiTheme: string;          // 界面主题
-  filterRules: string[];     // 过滤规则
-  // ... 其他配置项
+  retentionPolicy: string;   // 例如: '7days', '30days', 'permanent'
+  uiTheme: 'light' | 'dark' | 'system';
+  filterRules: { type: 'domain' | 'url', value: string }[];
+  // ... 其他需要同步的用户配置项
 }
 ```
 
 ## 与其他模块的关系
-- **技术依赖**：services/chrome-api/（chrome.storage.sync API）
-- **业务协作**：core/lifecycle/（配置变更影响数据生命周期）
-- **用户界面**：entrypoints/options/（配置管理界面）
+-   **依赖（服务）**：
+    -   `services/chrome-api/`: 强依赖此服务提供的 `chrome.storage.sync` API 进行云端数据读写。
+-   **协调与交互**：
+    -   `core/lifecycle/`: 当数据保留策略 (`retentionPolicy`) 因同步而变更时，需要通知生命周期管理模块以应用新的策略。
+    -   `entrypoints/options/`: 选项页面是用户查看和修改配置的主要界面，也是展示同步状态和接收用户手动导入/导出操作的入口。
+    -   `shared/config/`: 同步的配置项定义来源于共享配置。

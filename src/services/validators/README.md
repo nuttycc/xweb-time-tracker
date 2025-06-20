@@ -1,259 +1,59 @@
-# Validators 验证服务模块
+# Validators 数据验证服务
 
 ## 模块职责
-提供统一的数据验证服务，确保数据完整性和格式正确性，支持配置验证、数据验证和业务规则验证。
+本模块提供统一的数据验证服务，核心职责是确保应用中处理的数据（包括用户输入、API 参数、配置数据、数据库记录等）的完整性、格式正确性和有效性。
 
 ## 功能范围
-
-### 核心功能
-- **配置验证**：用户配置数据的格式和有效性验证
-- **数据验证**：数据库数据的完整性和约束验证
-- **输入验证**：用户输入和API参数的验证
-- **业务规则验证**：业务逻辑相关的验证规则
-
-### 验证类型
-1. **类型验证**：基础数据类型检查
-2. **格式验证**：字符串格式、正则表达式匹配
-3. **范围验证**：数值范围、长度限制
-4. **业务验证**：业务规则相关的复杂验证
+-   **核心验证能力**:
+    *   **配置验证**: 校验用户配置数据（如 `UserConfiguration`）是否符合预定义的格式和业务约束。
+    *   **数据验证**: 校验存储在数据库中的数据（如 `EventLogRecord`, `AggregatedStatsRecord`）是否满足其模式定义和完整性要求。
+    *   **输入验证**: 对来自用户界面或内部 API 的输入参数进行验证。
+    *   **业务规则验证**: (如果适用) 执行与特定业务逻辑相关的复杂验证规则。
+-   **支持的验证类型**:
+    *   **类型检查**: 验证数据是否为预期的基础类型（如 string, number, boolean）。
+    *   **格式验证**: 校验字符串格式（如 email, URL, UUID）、正则表达式匹配等。
+    *   **范围与约束**: 检查数值是否在允许范围内、字符串长度是否符合要求、数组大小等。
+    *   **枚举值验证**: 确保值属于预定义的有效选项集合。
+    *   **自定义业务验证**: 支持通过自定义函数实现特定的业务校验逻辑。
 
 ## 文件结构
-```
+```typescript
 validators/
-├── README.md           # 本文档
-├── config.ts          # 配置验证器
-├── data.ts            # 数据验证器
-├── input.ts           # 输入验证器
-├── business.ts        # 业务规则验证器
-└── schemas.ts         # 验证模式定义
+├── README.md             // 本文档
+├── config-validator.ts   // 针对配置数据的验证器 (原 config.ts)
+├── data-validator.ts     // 针对持久化数据的验证器 (原 data.ts)
+├── input-validator.ts    // 针对API/用户输入的验证器 (原 input.ts)
+├── business-validator.ts // (可选) 针对特定业务规则的验证器 (原 business.ts)
+├── schema-based-validator.ts // (可能) 基于JSON Schema或Zod等实现的通用验证器 (原 schemas.ts 可能指这个)
+└── index.ts              // 统一导出验证器接口和实现
 ```
 
-## 验证器设计
+## 验证器设计概述
+-   **统一接口**: 验证服务通常会提供一个或多个标准化的验证器接口。这些接口定义了执行验证操作（如 `validate(data): ValidationResult`）的方法。
+-   **验证结果**: 验证操作返回一个统一的结果对象，该对象明确指出验证是否通过 (`isValid: boolean`)，并在验证失败时提供详细的错误信息列表 (`errors: ValidationError[]`)。每个错误通常包含字段名、错误代码和错误消息。
+-   **专用验证器**: 针对不同类型的数据（如用户配置、数据库记录），可能会有专门的验证器实现，这些验证器封装了特定于该数据类型的验证规则。
+-   **规则来源**: 验证规则可以硬编码在验证器中，更推荐的做法是基于在 `models/schemas/` 中定义的模式（如 TypeScript 接口、JSON Schema 定义、Zod schema 等）动态生成或应用验证规则。
 
-### 基础验证接口
-```typescript
-interface ValidationResult {
-  valid: boolean;
-  errors: ValidationError[];
-}
+## 关键设计考量
 
-interface ValidationError {
-  field: string;
-  code: string;
-  message: string;
-  value?: any;
-}
+### 错误处理与反馈
+-   **标准化错误**: 提供结构化的验证错误信息，包括出错的字段、具体错误原因（错误码）和用户友好的错误消息。
+-   **国际化 (i18n)**: 错误消息应支持国际化，以便向不同语言的用户显示。
+-   **批量错误**: 一次验证操作应能返回所有校验失败的错误，而非仅第一个错误。
 
-interface Validator<T> {
-  validate(data: T): ValidationResult;
-  validateAsync(data: T): Promise<ValidationResult>;
-}
-```
-
-### 配置验证器
-```typescript
-interface ConfigValidator {
-  // 验证用户配置对象
-  validateUserConfig(config: UserConfiguration): ValidationResult;
-  
-  // 验证保留策略
-  validateRetentionPolicy(policy: string): ValidationResult;
-  
-  // 验证主题设置
-  validateTheme(theme: string): ValidationResult;
-  
-  // 验证过滤规则
-  validateFilterRules(rules: string[]): ValidationResult;
-}
-```
-
-### 数据验证器
-```typescript
-interface DataValidator {
-  // 验证事件日志记录
-  validateEventLog(event: EventLogRecord): ValidationResult;
-  
-  // 验证聚合统计记录
-  validateAggregatedStats(stats: AggregatedStatsRecord): ValidationResult;
-  
-  // 验证URL格式
-  validateURL(url: string): ValidationResult;
-  
-  // 验证时间戳
-  validateTimestamp(timestamp: number): ValidationResult;
-}
-```
-
-## 验证规则定义
-
-### 配置验证规则
-```typescript
-const UserConfigSchema = {
-  version: {
-    type: 'string',
-    required: true,
-    pattern: /^\d+\.\d+\.\d+$/
-  },
-  lastModified: {
-    type: 'number',
-    required: true,
-    min: 0
-  },
-  deviceId: {
-    type: 'string',
-    required: true,
-    minLength: 1,
-    maxLength: 100
-  },
-  retentionPolicy: {
-    type: 'string',
-    required: true,
-    enum: ['immediate', 'short', 'long', 'permanent']
-  },
-  uiTheme: {
-    type: 'string',
-    required: true,
-    enum: ['light', 'dark', 'auto']
-  }
-};
-```
-
-### 数据验证规则
-```typescript
-const EventLogSchema = {
-  timestamp: {
-    type: 'number',
-    required: true,
-    min: 0,
-    max: Date.now() + 86400000 // 不能超过当前时间+1天
-  },
-  eventType: {
-    type: 'string',
-    required: true,
-    enum: ['open_time_start', 'open_time_end', 'active_time_start', 'active_time_end', 'checkpoint']
-  },
-  tabId: {
-    type: 'number',
-    required: true,
-    min: 0
-  },
-  url: {
-    type: 'string',
-    required: true,
-    maxLength: 2048,
-    custom: 'validateURL'
-  },
-  visitId: {
-    type: 'string',
-    required: true,
-    pattern: /^[a-f0-9-]{36}$/ // UUID格式
-  }
-};
-```
-
-## 自定义验证器
-
-### URL验证器
-```typescript
-function validateURL(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    // 检查协议
-    if (!['http:', 'https:', 'chrome:', 'chrome-extension:'].includes(parsed.protocol)) {
-      return false;
-    }
-    // 检查主机名
-    if (parsed.protocol.startsWith('http') && !parsed.hostname) {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-```
-
-### 业务规则验证器
-```typescript
-function validateTimeRange(startTime: number, endTime: number): ValidationResult {
-  const errors: ValidationError[] = [];
-  
-  if (startTime >= endTime) {
-    errors.push({
-      field: 'timeRange',
-      code: 'INVALID_TIME_RANGE',
-      message: 'Start time must be before end time'
-    });
-  }
-  
-  const maxDuration = 24 * 60 * 60 * 1000; // 24小时
-  if (endTime - startTime > maxDuration) {
-    errors.push({
-      field: 'timeRange',
-      code: 'DURATION_TOO_LONG',
-      message: 'Time range cannot exceed 24 hours'
-    });
-  }
-  
-  return {
-    valid: errors.length === 0,
-    errors
-  };
-}
-```
-
-## 错误处理
-
-### 验证错误代码
-```typescript
-enum ValidationErrorCode {
-  REQUIRED_FIELD_MISSING = 'REQUIRED_FIELD_MISSING',
-  INVALID_TYPE = 'INVALID_TYPE',
-  INVALID_FORMAT = 'INVALID_FORMAT',
-  OUT_OF_RANGE = 'OUT_OF_RANGE',
-  INVALID_ENUM_VALUE = 'INVALID_ENUM_VALUE',
-  CUSTOM_VALIDATION_FAILED = 'CUSTOM_VALIDATION_FAILED'
-}
-```
-
-### 错误消息国际化
-```typescript
-const ValidationMessages = {
-  'zh-CN': {
-    REQUIRED_FIELD_MISSING: '必填字段缺失',
-    INVALID_TYPE: '数据类型不正确',
-    INVALID_FORMAT: '格式不正确',
-    OUT_OF_RANGE: '数值超出允许范围',
-    INVALID_ENUM_VALUE: '不是有效的选项值'
-  },
-  'en-US': {
-    REQUIRED_FIELD_MISSING: 'Required field is missing',
-    INVALID_TYPE: 'Invalid data type',
-    INVALID_FORMAT: 'Invalid format',
-    OUT_OF_RANGE: 'Value out of range',
-    INVALID_ENUM_VALUE: 'Invalid enum value'
-  }
-};
-```
-
-## 性能优化
-
-### 验证缓存
-- 缓存验证结果，避免重复验证
-- 智能缓存失效策略
-- 内存使用控制
-
-### 异步验证
-- 支持异步验证规则
-- 并发验证优化
-- 验证超时控制
-
-### 批量验证
-- 支持批量数据验证
-- 早期失败策略
-- 验证结果聚合
+### 性能与效率
+-   **异步验证**: 对于可能涉及 I/O 操作（如查询数据库进行唯一性校验）的复杂验证，应支持异步执行。
+-   **验证缓存 (可选)**: 对于不经常变化且验证成本较高的数据，可以考虑缓存验证结果。
+-   **批量验证**: 提供对数据集合进行批量验证的能力，并优化其性能。
+-   **短路验证 (Fail-Fast)**: 在某些场景下，可能需要在第一个验证错误发生时立即停止后续验证。
 
 ## 与其他模块的关系
-- **服务对象**：core/（业务数据验证）、services/database/（数据库数据验证）
-- **配置来源**：shared/config/（验证规则配置）
-- **错误处理**：shared/utils/（错误格式化和处理）
+-   **服务对象 (被依赖)**:
+    -   `core/*`: 核心业务逻辑层在处理数据前，会使用验证服务确保数据有效性。
+    -   `services/database/`: 在数据写入数据库前，可能会使用验证服务校验数据是否符合模式。
+    -   `entrypoints/*` 或 API 处理层: 在接收用户输入或 API 请求时，使用验证服务校验参数。
+-   **依赖**:
+    -   `models/schemas/`: 强依赖此目录中定义的各种数据模式作为验证规则的来源。
+    -   `shared/config/`: 可能依赖共享配置中的某些验证参数或开关。
+    -   `shared/utils/`: 可能使用通用的错误处理或国际化工具。
+    -   第三方验证库 (如 Zod, Ajv for JSON Schema)。

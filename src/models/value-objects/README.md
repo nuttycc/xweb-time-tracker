@@ -1,319 +1,62 @@
-# Value Objects 值对象目录
+# Value Objects 值对象
 
-## 目录职责
-定义应用中的值对象，这些对象没有唯一标识符，通过其属性值来定义相等性，通常是不可变的。
+## 模块职责
+本目录定义了应用中的值对象 (Value Objects)。值对象是没有唯一身份标识的领域对象，它们的相等性由其属性值决定，并且通常被设计为不可变的。它们封装了业务上有意义的、细粒度的概念或属性。
 
 ## 值对象特征
-- **无标识符**：通过属性值而非ID来识别
-- **不可变性**：一旦创建，内部状态不可改变
-- **值相等性**：两个值对象相等当且仅当所有属性值相等
-- **自包含验证**：包含自身的验证逻辑
+-   **无唯一标识 (No Identity)**：通过其包含的属性值来识别和比较，而非特定的 ID。
+-   **不可变性 (Immutability)**：一旦创建，其内部状态不应再改变。任何修改操作都应返回一个新的值对象实例。
+-   **值相等性 (Value Equality)**：如果两个值对象的所有属性值都相等，则这两个值对象相等。
+-   **自包含验证 (Self-Contained Validation)**：值对象在构造时应确保其内部状态的有效性，不满足业务规则则不允许创建。
+-   **封装行为 (Encapsulated Behavior)**：可以包含与其所代表的值相关的行为和计算逻辑。
 
 ## 文件结构
-```
+```typescript
 value-objects/
-├── README.md           # 本文档
-├── TimeSpan.ts         # 时间跨度值对象
-├── URL.ts             # URL值对象
-├── RetentionPolicy.ts  # 保留策略值对象
-├── UITheme.ts         # 界面主题值对象
-├── FilterRule.ts      # 过滤规则值对象
-└── index.ts           # 统一导出
+├── README.md             // 本文档
+├── TimeSpan.ts           // 表示时间跨度的值对象
+├── NormalizedURL.ts      // 表示经过验证和规范化的URL (原 URL.ts)
+├── RetentionPolicyType.ts// 表示数据保留策略类型的值对象 (原 RetentionPolicy.ts)
+├── UIThemeChoice.ts      // 表示界面主题选项的值对象 (原 UITheme.ts)
+├── FilterRuleDefinition.ts// 表示过滤规则定义的值对象 (原 FilterRule.ts)
+└── index.ts              // 统一导出模块内容
 ```
 
-## 核心值对象定义
+## 核心值对象示例 (概念性)
 
-### TimeSpan - 时间跨度值对象
-表示一段时间的长度，提供时间计算和格式化功能。
+-   **`TimeSpan`**:
+    *   **用途**: 表示一个时间长度（例如，以秒、分钟或小时为单位）。
+    *   **核心概念**: 封装时间数值，提供方便的单位转换（如 `totalSeconds`, `totalMinutes`）、格式化（如 `toHumanReadableString`）、以及与其他 `TimeSpan` 对象的比较和算术运算（如 `add`, `subtract`, `equals`）。
 
-```typescript
-class TimeSpan {
-  private readonly _totalSeconds: number;
-  
-  constructor(seconds: number) {
-    if (seconds < 0) {
-      throw new Error('Time span cannot be negative');
-    }
-    this._totalSeconds = Math.floor(seconds);
-  }
-  
-  // 静态工厂方法
-  static fromMinutes(minutes: number): TimeSpan {
-    return new TimeSpan(minutes * 60);
-  }
-  
-  static fromHours(hours: number): TimeSpan {
-    return new TimeSpan(hours * 3600);
-  }
-  
-  static fromDays(days: number): TimeSpan {
-    return new TimeSpan(days * 86400);
-  }
-  
-  // 访问器
-  get totalSeconds(): number { return this._totalSeconds; }
-  get totalMinutes(): number { return this._totalSeconds / 60; }
-  get totalHours(): number { return this._totalSeconds / 3600; }
-  get totalDays(): number { return this._totalSeconds / 86400; }
-  
-  // 格式化方法
-  toHumanReadable(): string {
-    const hours = Math.floor(this._totalSeconds / 3600);
-    const minutes = Math.floor((this._totalSeconds % 3600) / 60);
-    const seconds = this._totalSeconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}小时${minutes}分钟`;
-    } else if (minutes > 0) {
-      return `${minutes}分钟${seconds}秒`;
-    } else {
-      return `${seconds}秒`;
-    }
-  }
-  
-  // 运算方法
-  add(other: TimeSpan): TimeSpan {
-    return new TimeSpan(this._totalSeconds + other._totalSeconds);
-  }
-  
-  subtract(other: TimeSpan): TimeSpan {
-    return new TimeSpan(Math.max(0, this._totalSeconds - other._totalSeconds));
-  }
-  
-  // 比较方法
-  equals(other: TimeSpan): boolean {
-    return this._totalSeconds === other._totalSeconds;
-  }
-  
-  isGreaterThan(other: TimeSpan): boolean {
-    return this._totalSeconds > other._totalSeconds;
-  }
-}
-```
+-   **`NormalizedURL`**:
+    *   **用途**: 表示一个经过验证、解析和规范化的 URL。
+    *   **核心概念**: 构造时接收一个原始 URL 字符串，内部进行解析和规范化处理（如移除不必要的追踪参数、统一协议大小写等）。提供访问 URL 各组成部分（如 `hostname`, `pathname`, `protocol`, `parentDomain`）的便捷方法，并支持与其他 `NormalizedURL` 对象进行比较。
 
-### URL - URL值对象
-封装URL的解析、验证和规范化功能。
+-   **`RetentionPolicyType`**:
+    *   **用途**: 表示一个具体的数据保留策略选项（例如“保留7天”、“永久保留”）。
+    *   **核心概念**: 封装策略的类型（如 `IMMEDIATE`, `SHORT_TERM`, `PERMANENT`）及其对应的具体含义（如保留天数）。提供判断数据是否应被保留、计算过期日期等业务方法。
 
-```typescript
-class URLValue {
-  private readonly _original: string;
-  private readonly _parsed: URL;
-  private readonly _normalized: string;
-  
-  constructor(url: string) {
-    this._original = url;
-    
-    try {
-      this._parsed = new URL(url);
-    } catch (error) {
-      throw new Error(`Invalid URL: ${url}`);
-    }
-    
-    this._normalized = this.normalize();
-  }
-  
-  private normalize(): string {
-    // 移除跟踪参数
-    const cleanParams = new URLSearchParams();
-    for (const [key, value] of this._parsed.searchParams) {
-      if (!this.isTrackingParameter(key)) {
-        cleanParams.append(key, value);
-      }
-    }
-    
-    // 重建URL
-    const normalized = new URL(this._parsed.origin + this._parsed.pathname);
-    normalized.search = cleanParams.toString();
-    
-    return normalized.toString();
-  }
-  
-  private isTrackingParameter(param: string): boolean {
-    const trackingParams = ['utm_source', 'utm_medium', 'utm_campaign', 'fbclid', 'gclid'];
-    return trackingParams.includes(param.toLowerCase());
-  }
-  
-  // 访问器
-  get original(): string { return this._original; }
-  get normalized(): string { return this._normalized; }
-  get hostname(): string { return this._parsed.hostname; }
-  get pathname(): string { return this._parsed.pathname; }
-  get protocol(): string { return this._parsed.protocol; }
-  
-  // 域名提取
-  getParentDomain(): string {
-    // 使用PSL库提取父域名
-    return extractParentDomain(this.hostname);
-  }
-  
-  // 比较方法
-  equals(other: URLValue): boolean {
-    return this._normalized === other._normalized;
-  }
-  
-  isSameDomain(other: URLValue): boolean {
-    return this.getParentDomain() === other.getParentDomain();
-  }
-  
-  isSameHostname(other: URLValue): boolean {
-    return this.hostname === other.hostname;
-  }
-}
-```
+-   **`UIThemeChoice`**:
+    *   **用途**: 表示用户选择的界面主题（如“浅色”、“深色”、“跟随系统”）。
+    *   **核心概念**: 封装主题类型，并可能提供解析实际应用主题（例如，当选择“跟随系统”时，根据系统偏好决定具体主题）或生成相应 CSS 类名的方法。
 
-### RetentionPolicy - 保留策略值对象
-定义数据保留策略的业务规则和行为。
+-   **`FilterRuleDefinition`**:
+    *   **用途**: 表示一条用户定义的过滤规则（例如，排除某个域名或 URL 模式的追踪）。
+    *   **核心概念**: 封装规则的类型（如 `DOMAIN_EXCLUDE`, `URL_MATCH_EXCLUDE`）和规则的具体值（如域名字符串、URL 模式）。可能包含验证规则有效性或匹配特定 URL 的逻辑。
 
-```typescript
-enum RetentionPolicyType {
-  IMMEDIATE = 'immediate',      // 聚合后立即删除
-  SHORT = 'short',             // 短期保留
-  LONG = 'long',               // 长期保留
-  PERMANENT = 'permanent'       // 永久保留
-}
-
-class RetentionPolicy {
-  private readonly _type: RetentionPolicyType;
-  private readonly _retentionDays: number;
-  
-  constructor(type: RetentionPolicyType) {
-    this._type = type;
-    this._retentionDays = this.calculateRetentionDays(type);
-  }
-  
-  private calculateRetentionDays(type: RetentionPolicyType): number {
-    switch (type) {
-      case RetentionPolicyType.IMMEDIATE:
-        return 0;
-      case RetentionPolicyType.SHORT:
-        return 7;   // 7天
-      case RetentionPolicyType.LONG:
-        return 90;  // 90天
-      case RetentionPolicyType.PERMANENT:
-        return -1;  // 永久保留
-      default:
-        throw new Error(`Unknown retention policy type: ${type}`);
-    }
-  }
-  
-  // 访问器
-  get type(): RetentionPolicyType { return this._type; }
-  get retentionDays(): number { return this._retentionDays; }
-  get isPermanent(): boolean { return this._retentionDays === -1; }
-  get isImmediate(): boolean { return this._retentionDays === 0; }
-  
-  // 业务方法
-  shouldRetain(dataAge: TimeSpan): boolean {
-    if (this.isPermanent) return true;
-    if (this.isImmediate) return false;
-    
-    return dataAge.totalDays <= this._retentionDays;
-  }
-  
-  getExpirationDate(fromDate: Date = new Date()): Date | null {
-    if (this.isPermanent) return null;
-    if (this.isImmediate) return fromDate;
-    
-    const expiration = new Date(fromDate);
-    expiration.setDate(expiration.getDate() + this._retentionDays);
-    return expiration;
-  }
-  
-  // 描述方法
-  getDescription(): string {
-    switch (this._type) {
-      case RetentionPolicyType.IMMEDIATE:
-        return '聚合后立即删除原始数据';
-      case RetentionPolicyType.SHORT:
-        return `保留原始数据${this._retentionDays}天`;
-      case RetentionPolicyType.LONG:
-        return `保留原始数据${this._retentionDays}天`;
-      case RetentionPolicyType.PERMANENT:
-        return '永久保留所有原始数据';
-    }
-  }
-  
-  // 比较方法
-  equals(other: RetentionPolicy): boolean {
-    return this._type === other._type;
-  }
-  
-  isMoreRestrictive(other: RetentionPolicy): boolean {
-    if (this.isPermanent) return false;
-    if (other.isPermanent) return true;
-    return this._retentionDays < other._retentionDays;
-  }
-}
-```
-
-### UITheme - 界面主题值对象
-定义用户界面主题的配置和行为。
-
-```typescript
-enum UIThemeType {
-  LIGHT = 'light',
-  DARK = 'dark',
-  AUTO = 'auto'
-}
-
-class UITheme {
-  private readonly _type: UIThemeType;
-  
-  constructor(type: UIThemeType) {
-    this._type = type;
-  }
-  
-  get type(): UIThemeType { return this._type; }
-  
-  // 主题解析
-  resolveTheme(systemPreference: 'light' | 'dark' = 'light'): 'light' | 'dark' {
-    switch (this._type) {
-      case UIThemeType.LIGHT:
-        return 'light';
-      case UIThemeType.DARK:
-        return 'dark';
-      case UIThemeType.AUTO:
-        return systemPreference;
-    }
-  }
-  
-  // CSS类名生成
-  getCSSClass(): string {
-    return `theme-${this._type}`;
-  }
-  
-  // 描述方法
-  getDisplayName(): string {
-    switch (this._type) {
-      case UIThemeType.LIGHT:
-        return '浅色主题';
-      case UIThemeType.DARK:
-        return '深色主题';
-      case UIThemeType.AUTO:
-        return '跟随系统';
-    }
-  }
-  
-  equals(other: UITheme): boolean {
-    return this._type === other._type;
-  }
-}
-```
+*详细的类实现、构造函数、方法和属性请参考各自的 `.ts` 文件。*
 
 ## 值对象设计原则
-
-### 1. 不可变性
-所有属性都应该是只读的，状态变更通过创建新实例实现。
-
-### 2. 自验证
-在构造函数中进行完整的验证，确保对象始终处于有效状态。
-
-### 3. 丰富的行为
-提供与该值对象相关的所有业务行为和计算方法。
-
-### 4. 相等性比较
-实现基于值的相等性比较，而不是引用比较。
+1.  **不可变性 (Immutability)**：所有属性应为只读 (`readonly`)，任何修改操作都应返回新的实例。
+2.  **创建时验证 (Validation at Creation)**：在构造函数或工厂方法中进行完整的参数验证，确保对象始终处于有效状态。
+3.  **封装相关行为 (Rich Behavior)**：值对象应包含与其所代表的值相关的所有业务逻辑和计算方法。
+4.  **基于值的相等性 (Value-Based Equality)**：必须实现一个 `equals()` 方法（或其他比较方法），该方法基于对象的所有相关属性值进行比较，而非基于引用。
 
 ## 与其他模块的关系
-- **使用者**：models/entities/（实体模型）、core/（业务逻辑）
-- **依赖**：shared/utils/（工具函数）、shared/constants/（常量定义）
+-   **被使用于**:
+    -   `models/entities/`: 实体经常将值对象作为其属性，以封装和验证部分状态。
+    -   `core/`: 核心业务逻辑层会创建和使用值对象来执行计算和决策。
+    -   `services/`: 服务层可能在与外部系统交互或处理数据时使用值对象。
+-   **可能依赖**:
+    -   `shared/utils/`: 可能使用通用的工具函数（如字符串处理、日期处理）。
+    -   `shared/constants/`: 可能使用共享的常量定义。

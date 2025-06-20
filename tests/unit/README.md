@@ -1,189 +1,75 @@
 # Unit Tests 单元测试
 
-## 目录职责
-单元测试目录包含对单个组件、函数或类的独立测试，确保每个最小单元的功能正确性。
+## 模块职责
+本目录 (`tests/unit/`) 存放项目的所有单元测试代码。单元测试的目标是独立地验证应用中最小的可测试单元（如单个函数、类的方法、或 Vue 组件的某个特定行为）是否按预期正确工作。
 
-## 测试原则
+## 测试原则与特征
+-   **独立性 (Isolation)**: 每个单元测试应独立于其他测试运行，不应有共享状态或顺序依赖。被测单元的外部依赖通常需要被模拟 (mocked) 或存根 (stubbed)。
+-   **快速性 (Speed)**: 单元测试应执行得非常快（通常在毫秒级别），以便开发者可以频繁运行它们。
+-   **确定性 (Determinism)**: 给定相同的输入和相同的被测单元版本，单元测试应总是产生相同的结果。
+-   **单一职责 (Focus)**: 每个测试用例通常只验证被测单元的一个特定方面、一个逻辑路径或一个功能点。
+-   **测试范围**:
+    *   验证函数逻辑的正确性。
+    *   测试类的方法是否按预期行为。
+    *   覆盖各种输入（包括有效、无效和边界值）的处理。
+    *   确保错误处理机制按设计工作。
+    *   验证数据转换、计算和状态变更的准确性。
 
-### 单元测试特征
-- **独立性**: 每个测试独立运行，不依赖其他测试
-- **快速性**: 执行速度快，通常在毫秒级别
-- **确定性**: 相同输入总是产生相同输出
-- **单一职责**: 每个测试只验证一个功能点
-
-### 测试范围
-- 函数逻辑正确性
-- 类方法行为验证
-- 边界值处理
-- 错误处理机制
-- 数据转换和计算
-
-## 目录结构
-
+## 目录结构 (示例)
 ```
 unit/
-├── database/           # 数据库层单元测试
-│   ├── schemas.test.ts         # Schema定义和验证
-│   ├── db-manager.test.ts      # 数据库管理器
-│   ├── event-repository.test.ts # 事件仓库
-│   ├── stats-repository.test.ts # 统计仓库
-│   └── error-handler.test.ts   # 错误处理器
-├── core/              # 核心业务逻辑测试
-├── services/          # 服务层测试
-├── models/            # 模型层测试
-└── shared/            # 共享组件测试
+├── README.md                // 本文档
+├── core/                    // 核心业务逻辑 (src/core) 的单元测试
+│   └── analytics/
+│       └── aggregator.test.ts
+├── services/                // 服务层 (src/services) 的单元测试
+│   └── database/
+│       └── EventRepository.test.ts
+├── models/                  // 数据模型 (src/models) 的单元测试
+│   └── entities/
+│       └── TimeRecord.test.ts
+└── shared/                  // 共享工具和组件 (src/shared) 的单元测试
+    └── utils/
+        └── time-utils.test.ts
 ```
+*测试文件通常与被测试的源文件在结构上对应，并使用 `.test.ts` 或 `.spec.ts` 后缀。*
 
 ## 运行单元测试
-
 ```bash
-# 运行所有单元测试
+# (假设已有npm script) 运行所有单元测试
 npm run test:unit
 
-# 运行数据库单元测试
-npm run test:unit -- tests/unit/database
+# (示例) 运行特定模块的单元测试
+npm run test:unit -- tests/unit/core/
 
-# 运行特定测试文件
-npm run test:unit -- tests/unit/database/schemas.test.ts
+# (示例) 运行单个测试文件
+npm run test:unit -- tests/unit/core/analytics/aggregator.test.ts
 
-# 监视模式运行
+# (示例) 以监视模式运行，在文件变更时自动重跑测试
 npm run test:unit -- --watch
 ```
 
-## 编写规范
+## 编写规范与最佳实践
 
-### 测试文件命名
-- 文件名: `[模块名].test.ts`
-- 测试描述: 使用中文描述测试场景
-- 测试分组: 使用 `describe` 按功能分组
+### 核心原则
+-   **Arrange-Act-Assert (AAA)**: 结构化每个测试用例：首先设置测试所需的初始条件和输入 (Arrange)，然后执行被测操作 (Act)，最后验证结果是否符合预期 (Assert)。
+-   **清晰命名**: 测试文件和测试用例的描述 (`describe`, `it`) 应清晰、准确地表达被测试的内容和预期的行为。
+-   **模拟依赖**: 有效使用测试框架提供的模拟功能（如 Vitest 的 `vi.fn()`, `vi.mock()`）来隔离被测单元，控制外部依赖的行为，并验证交互。避免在单元测试中使用真实的数据库、网络请求或复杂的外部服务。
+-   **明确的测试数据**: 使用具体、有代表性的输入数据进行测试，避免使用随机或不确定的数据。
+-   **精确断言**: 使用尽可能精确的断言来验证结果，而不是模糊的 `toBeTruthy()`。
+-   **测试隔离**: 确保每个测试用例之间以及测试文件之间都是相互隔离的，一个测试的失败不应影响其他测试。使用 `beforeEach` 和 `afterEach` (或类似机制) 来设置和清理测试环境。
+-   **覆盖错误和边界情况**: 除了测试正常路径（happy path），还应特别关注错误处理逻辑和边界条件的测试。
 
-### 测试结构
-```typescript
-describe('模块名', () => {
-  describe('功能分组', () => {
-    it('应该[期望行为]', () => {
-      // Arrange - 准备测试数据
-      // Act - 执行被测试的操作
-      // Assert - 验证结果
-    });
-  });
-});
-```
+### 常见问题处理
+-   **异步代码**: 使用 `async/await` 或返回 `Promise` 的方式正确处理异步操作的测试。
+-   **错误抛出**: 使用测试框架提供的机制（如 `expect(...).toThrow()`) 来验证函数是否按预期抛出错误。
 
-### Mock和Stub
-- 使用 `vi.fn()` 创建模拟函数
-- 使用 `vi.mock()` 模拟模块
-- 避免真实的外部依赖（数据库、网络等）
-
-## 最佳实践
-
-### 1. 测试命名
-```typescript
-// ✅ 好的命名
-it('应该在输入有效数据时创建事件记录', () => {});
-it('应该在URL无效时抛出验证错误', () => {});
-
-// ❌ 避免的命名
-it('test create event', () => {});
-it('should work', () => {});
-```
-
-### 2. 测试数据
-```typescript
-// ✅ 使用明确的测试数据
-const validEvent = {
-  timestamp: 1640995200000, // 2022-01-01 00:00:00
-  eventType: 'open_time_start',
-  tabId: 123,
-  url: 'https://example.com'
-};
-
-// ❌ 避免随机或不明确的数据
-const event = { timestamp: Date.now(), ... };
-```
-
-### 3. 断言
-```typescript
-// ✅ 具体的断言
-expect(result.id).toBeTypeOf('number');
-expect(result.id).toBeGreaterThan(0);
-expect(result.eventType).toBe('open_time_start');
-
-// ❌ 模糊的断言
-expect(result).toBeTruthy();
-expect(result).toBeDefined();
-```
-
-### 4. 测试隔离
-```typescript
-describe('EventRepository', () => {
-  let repository: EventRepository;
-  
-  beforeEach(() => {
-    // 每个测试前重新初始化
-    repository = new EventRepository(mockDb);
-  });
-  
-  afterEach(() => {
-    // 清理测试数据
-    vi.clearAllMocks();
-  });
-});
-```
-
-## 覆盖率要求
-
-### 目标覆盖率
-- **行覆盖率**: ≥ 90%
-- **分支覆盖率**: ≥ 85%
-- **函数覆盖率**: ≥ 90%
-- **语句覆盖率**: ≥ 90%
-
-### 覆盖率检查
-```bash
-# 生成覆盖率报告
-npm run test:coverage -- tests/unit
-
-# 查看详细报告
-open coverage/index.html
-```
-
-## 常见问题
-
-### 1. 异步测试
-```typescript
-// ✅ 正确的异步测试
-it('应该异步创建事件', async () => {
-  const result = await repository.create(event);
-  expect(result).toBeTypeOf('number');
-});
-
-// ✅ Promise测试
-it('应该返回Promise', () => {
-  return expect(repository.create(event)).resolves.toBeTypeOf('number');
-});
-```
-
-### 2. 错误测试
-```typescript
-// ✅ 测试异常情况
-it('应该在无效输入时抛出错误', async () => {
-  await expect(repository.create(invalidEvent)).rejects.toThrow('Invalid URL');
-});
-```
-
-### 3. 模拟依赖
-```typescript
-// ✅ 模拟外部依赖
-const mockDb = {
-  events_log: {
-    add: vi.fn().mockResolvedValue(1),
-    get: vi.fn().mockResolvedValue(mockEvent)
-  }
-};
-```
+## 代码覆盖率
+-   项目致力于实现高水平的代码覆盖率，以确保大部分代码逻辑都经过测试。
+-   通过测试框架（如 Vitest 集成的 c8/istanbul）生成覆盖率报告，并定期审阅以识别未覆盖区域。
 
 ## 与其他测试的关系
-- **集成测试**: 单元测试通过后进行集成测试
-- **边界测试**: 单元测试覆盖正常情况，边界测试覆盖极限情况
-- **性能测试**: 单元测试确保功能正确，性能测试确保效率
+-   **基石**: 单元测试是测试金字塔的基础，为更高级别的测试（如集成测试、E2E 测试）提供信心。
+-   **快速反馈**: 由于执行速度快，单元测试是开发过程中获取代码质量反馈最快的方式。
+-   **辅助重构**: 良好的单元测试覆盖使得代码重构更加安全，因为它们可以快速验证重构是否破坏了现有功能。
+-   **文档作用**: 清晰的单元测试本身也可以作为被测单元使用方式的一种文档。

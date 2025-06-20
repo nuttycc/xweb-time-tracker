@@ -1,143 +1,67 @@
-# Database 数据库服务模块
+# Database 数据库服务
 
 ## 模块职责
-封装IndexedDB操作，为应用提供统一、类型安全的数据访问接口，处理数据库连接、事务管理和错误处理。
+本模块负责封装对 IndexedDB（或其他选定的持久化存储机制）的所有操作。它为应用程序提供一个统一、类型安全的数据访问层（通常通过 Repository 模式实现），并集中处理数据库连接管理、事务控制、数据迁移和底层错误处理。
 
 ## 功能范围
-
-### 核心功能
-- **数据库连接管理**：IndexedDB连接的创建、维护和关闭
-- **事务管理**：读写事务的统一管理和错误处理
-- **数据操作封装**：CRUD操作的类型安全封装
-- **数据库迁移**：版本升级时的数据库结构迁移
-
-### 数据表管理
-1. **events_log表**：原始事件日志的存储和查询
-2. **aggregated_stats表**：聚合统计数据的存储和查询
-3. **索引管理**：优化查询性能的索引创建和维护
+-   **核心功能**:
+    *   **数据库连接管理**: 创建、维护和关闭与 IndexedDB 的连接。
+    *   **事务管理**: 提供统一的读写事务控制，确保数据操作的原子性和一致性。
+    *   **数据操作封装 (CRUD)**: 为应用中定义的实体（如 `TimeRecord`, `UserConfig`）提供类型安全的创建、读取、更新和删除操作。
+    *   **数据库迁移**: 处理数据库版本升级时的模式 (schema) 变更和数据迁移逻辑。
+-   **主要数据存储**:
+    *   **原始事件日志 (`events_log`)**: 存储由追踪模块产生的原始时间追踪事件。
+    *   **聚合统计数据 (`aggregated_stats`)**: 存储经过分析模块处理和聚合后的统计信息。
+    *   **索引管理**: 为上述存储创建和维护必要的索引，以优化查询性能。
 
 ## 文件结构
-```
+```typescript
 database/
-├── README.md           # 本文档
-├── indexeddb.ts        # IndexedDB操作封装
-├── schemas.ts          # 数据库模式定义
-├── migrations.ts       # 数据库迁移逻辑
-├── transactions.ts     # 事务管理
-└── repositories.ts     # 数据仓库模式实现
+├── README.md           // 本文档
+├── db-manager.ts       // 数据库连接和版本管理 (可能包含原 indexeddb.ts 的部分功能)
+├── db-schemas.ts       // 数据库模式定义 (参考 models/schemas/database-schema.ts) (原 schemas.ts)
+├── db-migrations.ts    // 数据库版本迁移逻辑 (原 migrations.ts)
+├── transaction-manager.ts// 事务管理封装 (原 transactions.ts)
+└── repositories/       // 包含各个实体的数据仓库实现 (原 repositories.ts 可能是一个目录)
+    ├── EventLogRepository.ts
+    └── AggregatedStatsRepository.ts
+└── index.ts            // 统一导出服务接口和实现
 ```
 
-## 数据库设计
+## 数据库设计概述
+-   **数据库名称**: `webtime_tracker` (示例)
+-   **存储引擎**: IndexedDB
+-   **核心数据存储 (Object Stores / Tables)**:
+    *   `events_log`: 存储原始追踪事件，包含时间戳、事件类型、URL、会话ID等字段。关键索引可能包括 `timestamp`, `eventType`, `isProcessed`。
+    *   `aggregated_stats`: 存储每日聚合的时间统计数据，按日期和URL（或其组成部分）进行聚合。关键索引可能包括 `date`, `hostname`, `parentDomain`。
+    *   其他可能的存储：用户配置、应用状态等。
+-   详细的表结构和索引定义请参考 `models/schemas/database-schema.ts` 或本模块内的 `db-schemas.ts`。
 
-### 数据库信息
-- **数据库名称**：`webtime_tracker`
-- **当前版本**：1
-- **存储引擎**：IndexedDB
+## 服务接口概述 (Repository Pattern)
+本模块通常通过实现数据仓库（Repository）模式为上层提供服务。
+-   **事件日志仓库 (`EventLogRepository`)**: 提供针对原始事件日志的插入、批量插入、查询（如查询未处理事件）、更新（如标记为已处理）、按条件删除等操作。
+-   **聚合统计仓库 (`AggregatedStatsRepository`)**: 提供针对聚合统计数据的插入/更新 (upsert)、批量操作、以及按日期范围、主机名、父域名等条件的查询服务。
 
-### 表结构定义
-```typescript
-// events_log表结构
-interface EventLogRecord {
-  id?: number;              // 主键，自增
-  timestamp: number;        // 事件时间戳
-  eventType: EventType;     // 事件类型
-  tabId: number;           // 标签页ID
-  url: string;             // 完整URL
-  visitId: string;         // 访问会话ID
-  activityId: string | null; // 活动会话ID
-  isProcessed: 0 | 1;      // 是否已处理
-  resolution?: string;      // 特殊标记
-}
+## 关键设计考量
 
-// aggregated_stats表结构
-interface AggregatedStatsRecord {
-  key: string;             // 主键：日期:URL组合
-  date: string;            // 日期 YYYY-MM-DD
-  url: string;             // 完整URL
-  hostname: string;        // 主机名
-  parentDomain: string;    // 父域名
-  total_open_time: number; // 总打开时间
-  total_active_time: number; // 总活跃时间
-  last_updated: number;    // 最后更新时间
-}
-```
+### 错误处理
+-   **错误类型**: 定义特定的数据库错误类型，如连接失败、事务失败、配额超限、模式错误、迁移失败等。
+-   **处理策略**:
+    *   **连接/事务失败**: 实现有限次数的重试机制；对于关键写操作，确保事务回滚。
+    *   **配额超限**: 通知上层模块（如 `core/lifecycle`）触发数据清理机制。
+    *   **迁移失败**: 可能需要阻止应用启动，并提示用户或开发者介入。
 
-## 服务接口
-
-### 事件日志操作
-```typescript
-interface EventLogService {
-  // 插入单个事件
-  insertEvent(event: EventLogRecord): Promise<number>;
-  
-  // 批量插入事件
-  insertEvents(events: EventLogRecord[]): Promise<number[]>;
-  
-  // 查询未处理事件
-  getUnprocessedEvents(): Promise<EventLogRecord[]>;
-  
-  // 标记事件为已处理
-  markEventsProcessed(eventIds: number[]): Promise<void>;
-  
-  // 删除指定时间范围的事件
-  deleteEventsByDateRange(startDate: Date, endDate: Date): Promise<number>;
-}
-```
-
-### 聚合数据操作
-```typescript
-interface AggregatedStatsService {
-  // 插入或更新聚合数据
-  upsertStats(stats: AggregatedStatsRecord): Promise<void>;
-  
-  // 批量更新聚合数据
-  batchUpsertStats(statsList: AggregatedStatsRecord[]): Promise<void>;
-  
-  // 按日期范围查询
-  getStatsByDateRange(startDate: string, endDate: string): Promise<AggregatedStatsRecord[]>;
-  
-  // 按主机名查询
-  getStatsByHostname(hostname: string, dateRange?: [string, string]): Promise<AggregatedStatsRecord[]>;
-  
-  // 按父域名查询
-  getStatsByParentDomain(domain: string, dateRange?: [string, string]): Promise<AggregatedStatsRecord[]>;
-}
-```
-
-## 错误处理
-
-### 错误类型定义
-```typescript
-enum DatabaseErrorCode {
-  CONNECTION_FAILED = 'DB_CONNECTION_FAILED',
-  TRANSACTION_FAILED = 'DB_TRANSACTION_FAILED',
-  QUOTA_EXCEEDED = 'DB_QUOTA_EXCEEDED',
-  SCHEMA_ERROR = 'DB_SCHEMA_ERROR',
-  MIGRATION_FAILED = 'DB_MIGRATION_FAILED'
-}
-```
-
-### 错误处理策略
-- **连接错误**：重试机制，最多重试3次
-- **事务错误**：回滚事务，记录错误日志
-- **配额超限**：触发清理机制，通知上层处理
-- **迁移错误**：阻止应用启动，要求用户处理
-
-## 性能优化
-
-### 索引策略
-- **events_log表**：在`isProcessed`、`visitId`、`activityId`上建立索引
-- **aggregated_stats表**：在`date`、`hostname`、`parentDomain`上建立索引
-
-### 批量操作
-- 支持批量插入和更新，减少事务开销
-- 使用事务批处理提高写入性能
-
-### 查询优化
-- 合理使用索引，避免全表扫描
-- 分页查询支持，避免大结果集内存占用
+### 性能优化
+-   **索引策略**: 根据常见查询模式，在关键字段上创建有效的索引。
+-   **批量操作**: 提供批量插入、更新和删除的方法，以减少事务开销和提高吞吐量。
+-   **查询优化**: 编写高效的查询逻辑，避免全表扫描；对大数据集查询支持分页。
+-   **异步处理**: 所有数据库操作均为异步，避免阻塞主线程。
 
 ## 与其他模块的关系
-- **服务对象**：core/（为业务层提供数据访问）
-- **数据模型**：models/entities/（使用实体模型定义）
-- **配置依赖**：shared/config/（数据库配置参数）
+-   **服务对象 (被依赖)**:
+    -   `core/*`: 核心业务模块通过数据仓库接口与之交互，进行数据的持久化和检索。
+-   **依赖**:
+    -   `models/entities/`: 使用或操作在模型层定义的实体对象。
+    -   `models/schemas/database-schema.ts`: 依赖于此处定义的数据库结构。
+    -   `shared/config/`: 可能依赖共享配置中的数据库参数（如名称、版本）。
+    -   `shared/utils/`: 可能使用通用的错误处理或日志工具。

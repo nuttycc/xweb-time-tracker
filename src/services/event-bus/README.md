@@ -1,184 +1,60 @@
-# Event Bus 事件总线服务模块
+# Event Bus 事件总线服务
 
 ## 模块职责
-提供应用内统一的事件通信机制，支持模块间的松耦合通信，实现发布-订阅模式的事件系统。
+本模块提供应用内部统一的事件通信机制。它实现了发布-订阅 (Publish-Subscribe) 模式，允许应用的不同模块之间进行松耦合的异步通信。
 
-## 功能范围
-
-### 核心功能
-- **事件发布**：支持任意模块发布事件
-- **事件订阅**：支持模块订阅感兴趣的事件
-- **事件路由**：将事件准确路由到订阅者
-- **生命周期管理**：管理事件监听器的注册和注销
-
-### 事件类型支持
-1. **追踪事件**：时间追踪相关的业务事件
-2. **同步事件**：配置同步相关的事件
-3. **生命周期事件**：数据生命周期管理事件
-4. **系统事件**：应用系统级事件
+## 核心功能
+-   **事件发布 (Emit/Publish)**: 任何模块都可以发布（触发）一个事件。
+-   **事件订阅 (On/Subscribe)**: 模块可以订阅它们感兴趣的特定类型的事件。
+-   **事件路由 (Routing)**: 确保发布的事件被准确地传递给所有相关的订阅者。
+-   **监听器管理 (Listener Management)**: 管理事件监听器的注册、注销，并返回取消订阅的函数。
+-   **事件类型支持**: 支持应用中定义的各类事件，如领域事件 (来自 `core/`)、系统事件等。具体事件类型定义在 `models/events/` 目录下。
 
 ## 文件结构
-```
+```typescript
 event-bus/
-├── README.md           # 本文档
-├── emitter.ts          # 事件发射器实现
-├── types.ts           # 事件类型定义
-├── middleware.ts      # 事件中间件
-└── logger.ts          # 事件日志记录
+├── README.md         // 本文档
+├── event-emitter.ts  // 事件发射器的核心实现 (原 emitter.ts)
+├── event-types.ts    // 可能包含事件总线自身相关的类型或常量 (原 types.ts)
+├── middleware-support.ts// 事件处理中间件的支持逻辑 (原 middleware.ts)
+└── event-logger.ts   // 事件日志记录的特定实现或中间件 (原 logger.ts)
+└── index.ts          // 统一导出服务接口和实例
 ```
 
-## 事件系统设计
+## 事件系统设计概述
+-   **核心接口**: 事件总线通常提供以下核心方法：
+    *   `emit(event: IBaseEvent)`: 用于发布一个事件。
+    *   `on(eventType: string, handler: Function)`: 用于订阅指定类型的事件，并提供一个处理函数。返回一个取消订阅的函数。
+    *   `off(eventType: string, handler: Function)`: 用于取消特定的事件订阅。
+    *   `once(eventType: string, handler: Function)`: 订阅一次性事件。
+-   **事件对象**: 传递的事件对象遵循 `models/events/base-event.ts` 中定义的 `IBaseEvent` (或其派生接口如 `IDomainEvent`, `ISystemEvent`) 结构。
+-   **中间件 (Optional)**: 可能支持中间件机制，允许在事件发布或处理流程中注入自定义逻辑，如日志记录、事件验证、性能监控或错误捕获。
 
-### 事件接口定义
-```typescript
-interface BaseEvent {
-  type: string;           // 事件类型
-  timestamp: number;      // 事件时间戳
-  source: string;         // 事件来源模块
-  id: string;            // 事件唯一标识
-}
+## 关键设计考量
 
-interface EventHandler<T extends BaseEvent> {
-  (event: T): void | Promise<void>;
-}
-
-interface EventBus {
-  // 发布事件
-  emit<T extends BaseEvent>(event: T): void;
-  
-  // 订阅事件
-  on<T extends BaseEvent>(eventType: string, handler: EventHandler<T>): () => void;
-  
-  // 一次性订阅
-  once<T extends BaseEvent>(eventType: string, handler: EventHandler<T>): () => void;
-  
-  // 取消订阅
-  off(eventType: string, handler: EventHandler<any>): void;
-  
-  // 清除所有监听器
-  clear(): void;
-}
-```
-
-### 事件类型定义
-```typescript
-// 追踪事件
-interface TrackingEvent extends BaseEvent {
-  type: 'tracking.session.start' | 'tracking.session.end' | 'tracking.focus.change';
-  data: {
-    tabId: number;
-    url: string;
-    visitId?: string;
-    activityId?: string;
-  };
-}
-
-// 同步事件
-interface SyncEvent extends BaseEvent {
-  type: 'sync.config.updated' | 'sync.conflict.detected' | 'sync.status.changed';
-  data: {
-    configKey?: string;
-    oldValue?: any;
-    newValue?: any;
-    deviceId?: string;
-  };
-}
-
-// 生命周期事件
-interface LifecycleEvent extends BaseEvent {
-  type: 'lifecycle.policy.changed' | 'lifecycle.cleanup.started' | 'lifecycle.cleanup.completed';
-  data: {
-    policy?: string;
-    affectedRecords?: number;
-    cleanupResult?: any;
-  };
-}
-```
-
-## 事件中间件
-
-### 中间件接口
-```typescript
-interface EventMiddleware {
-  name: string;
-  process<T extends BaseEvent>(event: T, next: (event: T) => void): void;
-}
-```
-
-### 内置中间件
-1. **日志中间件**：记录所有事件的发布和处理
-2. **验证中间件**：验证事件格式和必要字段
-3. **性能中间件**：监控事件处理性能
-4. **错误处理中间件**：捕获和处理事件处理错误
-
-## 使用示例
-
-### 事件发布
-```typescript
-// 在追踪模块中发布事件
-eventBus.emit({
-  type: 'tracking.session.start',
-  timestamp: Date.now(),
-  source: 'core.tracking',
-  id: generateEventId(),
-  data: {
-    tabId: 123,
-    url: 'https://example.com',
-    visitId: 'visit-uuid-123'
-  }
-});
-```
-
-### 事件订阅
-```typescript
-// 在分析模块中订阅事件
-const unsubscribe = eventBus.on('tracking.session.start', (event) => {
-  console.log('New tracking session started:', event.data);
-  // 处理追踪会话开始逻辑
-});
-
-// 在组件销毁时取消订阅
-onUnmounted(() => {
-  unsubscribe();
-});
-```
-
-## 性能优化
-
-### 异步处理
-- 支持异步事件处理器
-- 并发控制，避免阻塞主线程
-- 错误隔离，单个处理器错误不影响其他处理器
+### 性能与异步处理
+-   支持异步事件处理器 (`async handler`)。
+-   事件处理通常是异步执行的，以避免阻塞事件发布者或事件总线本身。
+-   应考虑并发控制，避免因大量事件或耗时处理器导致性能问题。
+-   错误隔离：单个事件处理器的错误不应影响其他处理器的执行。
 
 ### 内存管理
-- 自动清理无效的事件监听器
-- 防止内存泄漏的监听器管理
-- 事件历史记录的限制和清理
+-   确保正确管理事件监听器的生命周期，尤其是在组件销毁或模块卸载时，必须取消相应的订阅，以防止内存泄漏。
+-   对于需要保留的事件历史记录（如用于调试），应有明确的限制和清理策略。
 
-### 调试支持
-- 事件流可视化
-- 性能分析工具
-- 错误追踪和报告
-
-## 错误处理
-
-### 错误类型
-```typescript
-enum EventBusErrorCode {
-  HANDLER_ERROR = 'EVENT_HANDLER_ERROR',
-  INVALID_EVENT = 'EVENT_INVALID_EVENT',
-  MIDDLEWARE_ERROR = 'EVENT_MIDDLEWARE_ERROR',
-  SUBSCRIPTION_ERROR = 'EVENT_SUBSCRIPTION_ERROR'
-}
-```
-
-### 错误处理策略
-- **处理器错误**：隔离错误，不影响其他处理器
-- **事件格式错误**：记录错误，丢弃无效事件
-- **中间件错误**：跳过错误中间件，继续处理
-- **订阅错误**：记录错误，清理无效订阅
+### 错误处理
+-   **处理器错误**: 事件总线应能捕获并处理在事件处理器内部抛出的异常，避免整个应用崩溃。通常会记录错误，并可能通知错误处理服务。
+-   **无效事件**: 对于不符合预定义格式或类型的事件，可以选择记录错误并丢弃，或通过特定的错误事件通知系统。
+-   **订阅/取消订阅错误**: 处理在订阅或取消订阅过程中可能发生的错误。
 
 ## 与其他模块的关系
-- **事件来源**：core/（业务事件）、services/chrome-api/（浏览器事件）
-- **事件消费**：所有模块都可以订阅和处理事件
-- **日志记录**：shared/utils/（事件日志工具）
+-   **事件来源 (Producers/Emitters)**:
+    -   `core/*`: 核心业务模块（如 tracking, sync, lifecycle）是主要的领域事件生产者。
+    -   `services/chrome-api/`: 可能将底层的浏览器事件转换为应用内部事件并发布。
+    -   其他服务或 UI 组件也可能发布事件。
+-   **事件消费者 (Consumers/Subscribers)**:
+    -   几乎所有模块都可以根据需要订阅和处理事件。
+    -   例如，UI 组件 (`entrypoints/*`) 可能订阅事件以更新视图，分析模块 (`core/analytics`) 可能订阅追踪事件进行处理。
+-   **依赖**:
+    -   `models/events/`: 强依赖此目录定义的标准事件接口和类型。
+    -   `shared/utils/`: 可能使用日志记录、错误处理等通用工具。
