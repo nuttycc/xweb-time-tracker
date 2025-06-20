@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   srcDir: 'src',
+  imports: false,
   modules: ['@wxt-dev/module-vue'],
   webExt: {
     disabled: true,

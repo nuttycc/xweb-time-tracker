@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["vitest/globals", "node"],
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "noEmit": true,
+    "isolatedModules": false
+  },
+  "include": ["./**/*", "./types/**/*.d.ts", "../src/**/*"],
+  "exclude": ["../node_modules", "../dist", "../.wxt/dist"]
+}
