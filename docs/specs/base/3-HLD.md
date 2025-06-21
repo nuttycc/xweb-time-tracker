@@ -253,5 +253,3 @@ interface DataCleanupInterface {
 }
 
 ```
-
----
