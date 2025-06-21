@@ -44,21 +44,22 @@ export const AggregatedStatsSchema = z.object({
   parentDomain: z.string().min(1),
 
   /**
-   * Accumulated open time in seconds
+   * Accumulated open time in seconds (integer values only)
    */
-  total_open_time: z.number().nonnegative(),
+  total_open_time: z.number().int().nonnegative(),
 
   /**
-   * Accumulated active time in seconds
+   * Accumulated active time in seconds (integer values only)
    */
-  total_active_time: z.number().nonnegative(),
+  total_active_time: z.number().int().nonnegative(),
 
   /**
    * Last update timestamp (Unix timestamp in milliseconds from Date.now())
    * Key dependency for FR-4C smart merge logic implementation
    * Must be Unix timestamp as per project rules
+   * Minimum value ensures timestamp is in milliseconds (not seconds)
    */
-  last_updated: z.number().int().positive(),
+  last_updated: z.number().int().min(1000000000000, 'Timestamp must be in milliseconds (Unix timestamp >= 1000000000000)'),
 });
 
 /**
@@ -73,7 +74,7 @@ export const CreateAggregatedStatsSchema = AggregatedStatsSchema.omit({
   last_updated: true,
 }).extend({
   // last_updated will be automatically set by Dexie hooks
-  last_updated: z.number().int().positive().optional(),
+  last_updated: z.number().int().min(1000000000000, 'Timestamp must be in milliseconds (Unix timestamp >= 1000000000000)').optional(),
 });
 
 /**
@@ -101,7 +102,7 @@ export const UpsertAggregatedStatsSchema = AggregatedStatsSchema.omit({
   last_updated: true,
 }).extend({
   // last_updated is optional for upsert, will be managed by hooks
-  last_updated: z.number().int().positive().optional(),
+  last_updated: z.number().int().min(1000000000000, 'Timestamp must be in milliseconds (Unix timestamp >= 1000000000000)').optional(),
 });
 
 /**

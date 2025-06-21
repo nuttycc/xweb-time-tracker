@@ -5,6 +5,7 @@
  * This file is executed before all tests run.
  */
 
+import { expect, beforeEach, afterEach } from 'vitest';
 import 'fake-indexeddb/auto';
 
 // Global test configuration
@@ -16,7 +17,7 @@ beforeEach(() => {
     databases.forEach(dbName => {
       try {
         indexedDB.deleteDatabase(dbName);
-      } catch (error) {
+      } catch (_error) {
         // Ignore errors during cleanup
       }
     });
@@ -27,13 +28,11 @@ afterEach(() => {
   // Additional cleanup after each test if needed
 });
 
-// Global test utilities
-declare global {
-  namespace Vi {
-    interface AsymmetricMatchersContaining {
-      toBeValidUUID(): any;
-      toBeValidTimestamp(): any;
-    }
+// Global test utilities - Vitest custom matcher types
+declare module "vitest" {
+  interface Matchers {
+    toBeValidUUID(): void;
+    toBeValidTimestamp(): void;
   }
 }
 

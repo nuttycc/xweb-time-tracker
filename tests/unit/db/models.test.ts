@@ -8,18 +8,13 @@ import { describe, it, expect } from 'vitest';
 import {
   EventsLogSchema,
   CreateEventsLogSchema,
-  UpdateEventsLogSchema,
   EventsLogValidation,
   AggregatedStatsSchema,
   CreateAggregatedStatsSchema,
-  UpdateAggregatedStatsSchema,
-  UpsertAggregatedStatsSchema,
   DateRangeQuerySchema,
   AggregatedStatsValidation,
   EventTypeSchema,
-  ResolutionTypeSchema,
-  type EventsLogRecord,
-  type AggregatedStatsRecord
+  ResolutionTypeSchema
 } from '@/db/models';
 
 describe('EventsLog Model Validation', () => {
@@ -72,9 +67,39 @@ describe('EventsLog Model Validation', () => {
     });
 
     it('should allow optional resolution', () => {
-      const { resolution, ...dataWithoutResolution } = validEventsLogData;
+      const { resolution: _resolution, ...dataWithoutResolution } = validEventsLogData;
       const result = EventsLogSchema.safeParse(dataWithoutResolution);
       expect(result.success).toBe(true);
+    });
+
+    it('should reject timestamp in seconds (too small)', () => {
+      // Unix timestamp in seconds (10 digits) should be rejected
+      const invalidData = { ...validEventsLogData, timestamp: 1735000000 }; // 2024 in seconds
+      const result = EventsLogSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+
+      if (!result.success) {
+        expect(result.error.issues[0].message).toContain('Timestamp must be in milliseconds');
+      }
+    });
+
+    it('should accept valid timestamp in milliseconds', () => {
+      // Unix timestamp in milliseconds (13 digits) should be accepted
+      const validData = { ...validEventsLogData, timestamp: 1735000000000 }; // 2024 in milliseconds
+      const result = EventsLogSchema.safeParse(validData);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject negative timestamp', () => {
+      const invalidData = { ...validEventsLogData, timestamp: -1000000000000 };
+      const result = EventsLogSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject zero timestamp', () => {
+      const invalidData = { ...validEventsLogData, timestamp: 0 };
+      const result = EventsLogSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
     });
   });
 
@@ -91,10 +116,10 @@ describe('EventsLog Model Validation', () => {
 
       const result = CreateEventsLogSchema.safeParse(createData);
       expect(result.success).toBe(true);
-      
+
       if (result.success) {
         expect(result.data.isProcessed).toBe(0); // Default value
-        expect(result.data.id).toBeUndefined(); // Should not have ID
+        expect('id' in result.data).toBe(false); // Should not have ID field
       }
     });
   });
@@ -160,8 +185,78 @@ describe('AggregatedStats Model Validation', () => {
       expect(result.success).toBe(false);
     });
 
+    it('should reject float values for total_open_time', () => {
+      const invalidData = { ...validAggregatedStatsData, total_open_time: 3600.5 };
+      const result = AggregatedStatsSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+
+      if (!result.success) {
+        expect(result.error.issues[0].message).toContain('expected int');
+      }
+    });
+
+    it('should reject float values for total_active_time', () => {
+      const invalidData = { ...validAggregatedStatsData, total_active_time: 1800.7 };
+      const result = AggregatedStatsSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+
+      if (!result.success) {
+        expect(result.error.issues[0].message).toContain('expected int');
+      }
+    });
+
+    it('should accept integer values for time fields', () => {
+      const validData = {
+        ...validAggregatedStatsData,
+        total_open_time: 3600,
+        total_active_time: 1800
+      };
+      const result = AggregatedStatsSchema.safeParse(validData);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept zero values for time fields', () => {
+      const validData = {
+        ...validAggregatedStatsData,
+        total_open_time: 0,
+        total_active_time: 0
+      };
+      const result = AggregatedStatsSchema.safeParse(validData);
+      expect(result.success).toBe(true);
+    });
+
     it('should reject invalid URL', () => {
       const invalidData = { ...validAggregatedStatsData, url: 'not-a-url' };
+      const result = AggregatedStatsSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject last_updated timestamp in seconds (too small)', () => {
+      // Unix timestamp in seconds (10 digits) should be rejected
+      const invalidData = { ...validAggregatedStatsData, last_updated: 1735000000 }; // 2024 in seconds
+      const result = AggregatedStatsSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+
+      if (!result.success) {
+        expect(result.error.issues[0].message).toContain('Timestamp must be in milliseconds');
+      }
+    });
+
+    it('should accept valid last_updated timestamp in milliseconds', () => {
+      // Unix timestamp in milliseconds (13 digits) should be accepted
+      const validData = { ...validAggregatedStatsData, last_updated: 1735000000000 }; // 2024 in milliseconds
+      const result = AggregatedStatsSchema.safeParse(validData);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject negative last_updated timestamp', () => {
+      const invalidData = { ...validAggregatedStatsData, last_updated: -1000000000000 };
+      const result = AggregatedStatsSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject zero last_updated timestamp', () => {
+      const invalidData = { ...validAggregatedStatsData, last_updated: 0 };
       const result = AggregatedStatsSchema.safeParse(invalidData);
       expect(result.success).toBe(false);
     });
@@ -197,6 +292,45 @@ describe('AggregatedStats Model Validation', () => {
 
       const result = CreateAggregatedStatsSchema.safeParse(createData);
       expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid last_updated timestamp in creation schema', () => {
+      const createData = {
+        key: '2023-12-25:https://example.com/path',
+        date: '2023-12-25',
+        url: 'https://example.com/path',
+        hostname: 'example.com',
+        parentDomain: 'example.com',
+        total_open_time: 3600,
+        total_active_time: 1800,
+        last_updated: 1735000000 // Invalid: seconds instead of milliseconds
+      };
+
+      const result = CreateAggregatedStatsSchema.safeParse(createData);
+      expect(result.success).toBe(false);
+
+      if (!result.success) {
+        expect(result.error.issues[0].message).toContain('Timestamp must be in milliseconds');
+      }
+    });
+
+    it('should reject float values for time fields in creation schema', () => {
+      const createData = {
+        key: '2023-12-25:https://example.com/path',
+        date: '2023-12-25',
+        url: 'https://example.com/path',
+        hostname: 'example.com',
+        parentDomain: 'example.com',
+        total_open_time: 3600.5, // Invalid: float value
+        total_active_time: 1800
+      };
+
+      const result = CreateAggregatedStatsSchema.safeParse(createData);
+      expect(result.success).toBe(false);
+
+      if (!result.success) {
+        expect(result.error.issues[0].message).toContain('expected int');
+      }
     });
   });
 

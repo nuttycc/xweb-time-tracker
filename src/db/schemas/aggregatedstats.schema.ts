@@ -5,6 +5,8 @@
  * The table stores final computed statistics for query and display.
  */
 
+import { parseISO, isValid } from 'date-fns';
+
 /**
  * Aggregated stats table record interface
  *
@@ -112,8 +114,12 @@ export function generateAggregatedStatsKeyForToday(url: string, timestamp?: numb
 /**
  * Utility function to parse primary key into date and URL components
  *
+ * Validates that the date portion is a valid YYYY-MM-DD format date using date-fns.
+ * This ensures data integrity by rejecting keys with invalid dates like "9999-99-99".
+ *
  * @param key - Primary key in format "YYYY-MM-DD:full_url"
  * @returns Object with date and url properties
+ * @throws Error if key format is invalid or date is not a valid YYYY-MM-DD date
  */
 export function parseAggregatedStatsKey(key: string): { date: string; url: string } {
   const colonIndex = key.indexOf(':');
@@ -122,8 +128,17 @@ export function parseAggregatedStatsKey(key: string): { date: string; url: strin
     throw new Error(`Invalid aggregated stats key format: ${key}`);
   }
 
+  const dateStr = key.substring(0, colonIndex);
+
+  // Validate that the date string is a valid YYYY-MM-DD date
+  // parseISO is optimized for ISO 8601 format (YYYY-MM-DD is a subset)
+  const parsedDate = parseISO(dateStr);
+  if (!isValid(parsedDate)) {
+    throw new Error(`Invalid date in key: ${dateStr}`);
+  }
+
   return {
-    date: key.substring(0, colonIndex),
+    date: dateStr,
     url: key.substring(colonIndex + 1),
   };
 }

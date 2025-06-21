@@ -18,21 +18,45 @@ import {
 
 describe('Database Schema Configuration', () => {
   let db: WebTimeTrackerDB;
+  let testDbName: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Use unique database name for each test to ensure isolation
+    testDbName = `WebTimeTracker_Test_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+
+    // Clean up any existing database with this name (unlikely but safe)
+    try {
+      await WebTimeTrackerDB.delete(testDbName);
+    } catch (_error) {
+      // Ignore errors if database doesn't exist
+    }
+
     db = new WebTimeTrackerDB();
+    // Override the database name for testing
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any).name = testDbName;
   });
 
   afterEach(async () => {
+    // Ensure proper cleanup for test isolation
     if (db.isOpen()) {
-      await db.close();
+      db.close();
+    }
+
+    // Delete the test database to ensure complete cleanup
+    try {
+      await WebTimeTrackerDB.delete(testDbName);
+    } catch (_error) {
+      // Ignore cleanup errors in tests
+      console.warn(`Failed to cleanup test database ${testDbName}:`, _error);
     }
   });
 
   it('should have correct database name and version', () => {
     expect(DATABASE_NAME).toBe('WebTimeTracker');
     expect(DATABASE_VERSION).toBe(1);
-    expect(db.name).toBe(DATABASE_NAME);
+    // Note: In tests, we use a unique database name for isolation
+    expect(db.name).toBe(testDbName);
   });
 
   it('should define eventslog table with correct schema', async () => {
@@ -84,12 +108,42 @@ describe('Database Schema Configuration', () => {
 
   it('should have correct table count', async () => {
     await db.open();
-    
+
     expect(db.tables.length).toBe(2);
-    
+
     const tableNames = db.tables.map(table => table.name);
     expect(tableNames).toContain('eventslog');
     expect(tableNames).toContain('aggregatedstats');
+  });
+
+  it('should handle database operations gracefully', async () => {
+    // Test that database can be opened and closed multiple times
+    await db.open();
+    expect(db.isOpen()).toBe(true);
+
+    db.close();
+    expect(db.isOpen()).toBe(false);
+
+    // Should be able to reopen
+    await db.open();
+    expect(db.isOpen()).toBe(true);
+  });
+
+  it('should maintain schema integrity after reopen', async () => {
+    await db.open();
+    const initialSchema = {
+      eventslogPrimKey: db.eventslog.schema.primKey.name,
+      aggregatedstatsPrimKey: db.aggregatedstats.schema.primKey.name,
+      tableCount: db.tables.length
+    };
+
+    db.close();
+    await db.open();
+
+    // Schema should remain consistent
+    expect(db.eventslog.schema.primKey.name).toBe(initialSchema.eventslogPrimKey);
+    expect(db.aggregatedstats.schema.primKey.name).toBe(initialSchema.aggregatedstatsPrimKey);
+    expect(db.tables.length).toBe(initialSchema.tableCount);
   });
 });
 
@@ -150,6 +204,45 @@ describe('Schema Utility Functions', () => {
       expect(() => parseAggregatedStatsKey('invalid-key')).toThrow('Invalid aggregated stats key format');
       expect(() => parseAggregatedStatsKey('2023-12-25')).toThrow('Invalid aggregated stats key format');
       expect(() => parseAggregatedStatsKey('23-12-25:url')).toThrow('Invalid aggregated stats key format');
+    });
+
+    it('should throw error for invalid dates', () => {
+      // Invalid month
+      expect(() => parseAggregatedStatsKey('2023-13-01:url')).toThrow('Invalid date in key: 2023-13-01');
+
+      // Invalid day
+      expect(() => parseAggregatedStatsKey('2023-02-30:url')).toThrow('Invalid date in key: 2023-02-30');
+
+      // Invalid day for April (only 30 days)
+      expect(() => parseAggregatedStatsKey('2023-04-31:url')).toThrow('Invalid date in key: 2023-04-31');
+
+      // Invalid leap year date
+      expect(() => parseAggregatedStatsKey('2023-02-29:url')).toThrow('Invalid date in key: 2023-02-29');
+
+      // Completely invalid date format (but correct length)
+      expect(() => parseAggregatedStatsKey('abcd-ef-gh:url')).toThrow('Invalid date in key: abcd-ef-gh');
+    });
+
+    it('should accept valid leap year dates', () => {
+      // 2024 is a leap year
+      const key = '2024-02-29:https://example.com/path';
+      const parsed = parseAggregatedStatsKey(key);
+
+      expect(parsed.date).toBe('2024-02-29');
+      expect(parsed.url).toBe('https://example.com/path');
+    });
+
+    it('should accept edge case valid dates', () => {
+      // Last day of months with 31 days
+      expect(() => parseAggregatedStatsKey('2023-01-31:url')).not.toThrow();
+      expect(() => parseAggregatedStatsKey('2023-03-31:url')).not.toThrow();
+      expect(() => parseAggregatedStatsKey('2023-12-31:url')).not.toThrow();
+
+      // Last day of February in non-leap year
+      expect(() => parseAggregatedStatsKey('2023-02-28:url')).not.toThrow();
+
+      // First day of year
+      expect(() => parseAggregatedStatsKey('2023-01-01:url')).not.toThrow();
     });
   });
 });

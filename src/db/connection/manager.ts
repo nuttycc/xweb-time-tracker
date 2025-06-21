@@ -5,7 +5,35 @@
  * providing health checks, error handling, and connection lifecycle management.
  */
 
+import { retry } from 'es-toolkit/function';
 import { WebTimeTrackerDB, DATABASE_NAME, DATABASE_VERSION } from '../schemas';
+
+/**
+ * Database factory interface for dependency injection
+ */
+export interface DatabaseFactory {
+  create(): WebTimeTrackerDB;
+}
+
+/**
+ * Default database factory implementation
+ */
+export class DefaultDatabaseFactory implements DatabaseFactory {
+  create(): WebTimeTrackerDB {
+    return new WebTimeTrackerDB();
+  }
+}
+
+/**
+ * Mock database factory for testing
+ */
+export class MockDatabaseFactory implements DatabaseFactory {
+  constructor(private mockDb: WebTimeTrackerDB) {}
+
+  create(): WebTimeTrackerDB {
+    return this.mockDb;
+  }
+}
 
 /**
  * Database connection states
@@ -50,10 +78,12 @@ export class DatabaseConnectionManager {
   private state: ConnectionState = ConnectionState.CLOSED;
   private lastError: Error | null = null;
   private healthCheckTimer: number | null = null;
-  private retryAttempts = 0;
   private readonly options: Required<ConnectionManagerOptions>;
 
-  constructor(options: ConnectionManagerOptions = {}) {
+  constructor(
+    options: ConnectionManagerOptions = {},
+    private dbFactory: DatabaseFactory = new DefaultDatabaseFactory()
+  ) {
     this.options = {
       autoOpen: true,
       healthCheckInterval: 30000, // 30 seconds
@@ -62,7 +92,7 @@ export class DatabaseConnectionManager {
       ...options,
     };
 
-    this.db = new WebTimeTrackerDB();
+    this.db = this.dbFactory.create();
     this.setupEventHandlers();
   }
 
@@ -76,7 +106,6 @@ export class DatabaseConnectionManager {
       if (this.state !== ConnectionState.OPEN) {
         this.state = ConnectionState.OPEN;
         this.lastError = null;
-        this.retryAttempts = 0;
         this.startHealthCheck();
       }
     });
@@ -101,7 +130,7 @@ export class DatabaseConnectionManager {
   }
 
   /**
-   * Open database connection
+   * Open database connection with exponential backoff retry
    *
    * @returns Promise that resolves when database is successfully opened
    */
@@ -118,31 +147,71 @@ export class DatabaseConnectionManager {
     this.state = ConnectionState.OPENING;
 
     try {
-      await this.db.open();
-
-      // Manually set state to OPEN after successful open
-      // Note: ready event might not fire again for existing subscribers
-      this.state = ConnectionState.OPEN;
-      this.lastError = null;
-      this.retryAttempts = 0;
-      this.startHealthCheck();
-    } catch (error) {
-      this.state = ConnectionState.FAILED;
-      this.lastError = error as Error;
-
-      // Attempt retry if configured
-      if (this.retryAttempts < this.options.maxRetryAttempts) {
-        this.retryAttempts++;
-        console.warn(
-          `Database open failed, retrying (${this.retryAttempts}/${this.options.maxRetryAttempts})...`
+      // Handle special case: maxRetryAttempts = 0 means "try once, no retries"
+      // es-toolkit retry with retries: 0 doesn't execute the function at all
+      if (this.options.maxRetryAttempts === 0) {
+        await this.attemptDatabaseOpen();
+      } else {
+        // Use es-toolkit retry with exponential backoff
+        await retry(
+          () => this.attemptDatabaseOpen(),
+          {
+            retries: this.options.maxRetryAttempts,
+            delay: (attempts) => this.calculateRetryDelay(attempts)
+          }
         );
-
-        await new Promise(resolve => setTimeout(resolve, this.options.retryDelay));
-        return this.open();
       }
-
+    } catch (error) {
+      this.handleFinalFailure(error as Error);
       throw error;
     }
+  }
+
+  /**
+   * Attempt to open the database connection
+   *
+   * @private
+   */
+  private async attemptDatabaseOpen(): Promise<void> {
+    await this.db.open();
+    this.handleOpenSuccess();
+  }
+
+  /**
+   * Handle successful database open
+   *
+   * @private
+   */
+  private handleOpenSuccess(): void {
+    // Manually set state to OPEN after successful open
+    // Note: ready event might not fire again for existing subscribers
+    this.state = ConnectionState.OPEN;
+    this.lastError = null;
+    this.startHealthCheck();
+  }
+
+  /**
+   * Handle final failure after all retry attempts
+   *
+   * @private
+   * @param error - The final error
+   */
+  private handleFinalFailure(error: Error): void {
+    this.state = ConnectionState.FAILED;
+    this.lastError = error;
+  }
+
+  /**
+   * Calculate retry delay using exponential backoff
+   *
+   * @private
+   * @param attempts - Number of retry attempts made
+   * @returns Delay in milliseconds
+   */
+  private calculateRetryDelay(attempts: number): number {
+    // Exponential backoff: baseDelay * 2^attempts with max cap of 10 seconds
+    const exponentialDelay = this.options.retryDelay * Math.pow(2, attempts);
+    return Math.min(exponentialDelay, 10000);
   }
 
   /**
@@ -229,7 +298,7 @@ export class DatabaseConnectionManager {
       return; // Already running
     }
 
-    this.healthCheckTimer = window.setInterval(async () => {
+    this.healthCheckTimer = setInterval(async () => {
       const health = await this.performHealthCheck();
 
       if (!health.isHealthy && this.state === ConnectionState.FAILED) {
@@ -240,7 +309,7 @@ export class DatabaseConnectionManager {
           console.error('Database recovery failed:', error);
         }
       }
-    }, this.options.healthCheckInterval);
+    }, this.options.healthCheckInterval) as unknown as number;
   }
 
   /**
@@ -296,5 +365,16 @@ export class DatabaseConnectionManager {
 
 /**
  * Singleton instance of the database connection manager
+ * Uses default factory in production
  */
 export const connectionManager = new DatabaseConnectionManager();
+
+/**
+ * Factory function for creating test instances
+ */
+export function createTestConnectionManager(
+  options: ConnectionManagerOptions = {},
+  dbFactory?: DatabaseFactory
+): DatabaseConnectionManager {
+  return new DatabaseConnectionManager(options, dbFactory);
+}
