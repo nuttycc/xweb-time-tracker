@@ -1,6 +1,6 @@
 /**
  * Database Connection Module
- * 
+ *
  * This module provides database connection management, health monitoring,
  * and high-level service interfaces for the WebTime Tracker application.
  */
@@ -11,7 +11,7 @@ export {
   ConnectionState,
   connectionManager,
   type HealthCheckResult,
-  type ConnectionManagerOptions
+  type ConnectionManagerOptions,
 } from './manager';
 
 // Export database service
@@ -19,7 +19,7 @@ export {
   DatabaseService,
   databaseService,
   type DatabaseOperationOptions,
-  type TransactionCallback
+  type TransactionCallback,
 } from './service';
 
 // Re-export database schemas for convenience

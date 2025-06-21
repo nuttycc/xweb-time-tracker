@@ -48,11 +48,7 @@ export function aggregatedStatsUpdatingHook(
  * Type definitions for Dexie hook functions
  * These ensure proper typing when registering hooks
  */
-export type DexieCreatingHook<T, TKey> = (
-  primKey: TKey,
-  obj: T,
-  trans: Transaction
-) => void;
+export type DexieCreatingHook<T, TKey> = (primKey: TKey, obj: T, trans: Transaction) => void;
 
 export type DexieUpdatingHook<T, TKey> = (
   modifications: Partial<T>,

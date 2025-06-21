@@ -1,20 +1,13 @@
 import Dexie, { type EntityTable } from 'dexie';
 
 // Import schema definitions
-import {
-  type EventsLogRecord,
-  EVENTSLOG_SCHEMA,
-  EVENTSLOG_TABLE_NAME
-} from './eventslog.schema';
+import { type EventsLogRecord, EVENTSLOG_SCHEMA, EVENTSLOG_TABLE_NAME } from './eventslog.schema';
 import {
   type AggregatedStatsRecord,
   AGGREGATEDSTATS_SCHEMA,
-  AGGREGATEDSTATS_TABLE_NAME
+  AGGREGATEDSTATS_TABLE_NAME,
 } from './aggregatedstats.schema';
-import {
-  aggregatedStatsCreatingHook,
-  aggregatedStatsUpdatingHook
-} from './hooks';
+import { aggregatedStatsCreatingHook, aggregatedStatsUpdatingHook } from './hooks';
 
 /**
  * Database name constant
@@ -49,7 +42,7 @@ export class WebTimeTrackerDB extends Dexie {
       [EVENTSLOG_TABLE_NAME]: EVENTSLOG_SCHEMA,
 
       // Aggregated stats table with composite primary key and indexes
-      [AGGREGATEDSTATS_TABLE_NAME]: AGGREGATEDSTATS_SCHEMA
+      [AGGREGATEDSTATS_TABLE_NAME]: AGGREGATEDSTATS_SCHEMA,
     });
 
     // Register hooks for automatic metadata management

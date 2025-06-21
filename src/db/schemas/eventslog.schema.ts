@@ -1,6 +1,6 @@
 /**
  * Events Log Schema Definition
- * 
+ *
  * This file defines the schema for the eventslog table based on LLD specification.
  * The table stores raw domain events as the source of truth for the system.
  */
@@ -8,9 +8,9 @@
 /**
  * Event type enumeration based on LLD specification
  */
-export type EventType = 
+export type EventType =
   | 'open_time_start'
-  | 'open_time_end' 
+  | 'open_time_end'
   | 'active_time_start'
   | 'active_time_end'
   | 'checkpoint';
@@ -22,7 +22,7 @@ export type ResolutionType = 'crash_recovery';
 
 /**
  * Events log table record interface
- * 
+ *
  * Based on LLD section 3.2 events_log table structure
  */
 export interface EventsLogRecord {
@@ -77,7 +77,7 @@ export interface EventsLogRecord {
 
 /**
  * Dexie schema string for eventslog table
- * 
+ *
  * Schema breakdown:
  * - ++id: Auto-increment primary key
  * - isProcessed: Index for fast query of unprocessed events

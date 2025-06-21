@@ -1,6 +1,6 @@
 /**
  * Database Models Module
- * 
+ *
  * This module provides Zod v4 schemas and TypeScript types for all database models,
  * ensuring type safety and runtime validation throughout the application.
  */
@@ -15,7 +15,7 @@ export {
   EventsLogValidation,
   type EventsLogRecord,
   type CreateEventsLogRecord,
-  type UpdateEventsLogRecord
+  type UpdateEventsLogRecord,
 } from './eventslog.model';
 
 // Export AggregatedStats model
@@ -30,7 +30,7 @@ export {
   type CreateAggregatedStatsRecord,
   type UpdateAggregatedStatsRecord,
   type UpsertAggregatedStatsRecord,
-  type DateRangeQuery
+  type DateRangeQuery,
 } from './aggregatedstats.model';
 
 // Re-export Zod for convenience

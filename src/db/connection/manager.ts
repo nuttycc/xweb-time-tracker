@@ -1,6 +1,6 @@
 /**
  * Database Connection Manager
- * 
+ *
  * This file implements the database connection management layer for Dexie,
  * providing health checks, error handling, and connection lifecycle management.
  */
@@ -12,10 +12,10 @@ import { WebTimeTrackerDB, DATABASE_NAME, DATABASE_VERSION } from '../schemas';
  */
 export enum ConnectionState {
   CLOSED = 'closed',
-  OPENING = 'opening', 
+  OPENING = 'opening',
   OPEN = 'open',
   FAILED = 'failed',
-  BLOCKED = 'blocked'
+  BLOCKED = 'blocked',
 }
 
 /**
@@ -41,7 +41,7 @@ export interface ConnectionManagerOptions {
 
 /**
  * Database Connection Manager Class
- * 
+ *
  * Manages the lifecycle of the Dexie database connection with health monitoring,
  * error handling, and automatic recovery capabilities.
  */
@@ -59,7 +59,7 @@ export class DatabaseConnectionManager {
       healthCheckInterval: 30000, // 30 seconds
       maxRetryAttempts: 3,
       retryDelay: 1000, // 1 second
-      ...options
+      ...options,
     };
 
     this.db = new WebTimeTrackerDB();
@@ -102,7 +102,7 @@ export class DatabaseConnectionManager {
 
   /**
    * Open database connection
-   * 
+   *
    * @returns Promise that resolves when database is successfully opened
    */
   async open(): Promise<void> {
@@ -116,30 +116,31 @@ export class DatabaseConnectionManager {
     }
 
     this.state = ConnectionState.OPENING;
-    
+
     try {
       await this.db.open();
-      
+
       // Manually set state to OPEN after successful open
       // Note: ready event might not fire again for existing subscribers
       this.state = ConnectionState.OPEN;
       this.lastError = null;
       this.retryAttempts = 0;
       this.startHealthCheck();
-      
     } catch (error) {
       this.state = ConnectionState.FAILED;
       this.lastError = error as Error;
-      
+
       // Attempt retry if configured
       if (this.retryAttempts < this.options.maxRetryAttempts) {
         this.retryAttempts++;
-        console.warn(`Database open failed, retrying (${this.retryAttempts}/${this.options.maxRetryAttempts})...`);
-        
+        console.warn(
+          `Database open failed, retrying (${this.retryAttempts}/${this.options.maxRetryAttempts})...`
+        );
+
         await new Promise(resolve => setTimeout(resolve, this.options.retryDelay));
         return this.open();
       }
-      
+
       throw error;
     }
   }
@@ -179,11 +180,11 @@ export class DatabaseConnectionManager {
     if (this.options.autoOpen && this.state !== ConnectionState.OPEN) {
       await this.open();
     }
-    
+
     if (this.state !== ConnectionState.OPEN) {
       throw new Error('Database is not open. Call open() first or enable autoOpen.');
     }
-    
+
     return this.db;
   }
 
@@ -196,19 +197,19 @@ export class DatabaseConnectionManager {
       state: this.state,
       version: null,
       lastError: this.lastError,
-      lastChecked: Date.now()
+      lastChecked: Date.now(),
     };
 
     try {
       if (this.state === ConnectionState.OPEN) {
         // Check if database is actually accessible
         result.version = this.db.verno;
-        
+
         // Perform a simple read operation to verify connectivity
         await this.db.transaction('r', [], () => {
           // Empty transaction just to test database accessibility
         });
-        
+
         result.isHealthy = true;
       }
     } catch (error) {
@@ -230,7 +231,7 @@ export class DatabaseConnectionManager {
 
     this.healthCheckTimer = window.setInterval(async () => {
       const health = await this.performHealthCheck();
-      
+
       if (!health.isHealthy && this.state === ConnectionState.FAILED) {
         console.warn('Database health check failed, attempting recovery...');
         try {
@@ -280,7 +281,7 @@ export class DatabaseConnectionManager {
     return {
       name: DATABASE_NAME,
       version: DATABASE_VERSION,
-      state: this.state
+      state: this.state,
     };
   }
 

@@ -1,13 +1,13 @@
 /**
  * Aggregated Stats Schema Definition
- * 
+ *
  * This file defines the schema for the aggregatedstats table based.
  * The table stores final computed statistics for query and display.
  */
 
 /**
  * Aggregated stats table record interface
- * 
+ *
  * Based on LLD section 3.3 aggregated_stats table structure
  */
 export interface AggregatedStatsRecord {
@@ -60,7 +60,7 @@ export interface AggregatedStatsRecord {
 
 /**
  * Dexie schema string for aggregatedstats table
- * 
+ *
  * Schema breakdown:
  * - key: Primary key (composite format: date:url)
  * - date: Index for date-based queries
@@ -111,18 +111,19 @@ export function generateAggregatedStatsKeyForToday(url: string, timestamp?: numb
 
 /**
  * Utility function to parse primary key into date and URL components
- * 
+ *
  * @param key - Primary key in format "YYYY-MM-DD:full_url"
  * @returns Object with date and url properties
  */
 export function parseAggregatedStatsKey(key: string): { date: string; url: string } {
   const colonIndex = key.indexOf(':');
-  if (colonIndex === -1 || colonIndex !== 10) { // YYYY-MM-DD is 10 characters
+  if (colonIndex === -1 || colonIndex !== 10) {
+    // YYYY-MM-DD is 10 characters
     throw new Error(`Invalid aggregated stats key format: ${key}`);
   }
-  
+
   return {
     date: key.substring(0, colonIndex),
-    url: key.substring(colonIndex + 1)
+    url: key.substring(colonIndex + 1),
   };
 }

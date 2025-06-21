@@ -1,6 +1,6 @@
 /**
  * Events Log Model Definition
- * 
+ *
  * This file defines the Zod v4 schema and TypeScript types for the eventslog table,
  * providing runtime validation and type inference for domain events.
  */
@@ -12,22 +12,20 @@ import { z } from 'zod/v4';
  */
 export const EventTypeSchema = z.enum([
   'open_time_start',
-  'open_time_end', 
+  'open_time_end',
   'active_time_start',
   'active_time_end',
-  'checkpoint'
+  'checkpoint',
 ]);
 
 /**
  * Resolution type enumeration schema for special event source markers
  */
-export const ResolutionTypeSchema = z.enum([
-  'crash_recovery'
-]);
+export const ResolutionTypeSchema = z.enum(['crash_recovery']);
 
 /**
  * Events log record Zod schema
- * 
+ *
  * Based on LLD section 3.2 events_log table structure
  */
 export const EventsLogSchema = z.object({
@@ -78,7 +76,7 @@ export const EventsLogSchema = z.object({
    * Optional special event source marker
    * Used for events like crash recovery
    */
-  resolution: ResolutionTypeSchema.optional()
+  resolution: ResolutionTypeSchema.optional(),
 });
 
 /**
@@ -89,12 +87,12 @@ export type EventsLogRecord = z.infer<typeof EventsLogSchema>;
 /**
  * Input type for creating new events (without auto-generated fields)
  */
-export const CreateEventsLogSchema = EventsLogSchema.omit({ 
+export const CreateEventsLogSchema = EventsLogSchema.omit({
   id: true,
-  isProcessed: true 
+  isProcessed: true,
 }).extend({
   // isProcessed defaults to 0 (unprocessed) for new events
-  isProcessed: z.literal(0).default(0)
+  isProcessed: z.literal(0).default(0),
 });
 
 /**
@@ -107,7 +105,7 @@ export type CreateEventsLogRecord = z.infer<typeof CreateEventsLogSchema>;
  */
 export const UpdateEventsLogSchema = EventsLogSchema.partial().extend({
   // ID is required for updates
-  id: z.number().int().positive()
+  id: z.number().int().positive(),
 });
 
 /**
@@ -159,5 +157,5 @@ export const EventsLogValidation = {
    */
   safeValidateUpdate: (data: unknown) => {
     return UpdateEventsLogSchema.safeParse(data);
-  }
+  },
 };

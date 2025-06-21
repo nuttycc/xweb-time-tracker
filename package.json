@@ -23,7 +23,6 @@
     "test:integration": "vitest run tests/integration tests/database",
     "test:boundary": "vitest run tests/boundary",
     "test:performance": "vitest run tests/performance",
-    "test:database": "vitest run tests/database",
     "test:watch": "vitest --watch",
     "test:bench": "vitest bench",
     "postinstall": "wxt prepare",

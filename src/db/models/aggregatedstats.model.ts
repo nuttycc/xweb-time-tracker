@@ -1,6 +1,6 @@
 /**
  * Aggregated Stats Model Definition
- * 
+ *
  * This file defines the Zod v4 schema and TypeScript types for the aggregatedstats table,
  * providing runtime validation and type inference for aggregated statistics.
  */
@@ -9,7 +9,7 @@ import { z } from 'zod/v4';
 
 /**
  * Aggregated stats record Zod schema
- * 
+ *
  * Based on LLD section 3.3 aggregated_stats table structure
  */
 export const AggregatedStatsSchema = z.object({
@@ -58,7 +58,7 @@ export const AggregatedStatsSchema = z.object({
    * Key dependency for FR-4C smart merge logic implementation
    * Must be Unix timestamp as per project rules
    */
-  last_updated: z.number().int().positive()
+  last_updated: z.number().int().positive(),
 });
 
 /**
@@ -69,11 +69,11 @@ export type AggregatedStatsRecord = z.infer<typeof AggregatedStatsSchema>;
 /**
  * Input type for creating new aggregated stats (without auto-managed fields)
  */
-export const CreateAggregatedStatsSchema = AggregatedStatsSchema.omit({ 
-  last_updated: true 
+export const CreateAggregatedStatsSchema = AggregatedStatsSchema.omit({
+  last_updated: true,
 }).extend({
   // last_updated will be automatically set by Dexie hooks
-  last_updated: z.number().int().positive().optional()
+  last_updated: z.number().int().positive().optional(),
 });
 
 /**
@@ -86,7 +86,7 @@ export type CreateAggregatedStatsRecord = z.infer<typeof CreateAggregatedStatsSc
  */
 export const UpdateAggregatedStatsSchema = AggregatedStatsSchema.partial().extend({
   // Key is required for updates
-  key: z.string().regex(/^\d{4}-\d{2}-\d{2}:.+$/, 'Key must be in format YYYY-MM-DD:url')
+  key: z.string().regex(/^\d{4}-\d{2}-\d{2}:.+$/, 'Key must be in format YYYY-MM-DD:url'),
 });
 
 /**
@@ -97,11 +97,11 @@ export type UpdateAggregatedStatsRecord = z.infer<typeof UpdateAggregatedStatsSc
 /**
  * Schema for upsert operations (insert or update)
  */
-export const UpsertAggregatedStatsSchema = AggregatedStatsSchema.omit({ 
-  last_updated: true 
+export const UpsertAggregatedStatsSchema = AggregatedStatsSchema.omit({
+  last_updated: true,
 }).extend({
   // last_updated is optional for upsert, will be managed by hooks
-  last_updated: z.number().int().positive().optional()
+  last_updated: z.number().int().positive().optional(),
 });
 
 /**
@@ -112,13 +112,14 @@ export type UpsertAggregatedStatsRecord = z.infer<typeof UpsertAggregatedStatsSc
 /**
  * Query schema for date range queries
  */
-export const DateRangeQuerySchema = z.object({
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be in YYYY-MM-DD format'),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be in YYYY-MM-DD format')
-}).refine(
-  (data) => data.startDate <= data.endDate,
-  { message: 'Start date must be less than or equal to end date' }
-);
+export const DateRangeQuerySchema = z
+  .object({
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be in YYYY-MM-DD format'),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be in YYYY-MM-DD format'),
+  })
+  .refine(data => data.startDate <= data.endDate, {
+    message: 'Start date must be less than or equal to end date',
+  });
 
 /**
  * TypeScript type for date range queries
@@ -197,5 +198,5 @@ export const AggregatedStatsValidation = {
    */
   safeValidateDateRange: (data: unknown) => {
     return DateRangeQuerySchema.safeParse(data);
-  }
+  },
 };
