@@ -1,7 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: false
----
-1. 当涉及到任何`Zod-v4`和`dexie`的 API 或问题时，必须严格遵守多重验证规则,即充分利用工具来确认API用法。一定要调用`deepwiki`的`ask_questions`进行2+次询问(英语提问),同时辅以`read_wiki`和其它工具(web,context7.etc.)。总之必须多方面对照验证保证100%正确无误。
-2.对于其它库也要积极调用`deepwiki`工具多`ask`和`read`
