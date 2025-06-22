@@ -1,26 +1,18 @@
 /**
  * Database Operations Integration Tests
- * 
+ *
  * Tests for complete database operations including schema validation,
  * connection management, and hook function execution.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { 
-  WebTimeTrackerDB,
-  generateAggregatedStatsKey,
-  getUtcDateString
-} from '@/db/schemas';
-import {
-  DatabaseConnectionManager,
-  ConnectionState,
-  DatabaseService
-} from '@/db/connection';
+import { WebTimeTrackerDB, generateAggregatedStatsKey, getUtcDateString } from '@/db/schemas';
+import { DatabaseConnectionManager, ConnectionState, DatabaseService } from '@/db/connection';
 import {
   EventsLogValidation,
   AggregatedStatsValidation,
   type CreateEventsLogRecord,
-  type CreateAggregatedStatsRecord
+  type CreateAggregatedStatsRecord,
 } from '@/db/models';
 
 // Mock the connection manager module for Database Service Integration tests
@@ -34,8 +26,8 @@ vi.mock('@/db/connection/manager', async () => {
       getDatabaseInfo: vi.fn(),
       open: vi.fn(),
       close: vi.fn(),
-      destroy: vi.fn()
-    }
+      destroy: vi.fn(),
+    },
   };
 });
 
@@ -45,13 +37,13 @@ describe('Database Operations Integration', () => {
 
   beforeEach(async () => {
     // Create fresh connection manager for isolated testing
-    connectionManager = new DatabaseConnectionManager({ 
+    connectionManager = new DatabaseConnectionManager({
       autoOpen: true,
       healthCheckInterval: 1000, // Longer interval for testing
       maxRetryAttempts: 2,
-      retryDelay: 100
+      retryDelay: 100,
     });
-    
+
     // Get database through connection manager for unified management
     db = await connectionManager.getDatabase();
   });
@@ -72,7 +64,7 @@ describe('Database Operations Integration', () => {
         url: 'https://example.com/test',
         visitId: '550e8400-e29b-41d4-a716-446655440000',
         activityId: '550e8400-e29b-41d4-a716-446655440001',
-        isProcessed: 0
+        isProcessed: 0,
       };
 
       // Validate data before insertion
@@ -103,7 +95,7 @@ describe('Database Operations Integration', () => {
           url: 'https://example.com/test1',
           visitId: '550e8400-e29b-41d4-a716-446655440000',
           activityId: null,
-          isProcessed: 0 as const
+          isProcessed: 0 as const,
         },
         {
           timestamp: Date.now(),
@@ -112,17 +104,14 @@ describe('Database Operations Integration', () => {
           url: 'https://example.com/test2',
           visitId: '550e8400-e29b-41d4-a716-446655440001',
           activityId: null,
-          isProcessed: 1 as const
-        }
+          isProcessed: 1 as const,
+        },
       ];
 
       await db.eventslog.bulkAdd(events);
 
       // Query unprocessed events
-      const unprocessed = await db.eventslog
-        .where('isProcessed')
-        .equals(0)
-        .toArray();
+      const unprocessed = await db.eventslog.where('isProcessed').equals(0).toArray();
 
       expect(unprocessed).toHaveLength(1);
       expect(unprocessed[0].url).toBe('https://example.com/test1');
@@ -137,7 +126,7 @@ describe('Database Operations Integration', () => {
         url: 'https://example.com/update-test',
         visitId: '550e8400-e29b-41d4-a716-446655440002',
         activityId: null,
-        isProcessed: 0 as const
+        isProcessed: 0 as const,
       };
 
       const id = await db.eventslog.add(eventData);
@@ -160,18 +149,18 @@ describe('Database Operations Integration', () => {
         hostname: 'example.com',
         parentDomain: 'example.com',
         total_open_time: 3600,
-        total_active_time: 1800
+        total_active_time: 1800,
       };
 
       // Validate data before insertion
       const validatedData = AggregatedStatsValidation.validateCreate(statsData);
 
       const beforeInsert = Date.now();
-      
+
       // Insert record (hooks should set last_updated automatically)
       await db.aggregatedstats.add({
         ...validatedData,
-        last_updated: Date.now() // Explicitly set for test consistency
+        last_updated: Date.now(), // Explicitly set for test consistency
       });
 
       const afterInsert = Date.now();
@@ -181,7 +170,7 @@ describe('Database Operations Integration', () => {
       expect(retrieved).toBeDefined();
       expect(retrieved!.key).toBe(statsData.key);
       expect(retrieved!.total_open_time).toBe(3600);
-      
+
       // Verify hook set last_updated
       expect(retrieved!.last_updated).toBeGreaterThanOrEqual(beforeInsert);
       expect(retrieved!.last_updated).toBeLessThanOrEqual(afterInsert);
@@ -197,7 +186,7 @@ describe('Database Operations Integration', () => {
         parentDomain: 'example.com',
         total_open_time: 1800,
         total_active_time: 900,
-        last_updated: initialTimestamp
+        last_updated: initialTimestamp,
       };
 
       await db.aggregatedstats.add(statsData);
@@ -208,9 +197,9 @@ describe('Database Operations Integration', () => {
       const beforeUpdate = Date.now();
 
       // Update record (hooks should update last_updated automatically)
-      await db.aggregatedstats.update(statsData.key, { 
+      await db.aggregatedstats.update(statsData.key, {
         total_open_time: 3600,
-        total_active_time: 2400
+        total_active_time: 2400,
       });
 
       const afterUpdate = Date.now();
@@ -220,7 +209,7 @@ describe('Database Operations Integration', () => {
       expect(updated).toBeDefined();
       expect(updated!.total_open_time).toBe(3600);
       expect(updated!.total_active_time).toBe(2400);
-      
+
       // Verify hook updated last_updated (with generous timing tolerance)
       const timeTolerance = 100; // 100ms tolerance for timing precision
       expect(updated!.last_updated).toBeGreaterThanOrEqual(beforeUpdate - timeTolerance);
@@ -241,7 +230,7 @@ describe('Database Operations Integration', () => {
           parentDomain: 'example.com',
           total_open_time: 1800,
           total_active_time: 900,
-          last_updated: Date.now()
+          last_updated: Date.now(),
         },
         {
           key: generateAggregatedStatsKey(yesterday, 'https://example.com/yesterday'),
@@ -251,17 +240,14 @@ describe('Database Operations Integration', () => {
           parentDomain: 'example.com',
           total_open_time: 3600,
           total_active_time: 1800,
-          last_updated: Date.now()
-        }
+          last_updated: Date.now(),
+        },
       ];
 
       await db.aggregatedstats.bulkAdd(statsData);
 
       // Query today's stats
-      const todayStats = await db.aggregatedstats
-        .where('date')
-        .equals(today)
-        .toArray();
+      const todayStats = await db.aggregatedstats.where('date').equals(today).toArray();
 
       expect(todayStats).toHaveLength(1);
       expect(todayStats[0].url).toBe('https://example.com/today');
@@ -292,7 +278,7 @@ describe('Database Operations Integration', () => {
         url: 'https://example.com/managed',
         visitId: '550e8400-e29b-41d4-a716-446655440003',
         activityId: '550e8400-e29b-41d4-a716-446655440004',
-        isProcessed: 0 as const
+        isProcessed: 0 as const,
       };
 
       const id = await managedDb.eventslog.add(eventData);
@@ -301,7 +287,7 @@ describe('Database Operations Integration', () => {
       // Test close functionality
       connectionManager.close();
       expect(connectionManager.getState()).toBe(ConnectionState.CLOSED);
-      
+
       // Test reopen functionality - verify database is accessible after reopening
       await connectionManager.open();
       const reopenedDb = await connectionManager.getDatabase();
@@ -327,8 +313,10 @@ describe('Database Operations Integration', () => {
   describe('Database Service Integration', () => {
     beforeEach(async () => {
       // Setup the mocked connectionManager to return our test instance
-      const { connectionManager: mockedConnectionManager } = await import('@/db/connection/manager');
-      
+      const { connectionManager: mockedConnectionManager } = await import(
+        '@/db/connection/manager'
+      );
+
       vi.mocked(mockedConnectionManager.getDatabase).mockResolvedValue(db);
       vi.mocked(mockedConnectionManager.performHealthCheck).mockResolvedValue(
         await connectionManager.performHealthCheck()
@@ -338,7 +326,9 @@ describe('Database Operations Integration', () => {
       );
       vi.mocked(mockedConnectionManager.open).mockResolvedValue(undefined);
       vi.mocked(mockedConnectionManager.close).mockImplementation(() => connectionManager.close());
-      vi.mocked(mockedConnectionManager.destroy).mockImplementation(() => connectionManager.destroy());
+      vi.mocked(mockedConnectionManager.destroy).mockImplementation(() =>
+        connectionManager.destroy()
+      );
     });
 
     afterEach(() => {
@@ -349,7 +339,7 @@ describe('Database Operations Integration', () => {
     it('should execute operations through database service', async () => {
       const service = new DatabaseService();
 
-      const result = await service.execute(async (db) => {
+      const result = await service.execute(async db => {
         const eventData = {
           timestamp: Date.now(),
           eventType: 'open_time_end' as const,
@@ -357,7 +347,7 @@ describe('Database Operations Integration', () => {
           url: 'https://example.com/service',
           visitId: '550e8400-e29b-41d4-a716-446655440005',
           activityId: null,
-          isProcessed: 0 as const
+          isProcessed: 0 as const,
         };
 
         return await db.eventslog.add(eventData);
@@ -370,36 +360,36 @@ describe('Database Operations Integration', () => {
     it('should execute transactions through database service', async () => {
       const service = new DatabaseService();
 
-      const result = await service.writeTransaction(
-        ['eventslog', 'aggregatedstats'],
-        async (db) => {
-          // Insert event
-          const eventId = await db.eventslog.add({
-            timestamp: Date.now(),
-            eventType: 'checkpoint' as const,
-            tabId: 111,
-            url: 'https://example.com/transaction',
-            visitId: '550e8400-e29b-41d4-a716-446655440006',
-            activityId: null,
-            isProcessed: 0 as const
-          });
+      const result = await service.writeTransaction(['eventslog', 'aggregatedstats'], async db => {
+        // Insert event
+        const eventId = await db.eventslog.add({
+          timestamp: Date.now(),
+          eventType: 'checkpoint' as const,
+          tabId: 111,
+          url: 'https://example.com/transaction',
+          visitId: '550e8400-e29b-41d4-a716-446655440006',
+          activityId: null,
+          isProcessed: 0 as const,
+        });
 
-          // Insert stats
-          const statsKey = generateAggregatedStatsKey(getUtcDateString(), 'https://example.com/transaction');
-          await db.aggregatedstats.add({
-            key: statsKey,
-            date: getUtcDateString(),
-            url: 'https://example.com/transaction',
-            hostname: 'example.com',
-            parentDomain: 'example.com',
-            total_open_time: 600,
-            total_active_time: 300,
-            last_updated: Date.now()
-          });
+        // Insert stats
+        const statsKey = generateAggregatedStatsKey(
+          getUtcDateString(),
+          'https://example.com/transaction'
+        );
+        await db.aggregatedstats.add({
+          key: statsKey,
+          date: getUtcDateString(),
+          url: 'https://example.com/transaction',
+          hostname: 'example.com',
+          parentDomain: 'example.com',
+          total_open_time: 600,
+          total_active_time: 300,
+          last_updated: Date.now(),
+        });
 
-          return { eventId, statsKey };
-        }
-      );
+        return { eventId, statsKey };
+      });
 
       expect(result.eventId).toBeDefined();
       expect(result.statsKey).toBeDefined();

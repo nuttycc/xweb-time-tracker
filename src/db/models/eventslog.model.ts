@@ -39,7 +39,10 @@ export const EventsLogSchema = z.object({
    * Must be Unix timestamp as per project rules
    * Minimum value ensures timestamp is in milliseconds (not seconds)
    */
-  timestamp: z.number().int().min(1000000000000, 'Timestamp must be in milliseconds (Unix timestamp >= 1000000000000)'),
+  timestamp: z
+    .number()
+    .int()
+    .min(1000000000000, 'Timestamp must be in milliseconds (Unix timestamp >= 1000000000000)'),
 
   /**
    * Event type enumeration

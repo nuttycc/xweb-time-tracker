@@ -77,7 +77,7 @@ export class DatabaseConnectionManager {
   private db: WebTimeTrackerDB;
   private state: ConnectionState = ConnectionState.CLOSED;
   private lastError: Error | null = null;
-  private healthCheckTimer: number | null = null;
+  private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
   private readonly options: Required<ConnectionManagerOptions>;
 
   constructor(
@@ -153,13 +153,10 @@ export class DatabaseConnectionManager {
         await this.attemptDatabaseOpen();
       } else {
         // Use es-toolkit retry with exponential backoff
-        await retry(
-          () => this.attemptDatabaseOpen(),
-          {
-            retries: this.options.maxRetryAttempts,
-            delay: (attempts) => this.calculateRetryDelay(attempts)
-          }
-        );
+        await retry(() => this.attemptDatabaseOpen(), {
+          retries: this.options.maxRetryAttempts,
+          delay: attempts => this.calculateRetryDelay(attempts),
+        });
       }
     } catch (error) {
       this.handleFinalFailure(error as Error);
@@ -309,7 +306,7 @@ export class DatabaseConnectionManager {
           console.error('Database recovery failed:', error);
         }
       }
-    }, this.options.healthCheckInterval) as unknown as number;
+    }, this.options.healthCheckInterval);
   }
 
   /**

@@ -59,7 +59,10 @@ export const AggregatedStatsSchema = z.object({
    * Must be Unix timestamp as per project rules
    * Minimum value ensures timestamp is in milliseconds (not seconds)
    */
-  last_updated: z.number().int().min(1000000000000, 'Timestamp must be in milliseconds (Unix timestamp >= 1000000000000)'),
+  last_updated: z
+    .number()
+    .int()
+    .min(1000000000000, 'Timestamp must be in milliseconds (Unix timestamp >= 1000000000000)'),
 });
 
 /**
@@ -74,7 +77,11 @@ export const CreateAggregatedStatsSchema = AggregatedStatsSchema.omit({
   last_updated: true,
 }).extend({
   // last_updated will be automatically set by Dexie hooks
-  last_updated: z.number().int().min(1000000000000, 'Timestamp must be in milliseconds (Unix timestamp >= 1000000000000)').optional(),
+  last_updated: z
+    .number()
+    .int()
+    .min(1000000000000, 'Timestamp must be in milliseconds (Unix timestamp >= 1000000000000)')
+    .optional(),
 });
 
 /**
@@ -102,7 +109,11 @@ export const UpsertAggregatedStatsSchema = AggregatedStatsSchema.omit({
   last_updated: true,
 }).extend({
   // last_updated is optional for upsert, will be managed by hooks
-  last_updated: z.number().int().min(1000000000000, 'Timestamp must be in milliseconds (Unix timestamp >= 1000000000000)').optional(),
+  last_updated: z
+    .number()
+    .int()
+    .min(1000000000000, 'Timestamp must be in milliseconds (Unix timestamp >= 1000000000000)')
+    .optional(),
 });
 
 /**

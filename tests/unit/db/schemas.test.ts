@@ -1,19 +1,19 @@
 /**
  * Database Schemas Unit Tests
- * 
+ *
  * Tests for database schema definitions, table structures, and Dexie configuration.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { 
-  WebTimeTrackerDB, 
-  DATABASE_NAME, 
+import {
+  WebTimeTrackerDB,
+  DATABASE_NAME,
   DATABASE_VERSION,
   type EventsLogRecord,
   type AggregatedStatsRecord,
   getUtcDateString,
   generateAggregatedStatsKey,
-  parseAggregatedStatsKey
+  parseAggregatedStatsKey,
 } from '@/db/schemas';
 
 describe('Database Schema Configuration', () => {
@@ -61,16 +61,16 @@ describe('Database Schema Configuration', () => {
 
   it('should define eventslog table with correct schema', async () => {
     await db.open();
-    
+
     const eventslogTable = db.eventslog;
     expect(eventslogTable).toBeDefined();
     expect(eventslogTable.name).toBe('eventslog');
-    
+
     // Check schema structure
     const schema = eventslogTable.schema;
     expect(schema.primKey.name).toBe('id');
     expect(schema.primKey.auto).toBe(true);
-    
+
     // Check indexes
     const indexNames = schema.indexes.map(idx => idx.name);
     expect(indexNames).toContain('isProcessed');
@@ -80,16 +80,16 @@ describe('Database Schema Configuration', () => {
 
   it('should define aggregatedstats table with correct schema', async () => {
     await db.open();
-    
+
     const aggregatedstatsTable = db.aggregatedstats;
     expect(aggregatedstatsTable).toBeDefined();
     expect(aggregatedstatsTable.name).toBe('aggregatedstats');
-    
+
     // Check schema structure
     const schema = aggregatedstatsTable.schema;
     expect(schema.primKey.name).toBe('key');
     expect(schema.primKey.auto).toBe(false);
-    
+
     // Check indexes
     const indexNames = schema.indexes.map(idx => idx.name);
     expect(indexNames).toContain('date');
@@ -99,9 +99,9 @@ describe('Database Schema Configuration', () => {
 
   it('should open database successfully', async () => {
     expect(db.isOpen()).toBe(false);
-    
+
     await db.open();
-    
+
     expect(db.isOpen()).toBe(true);
     expect(db.verno).toBe(DATABASE_VERSION);
   });
@@ -134,7 +134,7 @@ describe('Database Schema Configuration', () => {
     const initialSchema = {
       eventslogPrimKey: db.eventslog.schema.primKey.name,
       aggregatedstatsPrimKey: db.aggregatedstats.schema.primKey.name,
-      tableCount: db.tables.length
+      tableCount: db.tables.length,
     };
 
     db.close();
@@ -152,7 +152,7 @@ describe('Schema Utility Functions', () => {
     it('should return current UTC date in YYYY-MM-DD format', () => {
       const dateString = getUtcDateString();
       expect(dateString).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      
+
       // Verify it's a valid date
       const date = new Date(dateString);
       expect(date.toISOString().split('T')[0]).toBe(dateString);
@@ -170,7 +170,7 @@ describe('Schema Utility Functions', () => {
       const date = '2023-12-25';
       const url = 'https://example.com/path';
       const key = generateAggregatedStatsKey(date, url);
-      
+
       expect(key).toBe('2023-12-25:https://example.com/path');
     });
 
@@ -178,7 +178,7 @@ describe('Schema Utility Functions', () => {
       const date = '2023-12-25';
       const url = 'https://example.com/path?param=value&other=123#section';
       const key = generateAggregatedStatsKey(date, url);
-      
+
       expect(key).toBe('2023-12-25:https://example.com/path?param=value&other=123#section');
     });
   });
@@ -187,7 +187,7 @@ describe('Schema Utility Functions', () => {
     it('should parse valid key correctly', () => {
       const key = '2023-12-25:https://example.com/path';
       const parsed = parseAggregatedStatsKey(key);
-      
+
       expect(parsed.date).toBe('2023-12-25');
       expect(parsed.url).toBe('https://example.com/path');
     });
@@ -195,32 +195,48 @@ describe('Schema Utility Functions', () => {
     it('should handle URLs with colons', () => {
       const key = '2023-12-25:https://example.com:8080/path';
       const parsed = parseAggregatedStatsKey(key);
-      
+
       expect(parsed.date).toBe('2023-12-25');
       expect(parsed.url).toBe('https://example.com:8080/path');
     });
 
     it('should throw error for invalid key format', () => {
-      expect(() => parseAggregatedStatsKey('invalid-key')).toThrow('Invalid aggregated stats key format');
-      expect(() => parseAggregatedStatsKey('2023-12-25')).toThrow('Invalid aggregated stats key format');
-      expect(() => parseAggregatedStatsKey('23-12-25:url')).toThrow('Invalid aggregated stats key format');
+      expect(() => parseAggregatedStatsKey('invalid-key')).toThrow(
+        'Invalid aggregated stats key format'
+      );
+      expect(() => parseAggregatedStatsKey('2023-12-25')).toThrow(
+        'Invalid aggregated stats key format'
+      );
+      expect(() => parseAggregatedStatsKey('23-12-25:url')).toThrow(
+        'Invalid aggregated stats key format'
+      );
     });
 
     it('should throw error for invalid dates', () => {
       // Invalid month
-      expect(() => parseAggregatedStatsKey('2023-13-01:url')).toThrow('Invalid date in key: 2023-13-01');
+      expect(() => parseAggregatedStatsKey('2023-13-01:url')).toThrow(
+        'Invalid date in key: 2023-13-01'
+      );
 
       // Invalid day
-      expect(() => parseAggregatedStatsKey('2023-02-30:url')).toThrow('Invalid date in key: 2023-02-30');
+      expect(() => parseAggregatedStatsKey('2023-02-30:url')).toThrow(
+        'Invalid date in key: 2023-02-30'
+      );
 
       // Invalid day for April (only 30 days)
-      expect(() => parseAggregatedStatsKey('2023-04-31:url')).toThrow('Invalid date in key: 2023-04-31');
+      expect(() => parseAggregatedStatsKey('2023-04-31:url')).toThrow(
+        'Invalid date in key: 2023-04-31'
+      );
 
       // Invalid leap year date
-      expect(() => parseAggregatedStatsKey('2023-02-29:url')).toThrow('Invalid date in key: 2023-02-29');
+      expect(() => parseAggregatedStatsKey('2023-02-29:url')).toThrow(
+        'Invalid date in key: 2023-02-29'
+      );
 
       // Completely invalid date format (but correct length)
-      expect(() => parseAggregatedStatsKey('abcd-ef-gh:url')).toThrow('Invalid date in key: abcd-ef-gh');
+      expect(() => parseAggregatedStatsKey('abcd-ef-gh:url')).toThrow(
+        'Invalid date in key: abcd-ef-gh'
+      );
     });
 
     it('should accept valid leap year dates', () => {
@@ -258,7 +274,7 @@ describe('Database Type Definitions', () => {
       visitId: 'uuid-visit-123',
       activityId: 'uuid-activity-456',
       isProcessed: 0,
-      resolution: 'crash_recovery'
+      resolution: 'crash_recovery',
     };
 
     // Type checking - if this compiles, the interface is correct
@@ -277,7 +293,7 @@ describe('Database Type Definitions', () => {
       parentDomain: 'example.com',
       total_open_time: 3600,
       total_active_time: 1800,
-      last_updated: Date.now()
+      last_updated: Date.now(),
     };
 
     // Type checking - if this compiles, the interface is correct

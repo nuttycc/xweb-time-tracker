@@ -1,6 +1,6 @@
 /**
  * Database Connection Manager Unit Tests
- * 
+ *
  * Tests for database connection management, health checks, and error handling.
  */
 
@@ -10,7 +10,7 @@ import {
   ConnectionState,
   type ConnectionManagerOptions,
   type DatabaseFactory,
-  MockDatabaseFactory
+  MockDatabaseFactory,
 } from '@/db/connection/manager';
 import type { WebTimeTrackerDB } from '@/db/schemas';
 
@@ -23,7 +23,7 @@ function createMockDatabase(overrides: Partial<WebTimeTrackerDB> = {}): WebTimeT
     isOpen: vi.fn().mockReturnValue(true),
     verno: 1,
     transaction: vi.fn().mockResolvedValue(undefined),
-    ...overrides
+    ...overrides,
   } as unknown as WebTimeTrackerDB;
 }
 
@@ -41,7 +41,7 @@ describe('DatabaseConnectionManager', () => {
       autoOpen: false, // Disable auto-open for controlled testing
       healthCheckInterval: 100, // Short interval for testing
       maxRetryAttempts: 2,
-      retryDelay: 50
+      retryDelay: 50,
     });
   });
 
@@ -66,12 +66,12 @@ describe('DatabaseConnectionManager', () => {
         autoOpen: true,
         healthCheckInterval: 5000,
         maxRetryAttempts: 5,
-        retryDelay: 2000
+        retryDelay: 2000,
       };
 
       const customManager = new DatabaseConnectionManager(options);
       expect(customManager.getState()).toBe(ConnectionState.CLOSED);
-      
+
       customManager.destroy();
     });
 
@@ -114,7 +114,7 @@ describe('DatabaseConnectionManager', () => {
 
     it('should get database instance when open', async () => {
       await manager.open();
-      
+
       const db = await manager.getDatabase();
       expect(db).toBeDefined();
       expect(db.isOpen()).toBe(true);
@@ -132,7 +132,7 @@ describe('DatabaseConnectionManager', () => {
   describe('Auto-Open Functionality', () => {
     it('should auto-open database when autoOpen is enabled', async () => {
       const autoOpenManager = new DatabaseConnectionManager({
-        autoOpen: true
+        autoOpen: true,
       });
 
       expect(autoOpenManager.getState()).toBe(ConnectionState.CLOSED);
@@ -174,13 +174,16 @@ describe('DatabaseConnectionManager', () => {
     it('should handle database open errors gracefully', async () => {
       // Create a mock database that throws error on open
       const errorMockDb = createMockDatabase({
-        open: vi.fn().mockRejectedValue(new Error('Database open failed'))
+        open: vi.fn().mockRejectedValue(new Error('Database open failed')),
       });
       const errorMockFactory = createMockFactory(errorMockDb);
 
-      const invalidManager = new DatabaseConnectionManager({
-        maxRetryAttempts: 0 // Disable retries for this test
-      }, errorMockFactory);
+      const invalidManager = new DatabaseConnectionManager(
+        {
+          maxRetryAttempts: 0, // Disable retries for this test
+        },
+        errorMockFactory
+      );
 
       await expect(invalidManager.open()).rejects.toThrow('Database open failed');
       expect(invalidManager.getState()).toBe(ConnectionState.FAILED);
@@ -199,14 +202,17 @@ describe('DatabaseConnectionManager', () => {
             throw new Error('Temporary failure');
           }
           return Promise.resolve();
-        })
+        }),
       });
       const retryMockFactory = createMockFactory(retryMockDb);
 
-      const retryManager = new DatabaseConnectionManager({
-        maxRetryAttempts: 2,
-        retryDelay: 10
-      }, retryMockFactory);
+      const retryManager = new DatabaseConnectionManager(
+        {
+          maxRetryAttempts: 2,
+          retryDelay: 10,
+        },
+        retryMockFactory
+      );
 
       await retryManager.open();
 
@@ -227,14 +233,17 @@ describe('DatabaseConnectionManager', () => {
             throw new Error('Temporary failure');
           }
           return Promise.resolve();
-        })
+        }),
       });
       const retryMockFactory = createMockFactory(retryMockDb);
 
-      const retryManager = new DatabaseConnectionManager({
-        maxRetryAttempts: 2,
-        retryDelay: 50 // Smaller base delay for faster test
-      }, retryMockFactory);
+      const retryManager = new DatabaseConnectionManager(
+        {
+          maxRetryAttempts: 2,
+          retryDelay: 50, // Smaller base delay for faster test
+        },
+        retryMockFactory
+      );
 
       const startTime = Date.now();
       await retryManager.open();
@@ -269,14 +278,14 @@ describe('DatabaseConnectionManager', () => {
 
     it('should stop health checks on destroy', async () => {
       const healthCheckManager = new DatabaseConnectionManager({
-        healthCheckInterval: 50
+        healthCheckInterval: 50,
       });
 
       await healthCheckManager.open();
-      
+
       // Let health check run for a bit
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
       healthCheckManager.destroy();
       expect(healthCheckManager.getState()).toBe(ConnectionState.CLOSED);
     });
