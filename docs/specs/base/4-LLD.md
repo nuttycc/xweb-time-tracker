@@ -2,13 +2,13 @@
 
 ## 1. 文档信息
 
-| 属性 | 内容 |
-| --- | --- |
+| 属性         | 内容                                   |
+| ------------ | -------------------------------------- |
 | **文档名称** | Chrome 网页时间追踪扩展 - 详细设计文档 |
-| **文档版本** | v1.0.1 (范围修正版) |
-| **创建日期** | 2025年6月18日 |
-| **目标受众** | 开发工程师、技术团队 |
-| **依赖文档** | `03-高级设计文档(HLD).md` (v2.0.1) |
+| **文档版本** | v1.0.1 (范围修正版)                    |
+| **创建日期** | 2025年6月18日                          |
+| **目标受众** | 开发工程师、技术团队                   |
+| **依赖文档** | `03-高级设计文档(HLD).md` (v2.0.1)     |
 
 ## 2. 文档范围与边界 (Scope and Boundaries)
 
@@ -26,17 +26,17 @@
 
 **用途**: 存储所有原始领域事件，作为系统的事实数据源（Source of Truth），支持抗中断写入和异步聚合。
 
-| 字段名 | 数据类型 | 描述 |
-| --- | --- | --- |
-| `id` | `number` | **主键**，自增。 |
-| `timestamp` | `number` | 事件发生的时间戳 (`Date.now()`)。 |
-| `eventType` | `string` | 事件类型枚举: `'open_time_start'`, `'open_time_end'`, `'active_time_start'`, `'active_time_end'`, `'checkpoint'`。 |
-| `tabId` | `number` | 关联的浏览器标签页ID。 |
-| `url` | `string` | 完整的URL（路径和关键参数）。 |
-| `visitId` | `string` | 唯一访问标识符 (UUID)，与`Open Time`生命周期绑定。 |
-| `activityId` | `string \| null` | 唯一活跃区间标识符 (UUID)，与`Active Time`生命周期绑定，可为null。 |
-| `isProcessed` | `number` | **索引字段**。是否已被聚合器处理 (`0` for false, `1` for true)。 |
-| `resolution` | `string \| null` | **可选**。标记特殊的事件来源，如`'crash_recovery'`。 |
+| 字段名        | 数据类型         | 描述                                                                                                               |
+| ------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `id`          | `number`         | **主键**，自增。                                                                                                   |
+| `timestamp`   | `number`         | 事件发生的时间戳 (`Date.now()`)。                                                                                  |
+| `eventType`   | `string`         | 事件类型枚举: `'open_time_start'`, `'open_time_end'`, `'active_time_start'`, `'active_time_end'`, `'checkpoint'`。 |
+| `tabId`       | `number`         | 关联的浏览器标签页ID。                                                                                             |
+| `url`         | `string`         | 完整的URL（路径和关键参数）。                                                                                      |
+| `visitId`     | `string`         | 唯一访问标识符 (UUID)，与`Open Time`生命周期绑定。                                                                 |
+| `activityId`  | `string \| null` | 唯一活跃区间标识符 (UUID)，与`Active Time`生命周期绑定，可为null。                                                 |
+| `isProcessed` | `number`         | **索引字段**。是否已被聚合器处理 (`0` for false, `1` for true)。                                                   |
+| `resolution`  | `string \| null` | **可选**。标记特殊的事件来源，如`'crash_recovery'`。                                                               |
 
 **索引 (Indexes):**
 
@@ -48,16 +48,16 @@
 
 **用途**: 存储最终计算出的、用于查询展示的历史数据。
 
-| 字段名 | 数据类型 | 描述 |
-| --- | --- | --- |
-| `key` | `string` | **主键**。格式为 `YYYY-MM-DD:full_url` 的组合键，确保每日每个URL的唯一性。 |
-| `date` | `string` | **索引字段**。日期，格式为`YYYY-MM-DD`。 |
-| `url` | `string` | 完整的URL，作为聚合的最小粒度。 |
-| `hostname` | `string` | **索引字段**。URL的主机名，用于中层聚合。 |
-| `parentDomain` | `string` | **索引字段**。URL的父域名（基于PSL计算），用于顶层聚合。 |
-| `total_open_time` | `number` | 累积的打开时间，单位：秒。 |
-| `total_active_time` | `number` | 累积的活跃时间，单位：秒。 |
-| `last_updated` | `number` | 该记录最后一次被更新的时间戳 (`Date.now()`)，是实现`FR-4C`智能合并的唯一依据。 |
+| 字段名              | 数据类型 | 描述                                                                           |
+| ------------------- | -------- | ------------------------------------------------------------------------------ |
+| `key`               | `string` | **主键**。格式为 `YYYY-MM-DD:full_url` 的组合键，确保每日每个URL的唯一性。     |
+| `date`              | `string` | **索引字段**。日期，格式为`YYYY-MM-DD`。                                       |
+| `url`               | `string` | 完整的URL，作为聚合的最小粒度。                                                |
+| `hostname`          | `string` | **索引字段**。URL的主机名，用于中层聚合。                                      |
+| `parentDomain`      | `string` | **索引字段**。URL的父域名（基于PSL计算），用于顶层聚合。                       |
+| `total_open_time`   | `number` | 累积的打开时间，单位：秒。                                                     |
+| `total_active_time` | `number` | 累积的活跃时间，单位：秒。                                                     |
+| `last_updated`      | `number` | 该记录最后一次被更新的时间戳 (`Date.now()`)，是实现`FR-4C`智能合并的唯一依据。 |
 
 **索引 (Indexes):**
 
@@ -90,7 +90,6 @@ class TimeTracker {
     return [];
   }
 }
-
 ```
 
 ### 4.2 用户配置同步模块 (Configuration Sync Engine)
@@ -169,7 +168,12 @@ interface UserConfiguration {
 interface DomainEvent {
   id?: number;
   timestamp: number;
-  eventType: 'open_time_start' | 'open_time_end' | 'active_time_start' | 'active_time_end' | 'checkpoint';
+  eventType:
+    | 'open_time_start'
+    | 'open_time_end'
+    | 'active_time_start'
+    | 'active_time_end'
+    | 'checkpoint';
   tabId: number;
   url: string;
   visitId: string;
@@ -192,5 +196,4 @@ interface IDataCleanupService {
    */
   runCleanupTask(policy: string): Promise<{ deletedCount: number }>;
 }
-
 ```
