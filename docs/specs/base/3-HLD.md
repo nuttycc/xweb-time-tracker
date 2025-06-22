@@ -2,12 +2,12 @@
 
 ## 1. 文档信息
 
-| 属性 | 内容 |
-| --- | --- |
-| **文档名称** | Chrome 网页时间追踪扩展 - 高级设计文档 |
-| **文档版本** | v2.0.1 (范围修正版) |
-| **创建日期** | 2025年6月17日 |
-| **目标受众** | 系统架构师、技术负责人、资深工程师 |
+| 属性         | 内容                                                                           |
+| ------------ | ------------------------------------------------------------------------------ |
+| **文档名称** | Chrome 网页时间追踪扩展 - 高级设计文档                                         |
+| **文档版本** | v2.0.1 (范围修正版)                                                            |
+| **创建日期** | 2025年6月17日                                                                  |
+| **目标受众** | 系统架构师、技术负责人、资深工程师                                             |
 | **依赖文档** | `01-产品需求文档(PRD).md` (v2.1.2)<br>`02-系统需求规格说明书(SRS).md` (v2.1.0) |
 
 ## 2. 文档范围与边界 (Scope and Boundaries)
@@ -44,7 +44,7 @@ graph TD
 
     subgraph "Service Worker (Background)"
         D -- Raw Events --> E[Event Listener]
-        
+
         subgraph "Core Logic"
             E -- Formatted Events --> F[Time Tracking Engine]
             F -- Domain Events --> G["Event Store (IndexedDB)"]
@@ -79,14 +79,14 @@ graph TD
 
 ### 3.3 技术栈选型
 
-| 数据类型 | 存储技术 | 选型理由 |
-| --- | --- | --- |
-| **用户配置数据** | `chrome.storage.sync` | 支持跨设备自动同步，符合用户期望的一致性体验。数据量小（<100KB），适合sync存储的容量限制。 |
-| **实时会话状态** | `chrome.storage.local` | 高性能读写，支持Service Worker重启后的快速状态恢复。用于存储易变的活动映射表。 |
-| **原始事件日志** | `IndexedDB (events_log表)` | 支持大容量事务性写入，提供索引查询能力，满足事件日志的快速写入和批量处理需求。 |
-| **聚合统计数据** | `IndexedDB (aggregated_stats表)` | 支持复杂查询和数据分析，提供持久化保证，满足统计数据的长期存储和快速检索需求。 |
-| **核心逻辑** | TypeScript | 提供强类型支持，提高代码质量和可维护性，符合现代Web开发标准。 |
-| **公共后缀列表** | `psl` (npm package) | 引入可靠的第三方库处理域名解析，实现精准的主域名提取功能。 |
+| 数据类型         | 存储技术                         | 选型理由                                                                                   |
+| ---------------- | -------------------------------- | ------------------------------------------------------------------------------------------ |
+| **用户配置数据** | `chrome.storage.sync`            | 支持跨设备自动同步，符合用户期望的一致性体验。数据量小（<100KB），适合sync存储的容量限制。 |
+| **实时会话状态** | `chrome.storage.local`           | 高性能读写，支持Service Worker重启后的快速状态恢复。用于存储易变的活动映射表。             |
+| **原始事件日志** | `IndexedDB (events_log表)`       | 支持大容量事务性写入，提供索引查询能力，满足事件日志的快速写入和批量处理需求。             |
+| **聚合统计数据** | `IndexedDB (aggregated_stats表)` | 支持复杂查询和数据分析，提供持久化保证，满足统计数据的长期存储和快速检索需求。             |
+| **核心逻辑**     | TypeScript                       | 提供强类型支持，提高代码质量和可维护性，符合现代Web开发标准。                              |
+| **公共后缀列表** | `psl` (npm package)              | 引入可靠的第三方库处理域名解析，实现精准的主域名提取功能。                                 |
 
 ## 4. 核心模块职责
 
@@ -215,7 +215,6 @@ interface UserConfiguration {
   uiTheme: 'light' | 'dark' | 'auto';
   filterRules: string[];
 }
-
 ```
 
 ### 6.2 事件日志模型
@@ -241,7 +240,6 @@ interface ConfigSyncInterface {
   listenForChanges(): void; // 监听 chrome.storage.onChanged
   dispatchConfigUpdate(newConfig: UserConfiguration): void; // 内部事件分发
 }
-
 ```
 
 ### 7.2 数据清理接口
@@ -251,5 +249,4 @@ interface DataCleanupInterface {
   applyNewPolicy(policy: RetentionPolicy): Promise<void>; // 接收新策略并应用
   // ... 其他方法
 }
-
 ```

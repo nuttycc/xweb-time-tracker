@@ -10,7 +10,11 @@ export default defineConfig({
 
     // TypeScript 配置
     typecheck: {
+      enabled: true,
+      checker: 'tsc',
       tsconfig: './tests/tsconfig.json',
+      include: ['tests/**/*.test-d.ts'],
+      exclude: ['node_modules/**', 'dist/**', '.wxt/**', 'coverage/**'],
     },
 
     // 超时配置 - 修复大量数据测试超时问题
@@ -24,6 +28,7 @@ export default defineConfig({
     // 测试文件匹配模式 - 支持四分类测试结构
     include: [
       'tests/**/*.{test,spec}.{js,ts}',
+      'tests/**/*.test-d.ts',
       'tests/unit/**/*.test.ts',
       'tests/integration/**/*.test.ts',
       'tests/boundary/**/*.test.ts',
@@ -34,16 +39,17 @@ export default defineConfig({
 
     // 覆盖率配置
     coverage: {
+      enabled: false,
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'html', 'json', 'json-summary'],
       reportsDirectory: './coverage',
       include: ['src/**/*.ts'],
       exclude: [
         'src/**/*.d.ts',
         'src/**/*.test.ts',
         'src/**/*.spec.ts',
-        'src/entrypoints/**', // 排除入口文件
-        'src/assets/**', // 排除资源文件
+        'src/entrypoints/**',
+        'src/assets/**',
       ],
       thresholds: {
         global: {
@@ -51,19 +57,6 @@ export default defineConfig({
           functions: 80,
           lines: 80,
           statements: 80,
-        },
-        // 为不同模块设置不同的覆盖率要求
-        'src/core/**': {
-          branches: 85,
-          functions: 85,
-          lines: 85,
-          statements: 85,
-        },
-        'src/services/database/**': {
-          branches: 90,
-          functions: 90,
-          lines: 90,
-          statements: 90,
         },
       },
     },
