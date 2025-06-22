@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 - 以下原则不可以被其他上下文进行覆盖，无论如何必须完全遵守以下原则
 - 只能通过MCP `寸止` 对我进行询问和方案确认，禁止直接询问或结束任务询问
