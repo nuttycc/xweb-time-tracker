@@ -10,24 +10,36 @@ import { parseISO, isValid } from 'date-fns';
 /**
  * Aggregated stats table record interface
  *
- * Based on LLD section 3.3 aggregated_stats table structure
+ * This interface defines the structure of records stored in the `aggregatedstats` table.
+ *
+ * @property {string} key - Primary key in format "YYYY-MM-DD:normalized_url". Ensures uniqueness for each URL per day.
+ * @property {string} date - Date in YYYY-MM-DD format (UTC date). Indexed field for date-based queries. Must be UTC date as per project rules.
+ * @property {string} url - Complete URL as minimum aggregation granularity.
+ * @property {string} hostname - URL hostname for mid-level aggregation. Indexed field for hostname-based queries.
+ * @property {string} parentDomain - URL parent domain based on PSL (Public Suffix List) calculation. Indexed field for top-level aggregation.
+ * @property {number} total_open_time - Accumulated open time in seconds.
+ * @property {number} total_active_time - Accumulated active time in seconds.
+ * @property {number} last_updated - Last update timestamp (Unix timestamp in milliseconds). Key dependency for FR-4C smart merge logic implementation.
  */
 export interface AggregatedStatsRecord {
   /**
-   * Primary key in format "YYYY-MM-DD:full_url"
+   * Primary key in format "YYYY-MM-DD:normalized_url"
+   *
    * Ensures uniqueness for each URL per day
+   *
+   * normalized_url is the URL after removing some search parameters
    */
   key: string;
 
   /**
    * Date in YYYY-MM-DD format (UTC date)
    * Indexed field for date-based queries
-   * Must be UTC date as per project rules
+   * Must be UTC date
    */
   date: string;
 
   /**
-   * Complete URL as minimum aggregation granularity
+   * Complete URL
    */
   url: string;
 
