@@ -102,14 +102,13 @@ export function getUtcDateString(timestamp?: number): string {
 }
 
 /**
- * Utility function to generate primary key for aggregated stats
+ * Generates a primary key for the aggregated stats table by combining a UTC date and a normalized URL.
  *
- * This function automatically normalizes the URL to ensure consistent key generation
- * by removing marketing/tracking parameters while preserving business-relevant ones.
+ * The URL is normalized to remove tracking or marketing parameters, ensuring consistent aggregation keys.
  *
- * @param date - Date in YYYY-MM-DD format (UTC)
- * @param url - Complete URL (will be normalized automatically)
- * @returns Primary key in format "YYYY-MM-DD:normalized_url"
+ * @param date - UTC date string in "YYYY-MM-DD" format
+ * @param url - The original URL to be normalized
+ * @returns The primary key in the format "YYYY-MM-DD:normalized_url"
  */
 export function generateAggregatedStatsKey(date: string, url: string): string {
   const normalizedUrl = normalizeUrl(url);
@@ -117,14 +116,13 @@ export function generateAggregatedStatsKey(date: string, url: string): string {
 }
 
 /**
- * Utility function to generate primary key for aggregated stats using current UTC date
+ * Generates the primary key for an aggregated stats record for the current or specified UTC date, using a normalized version of the provided URL.
  *
- * This function automatically normalizes the URL to ensure consistent key generation
- * by removing marketing/tracking parameters while preserving business-relevant ones.
+ * The key is formatted as "YYYY-MM-DD:normalized_url", where the URL is normalized to remove tracking parameters for consistent aggregation.
  *
- * @param url - Complete URL (will be normalized automatically)
- * @param timestamp - Optional UTC timestamp (defaults to current time)
- * @returns Primary key in format "YYYY-MM-DD:normalized_url"
+ * @param url - The URL to be normalized and included in the key.
+ * @param timestamp - Optional UTC timestamp to specify the date; uses the current time if omitted.
+ * @returns The generated primary key string.
  */
 export function generateAggregatedStatsKeyForToday(url: string, timestamp?: number): string {
   const utcDate = getUtcDateString(timestamp);
@@ -132,15 +130,13 @@ export function generateAggregatedStatsKeyForToday(url: string, timestamp?: numb
 }
 
 /**
- * Utility function to parse primary key into date and URL components
+ * Parses an aggregated stats primary key into its date and normalized URL components.
  *
- * Validates that the date portion is a valid YYYY-MM-DD format date using date-fns.
- * This ensures data integrity by rejecting keys with invalid dates like "9999-99-99".
- * Note: The URL component returned is the normalized URL as stored in the key.
+ * Validates that the key is in the "YYYY-MM-DD:normalized_url" format and that the date portion is a valid ISO date.
  *
- * @param key - Primary key in format "YYYY-MM-DD:normalized_url"
- * @returns Object with date and url properties (url is normalized)
- * @throws Error if key format is invalid or date is not a valid YYYY-MM-DD date
+ * @param key - The primary key string to parse.
+ * @returns An object containing the date and normalized URL extracted from the key.
+ * @throws Error if the key format is invalid or the date is not a valid "YYYY-MM-DD" value.
  */
 export function parseAggregatedStatsKey(key: string): { date: string; url: string } {
   const colonIndex = key.indexOf(':');

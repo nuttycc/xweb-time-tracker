@@ -9,12 +9,9 @@ import type { Transaction } from 'dexie';
 import type { AggregatedStatsRecord } from './aggregatedstats.schema';
 
 /**
- * Hook function for creating aggregated stats records
- * Automatically sets the last_updated field to current Unix timestamp
+ * Sets the `last_updated` field to the current Unix timestamp when creating a new aggregated stats record.
  *
- * @param _primKey - Primary key of the record being created (unused but required by Dexie)
- * @param obj - The record object being created
- * @param _trans - Dexie transaction context (unused but required by Dexie)
+ * @param obj - The record object being created; its `last_updated` property is set in-place.
  */
 export function aggregatedStatsCreatingHook(
   _primKey: string, // Required by Dexie.js hook signature but not used in this implementation
@@ -27,13 +24,11 @@ export function aggregatedStatsCreatingHook(
 }
 
 /**
- * Hook function for updating aggregated stats records
- * Automatically updates the last_updated field to current Unix timestamp
+ * Dexie updating hook that sets the `last_updated` field to the current Unix timestamp when aggregated stats records are modified.
  *
- * @param modifications - Object containing the modifications being made
- * @param _primKey - Primary key of the record being updated (unused but required by Dexie)
- * @param _obj - The current record object (unused but required by Dexie)
- * @param _trans - Dexie transaction context (unused but required by Dexie)
+ * Ensures the `last_updated` metadata reflects the time of the most recent update.
+ *
+ * @param modifications - The fields being updated in the record; modified in-place to include the new timestamp.
  */
 export function aggregatedStatsUpdatingHook(
   modifications: Partial<AggregatedStatsRecord>,

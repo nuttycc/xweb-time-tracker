@@ -190,10 +190,9 @@ export class DatabaseService {
 }
 
 /**
- * Create a database service instance
+ * Creates and returns a new DatabaseService instance for the provided database.
  *
- * @param db - Database instance
- * @returns Database service instance
+ * @returns A DatabaseService configured to operate on the given database instance.
  */
 export function createDatabaseService(db: WebTimeTrackerDB): DatabaseService {
   return new DatabaseService(db);

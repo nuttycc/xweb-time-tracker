@@ -90,15 +90,13 @@ export interface UrlNormalizationOptions {
 }
 
 /**
- * Normalizes a URL by filtering query parameters using a hybrid strategy
+ * Returns a normalized URL string with only business-relevant query parameters retained.
  *
- * This function removes known marketing/tracking parameters (blacklist) while
- * preserving business-relevant parameters, providing optimal performance
- * through native URL APIs and Set-based lookups.
+ * Filters out all query parameters except those on a predefined whitelist or optionally specified in `additionalAllowedParams`. Optionally preserves the URL fragment and sorts query parameters alphabetically. Returns the original URL if no changes are necessary.
  *
- * @param url - The URL to normalize
- * @param options - Configuration options for normalization
- * @returns The normalized URL with filtered query parameters
+ * @param url - The URL string to normalize
+ * @param options - Optional normalization settings, including fragment preservation, additional allowed parameters, and parameter sorting
+ * @returns The normalized URL string with only allowed query parameters
  *
  * @example
  * ```typescript
@@ -195,11 +193,11 @@ export function normalizeUrl(url: string, options: UrlNormalizationOptions = {})
 }
 
 /**
- * Checks if a query parameter should be preserved
+ * Determines whether a query parameter is allowed based on the default whitelist and any additional allowed parameters.
  *
- * @param paramName - The name of the query parameter
- * @param additionalAllowed - Additional parameters to consider as allowed
- * @returns True if the parameter should be preserved, false otherwise
+ * @param paramName - The query parameter name to check.
+ * @param additionalAllowed - Extra parameter names to allow beyond the default whitelist.
+ * @returns True if the parameter is allowed; false otherwise.
  */
 export function isAllowedQueryParam(
   paramName: string,
@@ -210,11 +208,11 @@ export function isAllowedQueryParam(
 }
 
 /**
- * Gets statistics about URL normalization
+ * Returns statistics comparing the query parameters of an original URL and its normalized version.
  *
- * @param originalUrl - The original URL
- * @param normalizedUrl - The normalized URL
- * @returns Statistics about the normalization process
+ * @param originalUrl - The original URL before normalization
+ * @param normalizedUrl - The URL after normalization
+ * @returns An object containing counts of original, normalized, and removed query parameters, as well as a list of removed parameter names
  */
 export function getNormalizationStats(
   originalUrl: string,
