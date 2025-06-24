@@ -17,9 +17,10 @@ import type { AggregatedStatsRecord } from './aggregatedstats.schema';
  * @param _trans - Dexie transaction context (unused but required by Dexie)
  */
 export function aggregatedStatsCreatingHook(
-  _primKey: string,
+  _primKey: string, // Required by Dexie.js hook signature but not used in this implementation
   obj: AggregatedStatsRecord,
-  _trans: Transaction
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _trans: Transaction // Required by Dexie.js hook signature but not used in this implementation
 ): void {
   // Set last_updated to current Unix timestamp (milliseconds)
   obj.last_updated = Date.now();
@@ -36,9 +37,12 @@ export function aggregatedStatsCreatingHook(
  */
 export function aggregatedStatsUpdatingHook(
   modifications: Partial<AggregatedStatsRecord>,
-  _primKey: string,
-  _obj: AggregatedStatsRecord,
-  _trans: Transaction
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _primKey: string, // Required by Dexie.js hook signature but not used in this implementation
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _obj: AggregatedStatsRecord, // Required by Dexie.js hook signature but not used in this implementation
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _trans: Transaction // Required by Dexie.js hook signature but not used in this implementation
 ): void {
   // Always update last_updated when any modification occurs (Unix timestamp in milliseconds)
   modifications.last_updated = Date.now();

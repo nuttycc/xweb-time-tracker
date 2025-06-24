@@ -74,10 +74,17 @@ export class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id'> {
 
           // Apply ordering
           if (orderBy === 'timestamp') {
-            collection = orderDirection === 'desc' ? collection.reverse() : collection;
+            // For timestamp sorting, we need to sort in memory since timestamp is not indexed
+            const results = await collection.toArray();
+            const sorted = this.sortRecords(results, orderBy, orderDirection);
+
+            // Apply pagination manually for sorted results
+            const start = offset;
+            const end = limit ? start + limit : undefined;
+            return sorted.slice(start, end);
           }
 
-          // Apply pagination
+          // Apply pagination for non-timestamp ordering
           if (offset > 0) {
             collection = collection.offset(offset);
           }
@@ -154,10 +161,17 @@ export class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id'> {
 
           // Apply ordering
           if (orderBy === 'timestamp') {
-            collection = orderDirection === 'desc' ? collection.reverse() : collection;
+            // For timestamp sorting, we need to sort in memory since timestamp is not indexed
+            const results = await collection.toArray();
+            const sorted = this.sortRecords(results, orderBy, orderDirection);
+
+            // Apply pagination manually for sorted results
+            const start = offset;
+            const end = limit ? start + limit : undefined;
+            return sorted.slice(start, end);
           }
 
-          // Apply pagination
+          // Apply pagination for non-timestamp ordering
           if (offset > 0) {
             collection = collection.offset(offset);
           }
@@ -197,10 +211,17 @@ export class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id'> {
 
           // Apply ordering
           if (orderBy === 'timestamp') {
-            collection = orderDirection === 'desc' ? collection.reverse() : collection;
+            // For timestamp sorting, we need to sort in memory since timestamp is not indexed
+            const results = await collection.toArray();
+            const sorted = this.sortRecords(results, orderBy, orderDirection);
+
+            // Apply pagination manually for sorted results
+            const start = offset;
+            const end = limit ? start + limit : undefined;
+            return sorted.slice(start, end);
           }
 
-          // Apply pagination
+          // Apply pagination for non-timestamp ordering
           if (offset > 0) {
             collection = collection.offset(offset);
           }

@@ -348,8 +348,10 @@ export class ErrorHandlerService {
    * Attempt validation error recovery
    */
   private async attemptValidationRecovery(
-    _error: unknown,
-    _errorInfo: ErrorInfo
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _error: unknown, // Reserved for future error-specific recovery logic
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _errorInfo: ErrorInfo // Reserved for future context-aware recovery strategies
   ): Promise<RecoveryResult> {
     return {
       success: true,
@@ -361,8 +363,10 @@ export class ErrorHandlerService {
    * Attempt network error recovery
    */
   private async attemptNetworkRecovery(
-    _error: unknown,
-    _errorInfo: ErrorInfo
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _error: unknown, // Reserved for future network-specific recovery logic
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _errorInfo: ErrorInfo // Reserved for future retry strategies based on error context
   ): Promise<RecoveryResult> {
     return {
       success: true,

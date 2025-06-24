@@ -348,6 +348,28 @@ export abstract class BaseRepository<T, PK extends keyof T> {
     return new RepositoryError(message, operation, originalError);
   }
 
+  /**
+   * Sort records by a specified field and direction
+   *
+   * @param records - The array of records to sort
+   * @param orderBy - The field to sort by
+   * @param orderDirection - The direction to sort ('asc' or 'desc')
+   * @returns The sorted array of records
+   */
+  protected sortRecords<K extends keyof T>(
+    records: T[],
+    orderBy: K,
+    orderDirection: 'asc' | 'desc'
+  ): T[] {
+    records.sort((a, b) => {
+      const aVal = a[orderBy];
+      const bVal = b[orderBy];
+      const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      return orderDirection === 'desc' ? -comparison : comparison;
+    });
+    return records;
+  }
+
   // Abstract validation methods to be implemented by concrete repositories
   protected abstract validateForCreate(entity: InsertType<T, PK>): Promise<void>;
   protected abstract validateForUpdate(id: IDType<T, PK>, changes: Partial<T>): Promise<void>;

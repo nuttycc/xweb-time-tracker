@@ -40,7 +40,8 @@ export class VersionManagerUtil {
    */
   static async getVersionInfo(
     db: WebTimeTrackerDB,
-    _options: VersionManagerOptions = {}
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _options: VersionManagerOptions = {} // Required for interface consistency, used in tests
   ): Promise<VersionInfo> {
     try {
       const currentVersion = db.isOpen() ? db.verno : 0;

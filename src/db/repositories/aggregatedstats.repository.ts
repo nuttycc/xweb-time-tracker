@@ -349,28 +349,6 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
   }
 
   /**
-   * Sorts records by a specified field and direction.
-   *
-   * @param records - The array of records to sort.
-   * @param orderBy - The field to sort by.
-   * @param orderDirection - The direction to sort ('asc' or 'desc').
-   * @returns The sorted array of records.
-   */
-  private sortRecords(
-    records: AggregatedStatsRecord[],
-    orderBy: 'date' | 'last_updated' | 'total_open_time' | 'total_active_time',
-    orderDirection: 'asc' | 'desc'
-  ): AggregatedStatsRecord[] {
-    records.sort((a, b) => {
-      const aVal = a[orderBy];
-      const bVal = b[orderBy];
-      const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-      return orderDirection === 'desc' ? -comparison : comparison;
-    });
-    return records;
-  }
-
-  /**
    * Generate a primary key for aggregated stats
    *
    * @param date - Date in YYYY-MM-DD format
