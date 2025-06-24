@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WebTimeTrackerDB, generateAggregatedStatsKey, getUtcDateString } from '@/db/schemas';
-import { DatabaseConnectionManager, ConnectionState, DatabaseService } from '@/db/connection';
+import { DatabaseConnectionManager, ConnectionState, ConnectionService } from '@/db/connection';
 import {
   EventsLogValidation,
   AggregatedStatsValidation,
@@ -337,7 +337,7 @@ describe('Database Operations Integration', () => {
     });
 
     it('should execute operations through database service', async () => {
-      const service = new DatabaseService();
+      const service = new ConnectionService();
 
       const result = await service.execute(async db => {
         const eventData = {
@@ -358,7 +358,7 @@ describe('Database Operations Integration', () => {
     });
 
     it('should execute transactions through database service', async () => {
-      const service = new DatabaseService();
+      const service = new ConnectionService();
 
       const result = await service.writeTransaction(['eventslog', 'aggregatedstats'], async db => {
         // Insert event
