@@ -113,9 +113,9 @@ export abstract class BaseRepository<T> {
   protected readonly db: WebTimeTrackerDB;
   protected readonly tableName: string;
 
-  constructor(db: WebTimeTrackerDB, table: unknown, tableName: string) {
+  constructor(db: WebTimeTrackerDB, table: DexieTable<T>, tableName: string) {
     this.db = db;
-    this.table = table as DexieTable<T>;
+    this.table = table;
     this.tableName = tableName;
   }
 
