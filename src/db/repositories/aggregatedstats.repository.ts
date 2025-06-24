@@ -10,11 +10,11 @@ import {
   ValidationError,
   type RepositoryOptions,
   type InsertType,
+  type DexieTable,
 } from './base.repository';
 import type { WebTimeTrackerDB } from '../schemas';
 import type { AggregatedStatsRecord } from '../schemas/aggregatedstats.schema';
 import { generateAggregatedStatsKey, getUtcDateString } from '../schemas/aggregatedstats.schema';
-import type { CreateAggregatedStatsRecord } from '../models/aggregatedstats.model';
 import { AggregatedStatsValidation } from '../models/aggregatedstats.model';
 
 /**

@@ -10,15 +10,15 @@ WebTime Tracker 数据库模块 - 基于 Dexie.js 的 IndexedDB 封装，提供�
 
 ```
 indexedDB 模块：
-├── Services层 (CRUD接口) 
+├── Services层 (CRUD接口)
 │   └── desc：提供统一的数据库操作接口，封装Repository层复杂性
-├── Repositories层 (CRUD实现) 
+├── Repositories层 (CRUD实现)
 │   └── desc：实现数据访问模式，提供类型安全的CRUD操作和查询方法
-├── Models层 (类型验证)  
+├── Models层 (类型验证)
 │   └── desc：Zod验证和TypeScript类型, 定义数据结构和运行时验证规则，确保数据完整性
-├── Schemas层 (表结构) 
+├── Schemas层 (表结构)
 │   └── desc： Dexie表定义和钩子, 定义数据库表结构、索引和生命周期钩子
-├── Connection层 (连接管理) 
+├── Connection层 (连接管理)
 │   └── desc：管理数据库连接状态、事务处理和错误恢复
 └── Utils层 (工具函数)
 ```
@@ -34,7 +34,6 @@ import { database, DatabaseService } from '@/db';
 
 // 使用模块提供的单例数据库实例，确保全局一致性
 const db = database;
-
 
 // 初始化数据库服务，提供类型安全的 CRUD 操作接口
 const dbService = new DatabaseService(db);
@@ -53,12 +52,12 @@ console.log(`发现 ${unprocessedEvents.length} 个未处理事件`);
 // 插入或更新单个时间统计
 // 目的：将事件数据聚合为按日期和URL分组的时间统计，支持增量更新
 await dbService.upsertStat({
-  date: '2025-06-23',              
-  url: 'https://example.com',      
-  hostname: 'example.com',         
-  parentDomain: 'example.com',     
-  openTimeToAdd: 3600,            
-  activeTimeToAdd: 1800,          
+  date: '2025-06-23',
+  url: 'https://example.com',
+  hostname: 'example.com',
+  parentDomain: 'example.com',
+  openTimeToAdd: 3600,
+  activeTimeToAdd: 1800,
 });
 
 // 查询聚合统计数据
@@ -76,12 +75,10 @@ console.log(`${hostStats.length} 条聚合统计记录`);
 // 目的：检查数据库连接状态、数据量统计，用于系统监控和故障诊断
 const health = await dbService.getDatabaseHealth();
 console.log('数据库状态:', health.isHealthy ? '正常' : '异常');
-console.log('未处理事件数:', health.unprocessedEventCount);  
-console.log('总事件数:', health.totalEventCount);            
-console.log('总统计数:', health.totalStatsCount);            
+console.log('未处理事件数:', health.unprocessedEventCount);
+console.log('总事件数:', health.totalEventCount);
+console.log('总统计数:', health.totalStatsCount);
 ```
-
-
 
 ## 📚 API 参考
 
@@ -95,98 +92,104 @@ console.log('总统计数:', health.totalStatsCount);
 
 ```typescript
 class WebTimeTrackerDB extends Dexie {
-  eventslog: Table<EventsLogRecord, number>;           
-  aggregatedstats: Table<AggregatedStatsRecord, number>; 
+  eventslog: Table<EventsLogRecord, number>;
+  aggregatedstats: Table<AggregatedStatsRecord, number>;
 
-  constructor();                                        
-  open(): Promise<WebTimeTrackerDB>;                   
-  close(): void;                                       
-  delete(): Promise<void>;                             
+  constructor();
+  open(): Promise<WebTimeTrackerDB>;
+  close(): void;
+  delete(): Promise<void>;
 }
 ```
 
 ### Repository 层
 
-#### BaseRepository<T>
+#### BaseRepository<T, PK, KeyType>
 
-**类的目的**：实现Repository设计模式，为所有数据表提供统一的CRUD操作接口，确保数据访问的一致性和类型安全。
+**类的目的**：实现Repository设计模式，为所有数据表提供统一的CRUD操作接口，确保数据访问的一致性和类型安全。支持泛型主键类型，与Dexie.js EntityTable完美兼容。
 
 ```typescript
-abstract class BaseRepository<T> {
-  
-  create(entity: InsertType<T>): Promise<IndexableType>;     
-  findById(id: IndexableType): Promise<T | undefined>;       
-  update(id: IndexableType, changes: Partial<T>): Promise<number>; 
-  delete(id: IndexableType): Promise<void>;                  
+abstract class BaseRepository<T, PK extends keyof T = never, KeyType = IndexableType> {
+  create(entity: InsertType<T, PK>): Promise<KeyType>;
+  findById(id: KeyType): Promise<T | undefined>;
+  getById(id: KeyType): Promise<T>; // 抛出NotFoundError如果未找到
+  update(id: KeyType, changes: Partial<T>): Promise<number>;
+  upsert(entity: InsertType<T, PK>): Promise<KeyType>;
+  delete(id: KeyType): Promise<void>;
 
-  
-  findAll(): Promise<T[]>;                                   
-  count(): Promise<number>;                                  
-  clear(): Promise<void>;                                    
+  findAll(): Promise<T[]>;
+  count(): Promise<number>;
+  clear(): Promise<void>;
 }
 ```
 
+**泛型参数说明**：
+- `T`: 实体类型
+- `PK`: 自动生成的主键字段（如'id'），在插入时可选
+- `KeyType`: 主键的具体类型（如number、string），提供类型安全
+
 #### EventsLogRepository
 
-**类的目的**：专门处理事件日志数据的Repository，提供事件记录、查询和状态管理功能，支持事件处理工作流。
+**类的目的**：专门处理事件日志数据的Repository，提供事件记录、查询和状态管理功能，支持事件处理工作流。使用number类型主键，支持自动递增ID。
 
 ```typescript
-class EventsLogRepository extends BaseRepository<EventsLogRecord> {
-  
-  createEvent(event: Omit<CreateEventsLogRecord, 'isProcessed'>): Promise<number>; 
+class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id', number> {
+  createEvent(event: Omit<EventsLogRecord, 'id' | 'isProcessed'>): Promise<number>;
 
-  
-  getUnprocessedEvents(options?: EventsLogQueryOptions): Promise<EventsLogRecord[]>; 
-  getUnprocessedEventsCount(options?: RepositoryOptions): Promise<number>; 
+  getUnprocessedEvents(options?: EventsLogQueryOptions): Promise<EventsLogRecord[]>;
+  getUnprocessedEventsCount(options?: RepositoryOptions): Promise<number>;
 
-  
-  markEventsAsProcessed(eventIds: number[]): Promise<number>; 
-  deleteEventsByIds(eventIds: number[]): Promise<number>; 
+  markEventsAsProcessed(eventIds: number[]): Promise<number>;
+  deleteEventsByIds(eventIds: number[]): Promise<number>;
+
+  getEventsByVisitId(visitId: string, options?: EventsLogQueryOptions): Promise<EventsLogRecord[]>;
+  getEventsByActivityId(activityId: string, options?: EventsLogQueryOptions): Promise<EventsLogRecord[]>;
+  getEventsByTypeAndTimeRange(eventType: EventType, startTime: number, endTime: number, options?: EventsLogQueryOptions): Promise<EventsLogRecord[]>;
 }
 ```
 
 #### AggregatedStatsRepository
 
-**类的目的**：管理聚合统计数据，提供时间统计的增量更新、多维度查询和汇总分析功能，支持报表生成和数据分析。
+**类的目的**：管理聚合统计数据，提供时间统计的增量更新、多维度查询和汇总分析功能，支持报表生成和数据分析。使用string类型复合主键（格式："YYYY-MM-DD:url"）。
 
 ```typescript
-class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord> {
-  
-  upsertTimeAggregation(data: TimeAggregationData, options?: RepositoryOptions): Promise<string>; 
+class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord, never, string> {
+  upsertTimeAggregation(data: TimeAggregationData, options?: RepositoryOptions): Promise<string>;
 
-  
   getStatsByHostname(
     hostname: string,
     options?: AggregatedStatsQueryOptions
-  ): Promise<AggregatedStatsRecord[]>; 
+  ): Promise<AggregatedStatsRecord[]>;
 
   getStatsByParentDomain(
     parentDomain: string,
     options?: AggregatedStatsQueryOptions
-  ): Promise<AggregatedStatsRecord[]>; 
+  ): Promise<AggregatedStatsRecord[]>;
 
   getStatsByDateRange(
     startDate: string,
     endDate: string,
     options?: AggregatedStatsQueryOptions
-  ): Promise<AggregatedStatsRecord[]>; 
-  
+  ): Promise<AggregatedStatsRecord[]>;
+
   getStatsByDateAndUrl(
     date: string,
     url: string,
     options?: RepositoryOptions
-  ): Promise<AggregatedStatsRecord | undefined>; 
+  ): Promise<AggregatedStatsRecord | undefined>;
 
-  
   getTotalTimeByDateRange(
     startDate: string,
     endDate: string,
     options?: RepositoryOptions
   ): Promise<{
-    totalOpenTime: number;    
-    totalActiveTime: number;  
-    recordCount: number;      
+    totalOpenTime: number;
+    totalActiveTime: number;
+    recordCount: number;
   }>;
+
+  static generateKey(date: string, url: string): string;
+  static getCurrentUtcDate(timestamp?: number): string;
 }
 ```
 
@@ -198,20 +201,17 @@ class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord> {
 
 ```typescript
 class DatabaseService {
-  
-  addEvent(event: Omit<CreateEventsLogRecord, 'isProcessed'>): Promise<number>;        
-  getUnprocessedEvents(options?: EventsLogQueryOptions): Promise<EventsLogRecord[]>;  
-  markEventsAsProcessed(eventIds: number[]): Promise<number>;                         
-  deleteEventsByIds(eventIds: number[]): Promise<number>;                            
+  addEvent(event: Omit<CreateEventsLogRecord, 'isProcessed'>): Promise<number>;
+  getUnprocessedEvents(options?: EventsLogQueryOptions): Promise<EventsLogRecord[]>;
+  markEventsAsProcessed(eventIds: number[]): Promise<number>;
+  deleteEventsByIds(eventIds: number[]): Promise<number>;
 
-  
-  upsertStat(data: TimeAggregationData): Promise<string>;                            
-  getStatsByDateRange(startDate: string, endDate: string): Promise<AggregatedStatsRecord[]>; 
-  getStatsByHostname(hostname: string): Promise<AggregatedStatsRecord[]>;            
-  getStatsByParentDomain(parentDomain: string): Promise<AggregatedStatsRecord[]>;    
+  upsertStat(data: TimeAggregationData): Promise<string>;
+  getStatsByDateRange(startDate: string, endDate: string): Promise<AggregatedStatsRecord[]>;
+  getStatsByHostname(hostname: string): Promise<AggregatedStatsRecord[]>;
+  getStatsByParentDomain(parentDomain: string): Promise<AggregatedStatsRecord[]>;
 
-  
-  getDatabaseHealth(): Promise<DatabaseHealthInfo>;                                  
+  getDatabaseHealth(): Promise<DatabaseHealthInfo>;
 }
 ```
 
@@ -223,13 +223,11 @@ class DatabaseService {
 
 ```typescript
 class HealthCheckUtil {
-  
   static performHealthCheck(
     db: WebTimeTrackerDB,
     options?: HealthCheckOptions
   ): Promise<HealthCheckResult>;
 
-  
   static quickHealthCheck(db: WebTimeTrackerDB): Promise<boolean>;
 }
 ```
@@ -240,19 +238,36 @@ class HealthCheckUtil {
 
 ```typescript
 class VersionManagerUtil {
-  
-  static getVersionInfo(db: WebTimeTrackerDB): Promise<VersionInfo>;              
-  static compareVersions(v1: number, v2: number): VersionComparison;             
+  static getVersionInfo(db: WebTimeTrackerDB): Promise<VersionInfo>;
+  static compareVersions(v1: number, v2: number): VersionComparison;
 
-  
-  static needsUpgrade(db: WebTimeTrackerDB): Promise<boolean>;                    
-  static isCompatible(db: WebTimeTrackerDB, requiredVersion?: number): Promise<boolean>; 
+  static needsUpgrade(db: WebTimeTrackerDB): Promise<boolean>;
+  static isCompatible(db: WebTimeTrackerDB, requiredVersion?: number): Promise<boolean>;
 }
 ```
 
 ## 🎯 核心特性
 
 **特性目的**：展示数据库模块的关键功能，帮助开发者了解如何使用核心工具来解决常见的数据处理和系统监控问题。
+
+### 类型安全保障
+
+**功能目的**：通过泛型约束和强类型系统，确保编译时类型检查，防止运行时类型错误，提高代码质量和开发效率。
+
+```typescript
+// BaseRepository 支持具体主键类型，与 Dexie.js EntityTable 完美兼容
+class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id', number> {
+  // 所有方法都使用 number 类型的主键，编译时类型安全
+  async findById(id: number): Promise<EventsLogRecord | undefined> { ... }
+  async update(id: number, changes: Partial<EventsLogRecord>): Promise<number> { ... }
+}
+
+class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord, never, string> {
+  // 所有方法都使用 string 类型的复合主键，编译时类型安全
+  async findById(key: string): Promise<AggregatedStatsRecord | undefined> { ... }
+  async update(key: string, changes: Partial<AggregatedStatsRecord>): Promise<number> { ... }
+}
+```
 
 ### URL规范化
 
@@ -261,10 +276,8 @@ class VersionManagerUtil {
 ```typescript
 import { normalizeUrl } from '@/db';
 
-
 const originalUrl = 'https://example.com/page?id=123&utm_source=google&fbclid=abc';
 const normalizedUrl = normalizeUrl(originalUrl);
-
 ```
 
 ### 健康检查
@@ -274,9 +287,6 @@ const normalizedUrl = normalizeUrl(originalUrl);
 ```typescript
 import { HealthCheckUtil, database } from '@/db';
 
-
 const health = await HealthCheckUtil.performHealthCheck(database);
 console.log('数据库状态:', health.healthy ? '正常' : '异常');
-
-
 ```

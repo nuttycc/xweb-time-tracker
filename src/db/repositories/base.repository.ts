@@ -17,9 +17,17 @@ export interface BaseEntity extends Record<string, unknown> {
 }
 
 /**
- * Insert type for entities - makes primary key optional for auto-increment scenarios
+ * Insert type for entities - makes specified primary key fields optional for auto-increment scenarios
+ *
+ * @template T - The entity type
+ * @template PK - The primary key field(s) to make optional (defaults to never for non-auto-increment tables)
+ *
+ * For auto-increment tables: InsertType<EntityType, 'id'> makes id optional
+ * For manual key tables: InsertType<EntityType> keeps all fields as-is
  */
-export type InsertType<T> = T;
+export type InsertType<T, PK extends keyof T = never> = [PK] extends [never]
+  ? T
+  : Omit<T, PK> & { [K in PK]?: T[K] };
 
 /**
  * Dexie Collection interface for query results
@@ -41,14 +49,16 @@ interface DexieCollection<T> {
 }
 
 /**
- * Generic table interface for Dexie tables
+ * Generic table interface for Dexie tables with typed primary key
+ * @template T - The entity type
+ * @template KeyType - The primary key type
  */
-interface DexieTable<T> {
-  get: (id: IndexableType) => Promise<T | undefined>;
-  add: (entity: T) => Promise<IndexableType>;
-  update: (id: IndexableType, changes: Partial<T>) => Promise<number>;
-  put: (entity: T) => Promise<IndexableType>;
-  delete: (id: IndexableType) => Promise<void>;
+export interface DexieTable<T, KeyType = IndexableType> {
+  get: (id: KeyType) => Promise<T | undefined>;
+  add: (entity: T) => Promise<KeyType>;
+  update: (id: KeyType, changes: Partial<T>) => Promise<number>;
+  put: (entity: T) => Promise<KeyType>;
+  delete: (id: KeyType) => Promise<void>;
   toArray: () => Promise<T[]>;
   count: () => Promise<number>;
   clear: () => Promise<void>;
@@ -107,13 +117,15 @@ export class NotFoundError extends RepositoryError {
  * Designed to work with Dexie.js tables with flexible primary key types.
  *
  * @template T - The entity type
+ * @template PK - The primary key field(s) to make optional during insert (defaults to never)
+ * @template KeyType - The primary key type (defaults to IndexableType for backward compatibility)
  */
-export abstract class BaseRepository<T> {
-  protected readonly table: DexieTable<T>;
+export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = IndexableType> {
+  protected readonly table: DexieTable<T, KeyType>;
   protected readonly db: WebTimeTrackerDB;
   protected readonly tableName: string;
 
-  constructor(db: WebTimeTrackerDB, table: DexieTable<T>, tableName: string) {
+  constructor(db: WebTimeTrackerDB, table: DexieTable<T, KeyType>, tableName: string) {
     this.db = db;
     this.table = table;
     this.tableName = tableName;
@@ -126,12 +138,12 @@ export abstract class BaseRepository<T> {
    * @param options - Repository operation options
    * @returns Promise resolving to the generated primary key
    */
-  async create(entity: InsertType<T>, options: RepositoryOptions = {}): Promise<IndexableType> {
+  async create(entity: InsertType<T, PK>, options: RepositoryOptions = {}): Promise<KeyType> {
     try {
       await this.validateForCreate(entity);
 
       const result = await this.executeWithRetry(
-        async () => await this.table.add(entity),
+        async () => await this.table.add(entity as T),
         'create',
         options
       );
@@ -149,7 +161,7 @@ export abstract class BaseRepository<T> {
    * @param options - Repository operation options
    * @returns Promise resolving to the entity or undefined if not found
    */
-  async findById(id: IndexableType, options: RepositoryOptions = {}): Promise<T | undefined> {
+  async findById(id: KeyType, options: RepositoryOptions = {}): Promise<T | undefined> {
     try {
       const result = await this.executeWithRetry(
         async () => await this.table.get(id),
@@ -171,10 +183,10 @@ export abstract class BaseRepository<T> {
    * @returns Promise resolving to the entity
    * @throws NotFoundError if entity is not found
    */
-  async getById(id: IndexableType, options: RepositoryOptions = {}): Promise<T> {
+  async getById(id: KeyType, options: RepositoryOptions = {}): Promise<T> {
     const entity = await this.findById(id, options);
     if (!entity) {
-      throw new NotFoundError(id);
+      throw new NotFoundError(id as IndexableType);
     }
     return entity;
   }

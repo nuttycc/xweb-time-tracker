@@ -10,10 +10,10 @@ import {
   ValidationError,
   type RepositoryOptions,
   type InsertType,
+  type DexieTable,
 } from './base.repository';
 import type { WebTimeTrackerDB } from '../schemas';
 import type { EventsLogRecord, EventType } from '../schemas/eventslog.schema';
-import type { CreateEventsLogRecord } from '../models/eventslog.model';
 import { EventsLogValidation } from '../models/eventslog.model';
 
 /**
@@ -31,10 +31,13 @@ export interface EventsLogQueryOptions extends RepositoryOptions {
  *
  * Provides data access operations for the eventslog table with type safety,
  * validation, and domain-specific query methods.
+ * Uses auto-increment primary key 'id', so InsertType makes 'id' optional.
  */
-export class EventsLogRepository extends BaseRepository<EventsLogRecord> {
+export class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id', number> {
   constructor(db: WebTimeTrackerDB) {
-    super(db, db.eventslog, 'eventslog');
+    // Type assertion is safe here because EntityTable<EventsLogRecord, 'id'>
+    // is compatible with DexieTable<EventsLogRecord, number> for our use case
+    super(db, db.eventslog as unknown as DexieTable<EventsLogRecord, number>, 'eventslog');
   }
 
   /**
@@ -323,9 +326,9 @@ export class EventsLogRepository extends BaseRepository<EventsLogRecord> {
   }
 
   // Validation methods implementation
-  protected async validateForCreate(entity: InsertType<EventsLogRecord>): Promise<void> {
+  protected async validateForCreate(entity: InsertType<EventsLogRecord, 'id'>): Promise<void> {
     try {
-      EventsLogValidation.validateCreate(entity as CreateEventsLogRecord);
+      EventsLogValidation.validateCreate(entity);
     } catch (error) {
       throw new ValidationError(`Invalid event data for creation: ${(error as Error).message}`);
     }
@@ -374,7 +377,7 @@ export class EventsLogRepository extends BaseRepository<EventsLogRecord> {
     }
   }
 
-  protected async validateForUpsert(entity: InsertType<EventsLogRecord>): Promise<void> {
+  protected async validateForUpsert(entity: InsertType<EventsLogRecord, 'id'>): Promise<void> {
     // For upsert, use the same validation as create
     await this.validateForCreate(entity);
   }
