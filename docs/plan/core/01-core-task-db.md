@@ -1,4 +1,6 @@
-# Core Logic task plan - indexedDB - v0.5
+# Core Logic task plan: indexedDB - v0.5
+
+Status：reviewing
 
 ## Scope
 
@@ -84,3 +86,25 @@
   - [ ] 处理数据写入和读取操作中错误
   - [ ] 处理 `QuotaExceededError` 等存储空间不足的错误，并提供日志或通知机制
   - [ ] 处理 Zod 验证失败的错误，阻止无效数据写入并记录错误
+
+---
+
+## 更改记录
+
+实际实现与计划产生差异，主要体现在方法名上，由于效果相同，不再列出。
+下面只列出重大变更。
+
+### getStatsByPath方法架构决策
+
+**原计划**: 实现 `getStatsByPath(hostname: string, pathname: string)` 方法用于按路径查询统计数据。
+
+**架构演进**: 在实际实现过程中，项目采用了URL规范化策略来解决数据爆炸问题，使用完整的规范化URL作为聚合key，而非分离的hostname+pathname结构。
+
+**最终决策**:
+
+- **移除**: `getStatsByPath()` 方法要求
+
+**实现参考**:
+
+- URL规范化工具: `src/db/utils/url-normalizer.util.ts`
+- 实际Repository实现: `src/db/repositories/aggregatedstats.repository.ts`

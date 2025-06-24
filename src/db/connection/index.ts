@@ -8,16 +8,18 @@
 // Export connection manager
 export {
   DatabaseConnectionManager,
+  DefaultDatabaseFactory,
   ConnectionState,
   connectionManager,
   type HealthCheckResult,
   type ConnectionManagerOptions,
+  type DatabaseFactory,
 } from './manager';
 
 // Export database service
 export {
-  DatabaseService,
-  databaseService,
+  ConnectionService,
+  connectionService,
   type DatabaseOperationOptions,
   type TransactionCallback,
 } from './service';

@@ -23,7 +23,18 @@ export type ResolutionType = 'crash_recovery';
 /**
  * Events log table record interface
  *
- * Based on LLD section 3.2 events_log table structure
+ * This interface defines the structure of records stored in the `eventslog` table.
+ * It serves as the source of truth for raw domain events within the system.
+ *
+ * @property {number} [id] - Primary key, auto-increment.
+ * @property {number} timestamp - Event occurrence timestamp (Unix timestamp in milliseconds).
+ * @property {EventType} eventType - Event type enumeration.
+ * @property {number} tabId - Associated browser tab ID.
+ * @property {string} url - Complete URL (including path and parameters).
+ * @property {string} visitId - Unique visit identifier (UUID), bound to Open Time lifecycle.
+ * @property {string | null} activityId - Unique activity interval identifier (UUID), bound to Active Time lifecycle. Can be null for events not associated with activity.
+ * @property {0 | 1} isProcessed - Whether processed by aggregator (0 = false, 1 = true). Indexed field for fast query of unprocessed events.
+ * @property {ResolutionType} [resolution] - Optional special event source marker. Used for events like crash recovery.
  */
 export interface EventsLogRecord {
   /**

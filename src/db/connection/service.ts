@@ -24,12 +24,12 @@ export interface DatabaseOperationOptions {
 export type TransactionCallback<T> = (db: WebTimeTrackerDB, transaction: Transaction) => Promise<T>;
 
 /**
- * Database Service Class
+ * Connection Service Class
  *
  * Provides a high-level interface for database operations with automatic
  * connection management, error handling, and retry logic.
  */
-export class DatabaseService {
+export class ConnectionService {
   /**
    * Execute a database operation with automatic connection management
    *
@@ -199,6 +199,6 @@ export class DatabaseService {
 }
 
 /**
- * Singleton instance of the database service
+ * Singleton instance of the connection service
  */
-export const databaseService = new DatabaseService();
+export const connectionService = new ConnectionService();
