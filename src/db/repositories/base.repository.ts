@@ -199,11 +199,7 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
    * @param options - Repository operation options
    * @returns Promise resolving to the number of updated records
    */
-  async update(
-    id: IndexableType,
-    changes: Partial<T>,
-    options: RepositoryOptions = {}
-  ): Promise<number> {
+  async update(id: KeyType, changes: Partial<T>, options: RepositoryOptions = {}): Promise<number> {
     try {
       await this.validateForUpdate(id, changes);
 
@@ -226,12 +222,12 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
    * @param options - Repository operation options
    * @returns Promise resolving to the primary key
    */
-  async upsert(entity: InsertType<T>, options: RepositoryOptions = {}): Promise<IndexableType> {
+  async upsert(entity: InsertType<T, PK>, options: RepositoryOptions = {}): Promise<KeyType> {
     try {
       await this.validateForUpsert(entity);
 
       const result = await this.executeWithRetry(
-        async () => await this.table.put(entity),
+        async () => await this.table.put(entity as T),
         'upsert',
         options
       );
@@ -249,7 +245,7 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
    * @param options - Repository operation options
    * @returns Promise resolving when deletion is complete
    */
-  async delete(id: IndexableType, options: RepositoryOptions = {}): Promise<void> {
+  async delete(id: KeyType, options: RepositoryOptions = {}): Promise<void> {
     try {
       await this.executeWithRetry(async () => await this.table.delete(id), 'delete', options);
     } catch (error) {
@@ -386,7 +382,7 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
   }
 
   // Abstract validation methods to be implemented by concrete repositories
-  protected abstract validateForCreate(entity: InsertType<T>): Promise<void>;
-  protected abstract validateForUpdate(id: IndexableType, changes: Partial<T>): Promise<void>;
-  protected abstract validateForUpsert(entity: InsertType<T>): Promise<void>;
+  protected abstract validateForCreate(entity: InsertType<T, PK>): Promise<void>;
+  protected abstract validateForUpdate(id: KeyType, changes: Partial<T>): Promise<void>;
+  protected abstract validateForUpsert(entity: InsertType<T, PK>): Promise<void>;
 }

@@ -46,9 +46,19 @@ export interface TimeAggregationData {
  * validation, upsert logic for time aggregation, and domain-specific query methods.
  * Note: This repository works with string primary keys (composite format: "YYYY-MM-DD:url")
  */
-export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord> {
+export class AggregatedStatsRepository extends BaseRepository<
+  AggregatedStatsRecord,
+  never,
+  string
+> {
   constructor(db: WebTimeTrackerDB) {
-    super(db, db.aggregatedstats, 'aggregatedstats');
+    // Type assertion is safe here because EntityTable<AggregatedStatsRecord, 'key'>
+    // is compatible with DexieTable<AggregatedStatsRecord, string> for our use case
+    super(
+      db,
+      db.aggregatedstats as unknown as DexieTable<AggregatedStatsRecord, string>,
+      'aggregatedstats'
+    );
   }
 
   /**
@@ -407,7 +417,7 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
 
   protected async validateForCreate(entity: InsertType<AggregatedStatsRecord>): Promise<void> {
     try {
-      AggregatedStatsValidation.validateCreate(entity as CreateAggregatedStatsRecord);
+      AggregatedStatsValidation.validateCreate(entity);
     } catch (error) {
       throw new ValidationError(
         `Invalid aggregated stats data for creation: ${(error as Error).message}`
