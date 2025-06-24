@@ -10,8 +10,8 @@ import {
   ValidationError,
   type RepositoryOptions,
   type InsertType,
-  type DexieTable,
 } from './base.repository';
+import type { IDType } from 'dexie';
 import type { WebTimeTrackerDB } from '../schemas';
 import type { AggregatedStatsRecord } from '../schemas/aggregatedstats.schema';
 import { generateAggregatedStatsKey, getUtcDateString } from '../schemas/aggregatedstats.schema';
@@ -46,19 +46,10 @@ export interface TimeAggregationData {
  * validation, upsert logic for time aggregation, and domain-specific query methods.
  * Note: This repository works with string primary keys (composite format: "YYYY-MM-DD:url")
  */
-export class AggregatedStatsRepository extends BaseRepository<
-  AggregatedStatsRecord,
-  never,
-  string
-> {
+export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord, 'key'> {
   constructor(db: WebTimeTrackerDB) {
-    // Type assertion is safe here because EntityTable<AggregatedStatsRecord, 'key'>
-    // is compatible with DexieTable<AggregatedStatsRecord, string> for our use case
-    super(
-      db,
-      db.aggregatedstats as unknown as DexieTable<AggregatedStatsRecord, string>,
-      'aggregatedstats'
-    );
+    // Direct use of EntityTable without type assertion
+    super(db, db.aggregatedstats, 'aggregatedstats');
   }
 
   /**
@@ -426,7 +417,7 @@ export class AggregatedStatsRepository extends BaseRepository<
   }
 
   protected async validateForUpdate(
-    key: string,
+    key: IDType<AggregatedStatsRecord, 'key'>,
     changes: Partial<AggregatedStatsRecord>
   ): Promise<void> {
     if (!key || typeof key !== 'string') {

@@ -5,7 +5,7 @@
  * for Dexie.js tables with full TypeScript type safety and error handling.
  */
 
-import type { IndexableType } from 'dexie';
+import type { IndexableType, EntityTable, IDType } from 'dexie';
 import type { WebTimeTrackerDB } from '../schemas';
 
 /**
@@ -28,44 +28,6 @@ export interface BaseEntity extends Record<string, unknown> {
 export type InsertType<T, PK extends keyof T = never> = [PK] extends [never]
   ? T
   : Omit<T, PK> & { [K in PK]?: T[K] };
-
-/**
- * Dexie Collection interface for query results
- */
-interface DexieCollection<T> {
-  toArray: () => Promise<T[]>;
-  count: () => Promise<number>;
-  offset: (n: number) => DexieCollection<T>;
-  limit: (n: number) => DexieCollection<T>;
-  reverse: () => DexieCollection<T>;
-  filter: (predicate: (item: T) => boolean) => DexieCollection<T>;
-  equals: (value: unknown) => DexieCollection<T>;
-  between: (
-    lower: unknown,
-    upper: unknown,
-    includeLower?: boolean,
-    includeUpper?: boolean
-  ) => DexieCollection<T>;
-}
-
-/**
- * Generic table interface for Dexie tables with typed primary key
- * @template T - The entity type
- * @template KeyType - The primary key type
- */
-export interface DexieTable<T, KeyType = IndexableType> {
-  get: (id: KeyType) => Promise<T | undefined>;
-  add: (entity: T) => Promise<KeyType>;
-  update: (id: KeyType, changes: Partial<T>) => Promise<number>;
-  put: (entity: T) => Promise<KeyType>;
-  delete: (id: KeyType) => Promise<void>;
-  toArray: () => Promise<T[]>;
-  count: () => Promise<number>;
-  clear: () => Promise<void>;
-  where: (index: string) => DexieCollection<T>;
-  orderBy: (index: string) => DexieCollection<T>;
-  filter: (predicate: (item: T) => boolean) => DexieCollection<T>;
-}
 
 /**
  * Repository operation options.
@@ -114,18 +76,17 @@ export class NotFoundError extends RepositoryError {
  * Generic Base Repository Class
  *
  * Provides common CRUD operations with type safety, error handling, and validation.
- * Designed to work with Dexie.js tables with flexible primary key types.
+ * Designed to work with Dexie.js EntityTable with flexible primary key types.
  *
  * @template T - The entity type
- * @template PK - The primary key field(s) to make optional during insert (defaults to never)
- * @template KeyType - The primary key type (defaults to IndexableType for backward compatibility)
+ * @template PK - The primary key field name (string literal type)
  */
-export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = IndexableType> {
-  protected readonly table: DexieTable<T, KeyType>;
+export abstract class BaseRepository<T, PK extends keyof T> {
+  protected readonly table: EntityTable<T, PK>;
   protected readonly db: WebTimeTrackerDB;
   protected readonly tableName: string;
 
-  constructor(db: WebTimeTrackerDB, table: DexieTable<T, KeyType>, tableName: string) {
+  constructor(db: WebTimeTrackerDB, table: EntityTable<T, PK>, tableName: string) {
     this.db = db;
     this.table = table;
     this.tableName = tableName;
@@ -138,7 +99,7 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
    * @param options - Repository operation options
    * @returns Promise resolving to the generated primary key
    */
-  async create(entity: InsertType<T, PK>, options: RepositoryOptions = {}): Promise<KeyType> {
+  async create(entity: InsertType<T, PK>, options: RepositoryOptions = {}): Promise<IDType<T, PK>> {
     try {
       await this.validateForCreate(entity);
 
@@ -148,7 +109,7 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
         options
       );
 
-      return result;
+      return result as IDType<T, PK>;
     } catch (error) {
       throw this.handleError(error, 'create');
     }
@@ -161,7 +122,7 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
    * @param options - Repository operation options
    * @returns Promise resolving to the entity or undefined if not found
    */
-  async findById(id: KeyType, options: RepositoryOptions = {}): Promise<T | undefined> {
+  async findById(id: IDType<T, PK>, options: RepositoryOptions = {}): Promise<T | undefined> {
     try {
       const result = await this.executeWithRetry(
         async () => await this.table.get(id),
@@ -183,7 +144,7 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
    * @returns Promise resolving to the entity
    * @throws NotFoundError if entity is not found
    */
-  async getById(id: KeyType, options: RepositoryOptions = {}): Promise<T> {
+  async getById(id: IDType<T, PK>, options: RepositoryOptions = {}): Promise<T> {
     const entity = await this.findById(id, options);
     if (!entity) {
       throw new NotFoundError(id as IndexableType);
@@ -199,12 +160,18 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
    * @param options - Repository operation options
    * @returns Promise resolving to the number of updated records
    */
-  async update(id: KeyType, changes: Partial<T>, options: RepositoryOptions = {}): Promise<number> {
+  async update(
+    id: IDType<T, PK>,
+    changes: Partial<T>,
+    options: RepositoryOptions = {}
+  ): Promise<number> {
     try {
       await this.validateForUpdate(id, changes);
 
       const result = await this.executeWithRetry(
-        async () => await this.table.update(id, changes),
+        // Type assertion needed due to complex Dexie type system
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        async () => await this.table.update(id, changes as any),
         'update',
         options
       );
@@ -222,7 +189,7 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
    * @param options - Repository operation options
    * @returns Promise resolving to the primary key
    */
-  async upsert(entity: InsertType<T, PK>, options: RepositoryOptions = {}): Promise<KeyType> {
+  async upsert(entity: InsertType<T, PK>, options: RepositoryOptions = {}): Promise<IDType<T, PK>> {
     try {
       await this.validateForUpsert(entity);
 
@@ -232,7 +199,7 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
         options
       );
 
-      return result;
+      return result as IDType<T, PK>;
     } catch (error) {
       throw this.handleError(error, 'upsert');
     }
@@ -245,7 +212,7 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
    * @param options - Repository operation options
    * @returns Promise resolving when deletion is complete
    */
-  async delete(id: KeyType, options: RepositoryOptions = {}): Promise<void> {
+  async delete(id: IDType<T, PK>, options: RepositoryOptions = {}): Promise<void> {
     try {
       await this.executeWithRetry(async () => await this.table.delete(id), 'delete', options);
     } catch (error) {
@@ -383,6 +350,6 @@ export abstract class BaseRepository<T, PK extends keyof T = never, KeyType = In
 
   // Abstract validation methods to be implemented by concrete repositories
   protected abstract validateForCreate(entity: InsertType<T, PK>): Promise<void>;
-  protected abstract validateForUpdate(id: KeyType, changes: Partial<T>): Promise<void>;
+  protected abstract validateForUpdate(id: IDType<T, PK>, changes: Partial<T>): Promise<void>;
   protected abstract validateForUpsert(entity: InsertType<T, PK>): Promise<void>;
 }

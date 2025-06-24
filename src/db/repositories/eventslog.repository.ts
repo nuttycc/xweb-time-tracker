@@ -10,8 +10,8 @@ import {
   ValidationError,
   type RepositoryOptions,
   type InsertType,
-  type DexieTable,
 } from './base.repository';
+import type { IDType } from 'dexie';
 import type { WebTimeTrackerDB } from '../schemas';
 import type { EventsLogRecord, EventType } from '../schemas/eventslog.schema';
 import { EventsLogValidation } from '../models/eventslog.model';
@@ -33,11 +33,10 @@ export interface EventsLogQueryOptions extends RepositoryOptions {
  * validation, and domain-specific query methods.
  * Uses auto-increment primary key 'id', so InsertType makes 'id' optional.
  */
-export class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id', number> {
+export class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id'> {
   constructor(db: WebTimeTrackerDB) {
-    // Type assertion is safe here because EntityTable<EventsLogRecord, 'id'>
-    // is compatible with DexieTable<EventsLogRecord, number> for our use case
-    super(db, db.eventslog as unknown as DexieTable<EventsLogRecord, number>, 'eventslog');
+    // Direct use of EntityTable without type assertion
+    super(db, db.eventslog, 'eventslog');
   }
 
   /**
@@ -334,8 +333,11 @@ export class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id', n
     }
   }
 
-  protected async validateForUpdate(id: number, changes: Partial<EventsLogRecord>): Promise<void> {
-    if (id <= 0) {
+  protected async validateForUpdate(
+    id: IDType<EventsLogRecord, 'id'>,
+    changes: Partial<EventsLogRecord>
+  ): Promise<void> {
+    if (typeof id !== 'number' || id <= 0) {
       throw new ValidationError('Event ID must be a positive number');
     }
 

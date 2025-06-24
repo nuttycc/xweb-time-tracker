@@ -104,18 +104,20 @@ class WebTimeTrackerDB extends Dexie {
 
 ### Repository 层
 
-#### BaseRepository<T, PK, KeyType>
+#### BaseRepository<T, PK>
 
-**类的目的**：实现Repository设计模式，为所有数据表提供统一的CRUD操作接口，确保数据访问的一致性和类型安全。支持泛型主键类型，与Dexie.js EntityTable完美兼容。
+**类的目的**：实现Repository设计模式，为所有数据表提供统一的CRUD操作接口，确保数据访问的一致性和类型安全。直接使用Dexie.js EntityTable，无需手动类型转换。
 
 ```typescript
-abstract class BaseRepository<T, PK extends keyof T = never, KeyType = IndexableType> {
-  create(entity: InsertType<T, PK>): Promise<KeyType>;
-  findById(id: KeyType): Promise<T | undefined>;
-  getById(id: KeyType): Promise<T>; // 抛出NotFoundError如果未找到
-  update(id: KeyType, changes: Partial<T>): Promise<number>;
-  upsert(entity: InsertType<T, PK>): Promise<KeyType>;
-  delete(id: KeyType): Promise<void>;
+import type { IDType } from 'dexie';
+
+abstract class BaseRepository<T, PK extends keyof T> {
+  create(entity: InsertType<T, PK>): Promise<IDType<T, PK>>;
+  findById(id: IDType<T, PK>): Promise<T | undefined>;
+  getById(id: IDType<T, PK>): Promise<T>; // 抛出NotFoundError如果未找到
+  update(id: IDType<T, PK>, changes: Partial<T>): Promise<number>;
+  upsert(entity: InsertType<T, PK>): Promise<IDType<T, PK>>;
+  delete(id: IDType<T, PK>): Promise<void>;
 
   findAll(): Promise<T[]>;
   count(): Promise<number>;
@@ -124,16 +126,17 @@ abstract class BaseRepository<T, PK extends keyof T = never, KeyType = Indexable
 ```
 
 **泛型参数说明**：
+
 - `T`: 实体类型
-- `PK`: 自动生成的主键字段（如'id'），在插入时可选
-- `KeyType`: 主键的具体类型（如number、string），提供类型安全
+- `PK`: 主键字段名（字符串字面量类型，如 'id' 或 'key'）
+- 主键类型通过 `IDType<T, PK>` 推断，确保与 Dexie.js 类型系统完全兼容
 
 #### EventsLogRepository
 
 **类的目的**：专门处理事件日志数据的Repository，提供事件记录、查询和状态管理功能，支持事件处理工作流。使用number类型主键，支持自动递增ID。
 
 ```typescript
-class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id', number> {
+class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id'> {
   createEvent(event: Omit<EventsLogRecord, 'id' | 'isProcessed'>): Promise<number>;
 
   getUnprocessedEvents(options?: EventsLogQueryOptions): Promise<EventsLogRecord[]>;
@@ -143,8 +146,16 @@ class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id', number> 
   deleteEventsByIds(eventIds: number[]): Promise<number>;
 
   getEventsByVisitId(visitId: string, options?: EventsLogQueryOptions): Promise<EventsLogRecord[]>;
-  getEventsByActivityId(activityId: string, options?: EventsLogQueryOptions): Promise<EventsLogRecord[]>;
-  getEventsByTypeAndTimeRange(eventType: EventType, startTime: number, endTime: number, options?: EventsLogQueryOptions): Promise<EventsLogRecord[]>;
+  getEventsByActivityId(
+    activityId: string,
+    options?: EventsLogQueryOptions
+  ): Promise<EventsLogRecord[]>;
+  getEventsByTypeAndTimeRange(
+    eventType: EventType,
+    startTime: number,
+    endTime: number,
+    options?: EventsLogQueryOptions
+  ): Promise<EventsLogRecord[]>;
 }
 ```
 
@@ -153,7 +164,7 @@ class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id', number> 
 **类的目的**：管理聚合统计数据，提供时间统计的增量更新、多维度查询和汇总分析功能，支持报表生成和数据分析。使用string类型复合主键（格式："YYYY-MM-DD:url"）。
 
 ```typescript
-class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord, never, string> {
+class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord, 'key'> {
   upsertTimeAggregation(data: TimeAggregationData, options?: RepositoryOptions): Promise<string>;
 
   getStatsByHostname(
@@ -255,17 +266,19 @@ class VersionManagerUtil {
 **功能目的**：通过泛型约束和强类型系统，确保编译时类型检查，防止运行时类型错误，提高代码质量和开发效率。
 
 ```typescript
-// BaseRepository 支持具体主键类型，与 Dexie.js EntityTable 完美兼容
-class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id', number> {
-  // 所有方法都使用 number 类型的主键，编译时类型安全
-  async findById(id: number): Promise<EventsLogRecord | undefined> { ... }
-  async update(id: number, changes: Partial<EventsLogRecord>): Promise<number> { ... }
+import type { IDType } from 'dexie';
+
+// BaseRepository 直接使用 Dexie.js EntityTable，主键类型通过 IDType 推断
+class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id'> {
+  // 主键类型通过 IDType<EventsLogRecord, 'id'> 推断为 number，编译时类型安全
+  async findById(id: IDType<EventsLogRecord, 'id'>): Promise<EventsLogRecord | undefined> { ... }
+  async update(id: IDType<EventsLogRecord, 'id'>, changes: Partial<EventsLogRecord>): Promise<number> { ... }
 }
 
-class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord, never, string> {
-  // 所有方法都使用 string 类型的复合主键，编译时类型安全
-  async findById(key: string): Promise<AggregatedStatsRecord | undefined> { ... }
-  async update(key: string, changes: Partial<AggregatedStatsRecord>): Promise<number> { ... }
+class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord, 'key'> {
+  // 主键类型通过 IDType<AggregatedStatsRecord, 'key'> 推断为 string，编译时类型安全
+  async findById(key: IDType<AggregatedStatsRecord, 'key'>): Promise<AggregatedStatsRecord | undefined> { ... }
+  async update(key: IDType<AggregatedStatsRecord, 'key'>, changes: Partial<AggregatedStatsRecord>): Promise<number> { ... }
 }
 ```
 
