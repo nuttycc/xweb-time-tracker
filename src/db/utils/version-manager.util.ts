@@ -163,8 +163,8 @@ export class VersionManagerUtil {
    */
   private static async getVersionHistory(db: WebTimeTrackerDB): Promise<VersionInfo['history']> {
     try {
-      // For now, return basic history based on current version
-      // In the future, this could be stored in a metadata table
+      // TODO: Implement actual version history tracking
+      // This is currently placeholder data - consider storing migration timestamps in metadata table
       const currentVersion = db.isOpen() ? db.verno : 0;
 
       if (currentVersion === 0) {
@@ -176,7 +176,7 @@ export class VersionManagerUtil {
       for (let version = 1; version <= currentVersion; version++) {
         history.push({
           version,
-          timestamp: Date.now(), // Placeholder - would be actual migration timestamp
+          timestamp: Date.now() - (currentVersion - version) * 86400000, // Mock: each version 1 day apart
           description: this.getVersionDescription(version),
         });
       }
