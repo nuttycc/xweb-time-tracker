@@ -19,6 +19,11 @@ import { AggregatedStatsValidation } from '../models/aggregatedstats.model';
 
 /**
  * Query options for AggregatedStats operations
+ *
+ * @property {number} [limit] - Limits the number of results returned.
+ * @property {number} [offset] - Skips a specified number of results.
+ * @property {"date" | "last_updated" | "total_open_time" | "total_active_time"} [orderBy] - The field to order the results by.
+ * @property {"asc" | "desc"} [orderDirection] - The direction of sorting, ascending or descending.
  */
 export interface AggregatedStatsQueryOptions extends RepositoryOptions {
   limit?: number;
@@ -29,6 +34,13 @@ export interface AggregatedStatsQueryOptions extends RepositoryOptions {
 
 /**
  * Time aggregation data for upsert operations
+ *
+ * @property {string} date - The date in YYYY-MM-DD format for the aggregation.
+ * @property {string} url - The complete URL of the tracked resource. Must be a valid URL.
+ * @property {string} hostname - The hostname of the tracked resource. Cannot be empty.
+ * @property {string} parentDomain - The parent domain of the tracked resource. Cannot be empty.
+ * @property {number} openTimeToAdd - The open time to add (in milliseconds). Must be a non-negative integer.
+ * @property {number} activeTimeToAdd - The active time to add (in milliseconds). Must be a non-negative integer.
  */
 export interface TimeAggregationData {
   date: string;
