@@ -14,8 +14,9 @@ import { z } from 'zod/v4';
  */
 export const AggregatedStatsSchema = z.object({
   /**
-   * Primary key in format "YYYY-MM-DD:full_url"
+   * Primary key in format "YYYY-MM-DD:normalized_url"
    * Ensures uniqueness for each URL per day
+   * The URL component is normalized to remove marketing/tracking parameters
    */
   key: z.string().regex(/^\d{4}-\d{2}-\d{2}:.+$/, 'Key must be in format YYYY-MM-DD:url'),
 
