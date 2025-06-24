@@ -142,17 +142,12 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
           } else {
             // For other fields, we need to sort after retrieval
             const results = await collection.toArray();
-            results.sort((a: AggregatedStatsRecord, b: AggregatedStatsRecord) => {
-              const aVal = a[orderBy];
-              const bVal = b[orderBy];
-              const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-              return orderDirection === 'desc' ? -comparison : comparison;
-            });
+            const sorted = this.sortRecords(results, orderBy, orderDirection);
 
             // Apply pagination manually for sorted results
             const start = offset;
             const end = limit ? start + limit : undefined;
-            return results.slice(start, end);
+            return sorted.slice(start, end);
           }
 
           // Apply pagination for date-ordered results
@@ -199,17 +194,12 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
           } else {
             // For other fields, we need to sort after retrieval
             const results = await collection.toArray();
-            results.sort((a: AggregatedStatsRecord, b: AggregatedStatsRecord) => {
-              const aVal = a[orderBy];
-              const bVal = b[orderBy];
-              const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-              return orderDirection === 'desc' ? -comparison : comparison;
-            });
+            const sorted = this.sortRecords(results, orderBy, orderDirection);
 
             // Apply pagination manually for sorted results
             const start = offset;
             const end = limit ? start + limit : undefined;
-            return results.slice(start, end);
+            return sorted.slice(start, end);
           }
 
           // Apply pagination
@@ -256,17 +246,12 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
           } else {
             // For other fields, we need to sort after retrieval
             const results = await collection.toArray();
-            results.sort((a: AggregatedStatsRecord, b: AggregatedStatsRecord) => {
-              const aVal = a[orderBy];
-              const bVal = b[orderBy];
-              const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-              return orderDirection === 'desc' ? -comparison : comparison;
-            });
+            const sorted = this.sortRecords(results, orderBy, orderDirection);
 
             // Apply pagination manually for sorted results
             const start = offset;
             const end = limit ? start + limit : undefined;
-            return results.slice(start, end);
+            return sorted.slice(start, end);
           }
 
           // Apply pagination
@@ -349,6 +334,28 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
     } catch (error) {
       throw this.handleError(error, 'getTotalTimeByDateRange');
     }
+  }
+
+  /**
+   * Sorts records by a specified field and direction.
+   *
+   * @param records - The array of records to sort.
+   * @param orderBy - The field to sort by.
+   * @param orderDirection - The direction to sort ('asc' or 'desc').
+   * @returns The sorted array of records.
+   */
+  private sortRecords(
+    records: AggregatedStatsRecord[],
+    orderBy: 'date' | 'last_updated' | 'total_open_time' | 'total_active_time',
+    orderDirection: 'asc' | 'desc'
+  ): AggregatedStatsRecord[] {
+    records.sort((a, b) => {
+      const aVal = a[orderBy];
+      const bVal = b[orderBy];
+      const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      return orderDirection === 'desc' ? -comparison : comparison;
+    });
+    return records;
   }
 
   /**
