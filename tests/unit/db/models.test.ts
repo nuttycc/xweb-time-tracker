@@ -70,7 +70,8 @@ describe('EventsLog Model Validation', () => {
     });
 
     it('should allow optional resolution', () => {
-      const { resolution: _resolution, ...dataWithoutResolution } = validEventsLogData;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { resolution: _resolution, ...dataWithoutResolution } = validEventsLogData; // Destructuring to exclude resolution property
       const result = EventsLogSchema.safeParse(dataWithoutResolution);
       expect(result.success).toBe(true);
     });
