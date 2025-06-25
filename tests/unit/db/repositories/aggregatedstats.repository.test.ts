@@ -6,39 +6,40 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import Dexie from 'dexie';
+import Dexie, { type EntityTable } from 'dexie';
 import { AggregatedStatsRepository } from '@/db/repositories/aggregatedstats.repository';
 import { ValidationError, RepositoryError } from '@/db/repositories/base.repository';
 import type { AggregatedStatsRecord } from '@/db/schemas/aggregatedstats.schema';
 import { generateAggregatedStatsKey, getUtcDateString } from '@/db/schemas/aggregatedstats.schema';
 import type { TimeAggregationData } from '@/db/repositories/aggregatedstats.repository';
+import type { WebTimeTrackerDB } from '@/db/schemas';
+import type { EventsLogRecord } from '@/db/schemas/eventslog.schema';
 
-// Test database type
-type TestDB = Dexie & {
-  aggregatedstats: Dexie.Table<AggregatedStatsRecord, string>;
-};
+// Type-safe test database implementation
+class TestDatabase extends Dexie implements WebTimeTrackerDB {
+  aggregatedstats!: EntityTable<AggregatedStatsRecord, 'key'>;
+  eventslog!: EntityTable<EventsLogRecord, 'id'>; // Proper type for interface compliance
+
+  constructor(dbName: string) {
+    super(dbName);
+    this.version(1).stores({
+      aggregatedstats: 'key, date, url, hostname, parentDomain',
+      eventslog: '++id', // Minimal schema for interface compliance
+    });
+  }
+}
 
 describe('AggregatedStatsRepository', () => {
-  let db: TestDB;
+  let db: TestDatabase;
   let repository: AggregatedStatsRepository;
 
   beforeEach(async () => {
     // Create a new database instance with a unique name for each test
     const dbName = `TestAggregatedStatsDB_${Date.now()}_${Math.random()}`;
-    db = new (class extends Dexie {
-      public aggregatedstats!: Dexie.Table<AggregatedStatsRecord, string>;
+    db = new TestDatabase(dbName);
 
-      constructor() {
-        super(dbName);
-        this.version(1).stores({
-          aggregatedstats: 'key, date, url, hostname, parentDomain',
-        });
-      }
-    })();
-
-    repository = new AggregatedStatsRepository(
-      db as unknown as ConstructorParameters<typeof AggregatedStatsRepository>[0]
-    );
+    // Direct instantiation without unsafe type casting
+    repository = new AggregatedStatsRepository(db);
   });
 
   afterEach(async () => {
