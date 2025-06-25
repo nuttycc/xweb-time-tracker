@@ -1,8 +1,7 @@
 /**
  * URL Normalizer Utility Unit Tests
  *
- * Comprehensive tests for URL normalization functionality including
- * whitelist filtering, edge cases, and error handling.
+ * including whitelist filtering, edge cases, and error handling.
  */
 
 import { describe, it, expect } from 'vitest';
