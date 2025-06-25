@@ -175,13 +175,6 @@ export function createMockConsole() {
 }
 
 /**
- * Utility to wait for async operations in tests
- */
-export function waitForAsync(ms: number = 0): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
  * Create batch test data for performance testing
  */
 export function createBatchTestEventsLogRecords(count: number): CreateEventsLogRecord[] {
