@@ -184,7 +184,7 @@ export class TestNetworkError extends Error {
  * Returns an object with all standard console methods mocked for use in tests.
  *
  * Each method (`log`, `warn`, `error`, `info`, `debug`) is replaced with a `vi.fn()` mock function, allowing assertions on console output during testing.
- * 
+ *
  * @returns An object containing mocked console methods.
  */
 export function createMockConsole() {
