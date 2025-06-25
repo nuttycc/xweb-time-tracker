@@ -419,21 +419,33 @@ describe('URL Normalizer Utility', () => {
         {
           input: 'https://example.com/page?id=123&utm_source=google',
           expectedBase: 'https://example.com/page?id=123',
+          removedParams: ['utm_source'],
         },
         {
           input: 'https://shop.com/products?category=tech&sort=price&fbclid=abc',
           expectedBase: 'https://shop.com/products?category=tech&sort=price',
+          removedParams: ['fbclid'],
         },
         {
           input: 'https://news.com/article?page=1&search=javascript&utm_campaign=ads',
           expectedBase: 'https://news.com/article?page=1&search=javascript',
+          removedParams: ['utm_campaign'],
         },
       ];
 
-      testCases.forEach(({ input, expectedBase }) => {
+      testCases.forEach(({ input, expectedBase, removedParams }) => {
         const normalized = normalizeUrl(input);
         const normalizedUrl = new URL(normalized);
         const expectedUrl = new URL(expectedBase);
+
+        // Verify that normalization actually changed the input URL
+        expect(normalized).not.toBe(input);
+
+        // Verify that specific disallowed parameters were removed
+        removedParams.forEach(param => {
+          expect(normalized).not.toContain(param);
+          expect(input).toContain(param); // Ensure the parameter was originally present
+        });
 
         // Should preserve protocol, hostname, and pathname
         expect(normalizedUrl.protocol).toBe(expectedUrl.protocol);
