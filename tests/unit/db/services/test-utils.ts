@@ -2,7 +2,7 @@
  * Services Layer Test Utilities
  *
  * Provides mock factories, test data generators, and utility functions
- * for testing Services layer components with type safety.xxxxx
+ * for testing Services layer components with type safety.
  *
  * Note: For generateTestDatabaseName function, import from '../utils/test-utils'
  * Usage: import { generateTestDatabaseName } from '../utils/test-utils';
@@ -184,7 +184,7 @@ export class TestNetworkError extends Error {
  * Returns an object with all standard console methods mocked for use in tests.
  *
  * Each method (`log`, `warn`, `error`, `info`, `debug`) is replaced with a `vi.fn()` mock function, allowing assertions on console output during testing.
- * 
+ *
  * @returns An object containing mocked console methods.
  */
 export function createMockConsole() {
