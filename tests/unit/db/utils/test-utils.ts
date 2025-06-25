@@ -19,7 +19,11 @@ import type {
 import { UtilityErrorType } from '@/db/utils/types';
 
 /**
- * Create a mock WebTimeTrackerDB with all methods mocked
+ * Creates a fully mocked `WebTimeTrackerDB` instance with default behaviors for testing.
+ *
+ * The returned mock database has `isOpen` returning `true`, version set to `1`, `transaction` resolving to `undefined`, and table count methods returning fixed values.
+ *
+ * @returns A mock proxy of `WebTimeTrackerDB` with default method and property mocks
  */
 export function createMockDatabase(): MockProxy<WebTimeTrackerDB> {
   const mockDb = mock<WebTimeTrackerDB>();
@@ -45,7 +49,12 @@ export function createMockDatabase(): MockProxy<WebTimeTrackerDB> {
 }
 
 /**
- * Create test HealthCheckResult data
+ * Generates a `HealthCheckResult` object with default healthy status, current timestamp, and typical database and performance metrics.
+ *
+ * Allows partial overrides to customize any field in the result.
+ *
+ * @param overrides - Optional fields to override in the generated `HealthCheckResult`
+ * @returns A `HealthCheckResult` object for use in tests
  */
 export function createTestHealthCheckResult(
   overrides: Partial<HealthCheckResult> = {}
@@ -69,7 +78,10 @@ export function createTestHealthCheckResult(
 }
 
 /**
- * Create test VersionInfo data
+ * Generates a VersionInfo object with default values for testing, allowing optional property overrides.
+ *
+ * @param overrides - Partial properties to override the default VersionInfo fields
+ * @returns A VersionInfo object populated with default or overridden values
  */
 export function createTestVersionInfo(overrides: Partial<VersionInfo> = {}): VersionInfo {
   const baseVersionInfo: VersionInfo = {
@@ -91,7 +103,10 @@ export function createTestVersionInfo(overrides: Partial<VersionInfo> = {}): Ver
 }
 
 /**
- * Create test VersionComparison data
+ * Generates a VersionComparison object with default values for testing.
+ *
+ * @param overrides - Optional properties to override the default VersionComparison fields
+ * @returns A VersionComparison object with defaults merged with any provided overrides
  */
 export function createTestVersionComparison(
   overrides: Partial<VersionComparison> = {}
@@ -107,7 +122,10 @@ export function createTestVersionComparison(
 }
 
 /**
- * Create test UtilityOptions
+ * Generates a `UtilityOptions` object with default values for testing, allowing optional overrides.
+ *
+ * @param overrides - Optional properties to override the default utility options
+ * @returns A `UtilityOptions` object with merged default and override values
  */
 export function createTestUtilityOptions(overrides: Partial<UtilityOptions> = {}): UtilityOptions {
   return {
@@ -119,7 +137,10 @@ export function createTestUtilityOptions(overrides: Partial<UtilityOptions> = {}
 }
 
 /**
- * Create test HealthCheckOptions
+ * Generates a HealthCheckOptions object with default values for testing, allowing optional overrides.
+ *
+ * @param overrides - Optional properties to override the default HealthCheckOptions values
+ * @returns A HealthCheckOptions object with defaults merged with any provided overrides
  */
 export function createTestHealthCheckOptions(
   overrides: Partial<HealthCheckOptions> = {}
@@ -136,7 +157,12 @@ export function createTestHealthCheckOptions(
 }
 
 /**
- * Create test VersionManagerOptions
+ * Generates a VersionManagerOptions object with default values for testing.
+ *
+ * Allows partial overrides to customize specific option fields.
+ *
+ * @param overrides - Optional fields to override the default VersionManagerOptions.
+ * @returns A VersionManagerOptions object with defaults merged with any provided overrides.
  */
 export function createTestVersionManagerOptions(
   overrides: Partial<VersionManagerOptions> = {}
@@ -153,9 +179,10 @@ export function createTestVersionManagerOptions(
 }
 
 /**
- * Generate unique test database name with configurable prefix for isolation
- * @param prefix - The prefix to use (e.g., 'Utils', 'Services', 'Integration')
- * @returns Unique database name with timestamp and random suffix
+ * Generates a unique test database name using the specified prefix, current timestamp, and a random suffix.
+ *
+ * @param prefix - Prefix to identify the test context (e.g., 'Utils', 'Services', 'Integration')
+ * @returns A unique database name string for test isolation
  */
 export function generateTestDatabaseName(prefix: string): string {
   return `TestDB_${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -189,7 +216,7 @@ export class TestVersionError extends Error {
 }
 
 /**
- * Mock performance.now() for consistent timing tests
+ * Mocks `performance.now()` to return incrementing values by 10ms on each call for deterministic timing in tests.
  */
 export function mockPerformanceNow(): void {
   let mockTime = 0;
@@ -200,7 +227,11 @@ export function mockPerformanceNow(): void {
 }
 
 /**
- * Mock Date.now() for consistent timestamp tests
+ * Mocks `Date.now()` to return incrementing timestamps, starting from a specified base time.
+ *
+ * Each call to `Date.now()` increases the returned value by 1 second (1000 ms), ensuring predictable and consistent timestamps in tests.
+ *
+ * @param baseTime - The initial timestamp in milliseconds. Defaults to January 1, 2022 (1640995200000).
  */
 export function mockDateNow(baseTime: number = 1640995200000): void {
   let mockTime = baseTime;
@@ -211,7 +242,12 @@ export function mockDateNow(baseTime: number = 1640995200000): void {
 }
 
 /**
- * Create a database that throws specific errors
+ * Returns a mocked database instance configured to simulate a specific error scenario.
+ *
+ * Depending on the `errorType`, the mock will simulate a connection failure, a transaction failure, or an operation failure on the `eventslog` table.
+ *
+ * @param errorType - The type of error to simulate: `'connection'`, `'transaction'`, or `'operation'`
+ * @returns A mock `WebTimeTrackerDB` instance that throws the specified error type
  */
 export function createErrorDatabase(
   errorType: 'connection' | 'transaction' | 'operation'
@@ -236,8 +272,9 @@ export function createErrorDatabase(
 }
 
 /**
- * Set verno property on mock database with getter
- * This is compatible with vitest-mock-extended and allows spying
+ * Sets the `verno` property on a mock database to return a specified version number.
+ *
+ * This enables version control in tests and supports spying with vitest-mock-extended.
  */
 export function setMockDatabaseVersion(mockDb: MockProxy<WebTimeTrackerDB>, version: number): void {
   Object.defineProperty(mockDb, 'verno', {
@@ -248,7 +285,9 @@ export function setMockDatabaseVersion(mockDb: MockProxy<WebTimeTrackerDB>, vers
 }
 
 /**
- * Reset all mocks in a mock database
+ * Resets a mock `WebTimeTrackerDB` instance to its default mocked behaviors.
+ *
+ * Restores default return values for key methods and properties, ensuring consistent state for repeated tests.
  */
 export function resetMockDatabase(mockDb: MockProxy<WebTimeTrackerDB>): void {
   vi.clearAllMocks();
@@ -271,7 +310,9 @@ export function resetMockDatabase(mockDb: MockProxy<WebTimeTrackerDB>): void {
 }
 
 /**
- * Create test data for performance testing
+ * Returns predefined response times and memory usage values for performance testing scenarios.
+ *
+ * @returns An object containing typical response times (fast, normal, slow, timeout) and memory usage levels (low, normal, high) for use in performance tests.
  */
 export function createPerformanceTestData() {
   return {
@@ -288,7 +329,12 @@ export function createPerformanceTestData() {
 }
 
 /**
- * Validate test result structure
+ * Checks whether a `HealthCheckResult` object has valid types for key properties.
+ *
+ * Returns `true` if `healthy` is a boolean, `timestamp` is a number, and `database.connected` is a boolean; otherwise, returns `false`.
+ *
+ * @param result - The health check result object to validate
+ * @returns Whether the object has the expected structure and types
  */
 export function validateHealthCheckResult(result: HealthCheckResult): boolean {
   return (
@@ -300,7 +346,10 @@ export function validateHealthCheckResult(result: HealthCheckResult): boolean {
 }
 
 /**
- * Validate version info structure
+ * Checks whether a VersionInfo object has valid types for its key properties.
+ *
+ * @param versionInfo - The object to validate
+ * @returns True if `current` and `latest` are numbers and `upgradeNeeded` is a boolean; otherwise, false
  */
 export function validateVersionInfo(versionInfo: VersionInfo): boolean {
   return (
