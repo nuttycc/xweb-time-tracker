@@ -3,6 +3,10 @@
  *
  * Provides mock factories, test data generators, and utility functions
  * for testing Services layer components with type safety.
+ *
+ * Note: For generateTestDatabaseName function, import from '../utils/test-utils'
+ * Usage: import { generateTestDatabaseName } from '../utils/test-utils';
+ *        const dbName = generateTestDatabaseName('Services');
  */
 
 import { vi, expect } from 'vitest';
@@ -128,13 +132,6 @@ export function createTestRepositoryOptions(
     maxRetries: 2,
     ...overrides,
   };
-}
-
-/**
- * Generate unique test database name for isolation
- */
-export function generateTestDatabaseName(): string {
-  return `TestDB_Services_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 /**
