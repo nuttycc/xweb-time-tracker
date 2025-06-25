@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import {
-  DatabaseService,
+  ConnectionService,
   type DatabaseOperationOptions,
   type TransactionCallback,
 } from '@/db/connection/service';
@@ -63,12 +63,12 @@ function createMockDatabase(): WebTimeTrackerDB {
   } as unknown as WebTimeTrackerDB;
 }
 
-describe('DatabaseService', () => {
-  let service: DatabaseService;
+describe('ConnectionService', () => {
+  let service: ConnectionService;
   let mockDb: WebTimeTrackerDB;
 
   beforeEach(() => {
-    service = new DatabaseService();
+    service = new ConnectionService();
     mockDb = createMockDatabase();
 
     // Reset all mocks
@@ -600,15 +600,13 @@ describe('DatabaseService', () => {
 
   describe('complex transaction scenarios', () => {
     it('should handle nested transaction operations', async () => {
-      const outerCallback = vi
-        .fn<TransactionCallback<string>>()
-        .mockImplementation(async (db, _transaction) => {
-          // Simulate nested operation within transaction
-          return service.execute(async innerDb => {
-            expect(innerDb).toBe(db);
-            return 'nested result';
-          });
+      const outerCallback = vi.fn<TransactionCallback<string>>().mockImplementation(async db => {
+        // Simulate nested operation within transaction
+        return service.execute(async innerDb => {
+          expect(innerDb).toBe(db);
+          return 'nested result';
         });
+      });
 
       (
         mockDb.transaction as unknown as Mock<

@@ -27,7 +27,7 @@ describe('Database Schema Configuration', () => {
     // Clean up any existing database with this name (unlikely but safe)
     try {
       await WebTimeTrackerDB.delete(testDbName);
-    } catch (_error) {
+    } catch {
       // Ignore errors if database doesn't exist
     }
 
@@ -174,12 +174,31 @@ describe('Schema Utility Functions', () => {
       expect(key).toBe('2023-12-25:https://example.com/path');
     });
 
-    it('should handle complex URLs', () => {
+    it('should handle complex URLs with normalization', () => {
       const date = '2023-12-25';
       const url = 'https://example.com/path?param=value&other=123#section';
       const key = generateAggregatedStatsKey(date, url);
 
-      expect(key).toBe('2023-12-25:https://example.com/path?param=value&other=123#section');
+      // URL normalization removes non-whitelisted parameters and fragments
+      expect(key).toBe('2023-12-25:https://example.com/path');
+    });
+
+    it('should preserve whitelisted parameters', () => {
+      const date = '2023-12-25';
+      const url = 'https://example.com/path?id=123&utm_source=google&page=2';
+      const key = generateAggregatedStatsKey(date, url);
+
+      // Only whitelisted parameters (id, page) should be preserved
+      expect(key).toBe('2023-12-25:https://example.com/path?id=123&page=2');
+    });
+
+    it('should remove marketing parameters automatically', () => {
+      const date = '2023-12-25';
+      const url = 'https://example.com/path?id=123&utm_source=google&fbclid=abc&gclid=xyz';
+      const key = generateAggregatedStatsKey(date, url);
+
+      // Marketing parameters should be removed, only business parameters preserved
+      expect(key).toBe('2023-12-25:https://example.com/path?id=123');
     });
   });
 

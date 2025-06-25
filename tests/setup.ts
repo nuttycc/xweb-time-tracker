@@ -17,7 +17,7 @@ beforeEach(() => {
     databases.forEach(dbName => {
       try {
         indexedDB.deleteDatabase(dbName);
-      } catch (_error) {
+      } catch {
         // Ignore errors during cleanup
       }
     });
