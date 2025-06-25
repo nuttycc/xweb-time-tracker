@@ -16,14 +16,14 @@ export default defineConfig([
   {
     rules: {
       // Allow unused variables that start with underscore (common convention for required but unused parameters)
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        {
-          argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
-          caughtErrorsIgnorePattern: '^_',
-        },
-      ],
+      // '@typescript-eslint/no-unused-vars': [
+      //   'error',
+      //   {
+      //     argsIgnorePattern: '^_',
+      //     varsIgnorePattern: '^_',
+      //     caughtErrorsIgnorePattern: '^_',
+      //   },
+      // ],
     },
   },
 ]);
