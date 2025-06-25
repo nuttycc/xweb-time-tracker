@@ -13,6 +13,9 @@ import {
   ValidationError,
 } from '@/db/repositories/base.repository';
 import type { EntityTable, IDType } from 'dexie';
+import type { WebTimeTrackerDB } from '@/db/schemas';
+import type { EventsLogRecord } from '@/db/schemas/eventslog.schema';
+import type { AggregatedStatsRecord } from '@/db/schemas/aggregatedstats.schema';
 
 // Test entity interface
 interface TestEntity {
@@ -25,13 +28,8 @@ interface TestEntity {
 // Test repository implementation
 class TestRepository extends BaseRepository<TestEntity, 'id'> {
   constructor(db: TestDB) {
-    // Direct use of EntityTable without type assertion
-    super(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      db as any, // Simplified for testing
-      db.testTable as EntityTable<TestEntity, 'id'>,
-      'test_table'
-    );
+    // Type-safe constructor call - no type assertion needed
+    super(db, db.testTable, 'test_table');
   }
 
   protected async validateForCreate(entity: TestEntity): Promise<void> {
@@ -60,14 +58,18 @@ class TestRepository extends BaseRepository<TestEntity, 'id'> {
   }
 }
 
-// Test database class
-class TestDB extends Dexie {
+// Test database class implementing WebTimeTrackerDB interface
+class TestDB extends Dexie implements WebTimeTrackerDB {
   public testTable!: EntityTable<TestEntity, 'id'>;
+  public eventslog!: EntityTable<EventsLogRecord, 'id'>;
+  public aggregatedstats!: EntityTable<AggregatedStatsRecord, 'key'>;
 
   constructor() {
     super('TestDB');
     this.version(1).stores({
       testTable: '++id, name, value, createdAt',
+      eventslog: '++id', // Minimal schema for interface compliance
+      aggregatedstats: 'key', // Minimal schema for interface compliance
     });
   }
 }
