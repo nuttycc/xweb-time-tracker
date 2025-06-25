@@ -150,10 +150,12 @@ export function createTestVersionManagerOptions(
 }
 
 /**
- * Generate unique test database name for isolation
+ * Generate unique test database name with configurable prefix for isolation
+ * @param prefix - The prefix to use (e.g., 'Utils', 'Services', 'Integration')
+ * @returns Unique database name with timestamp and random suffix
  */
-export function generateTestDatabaseName(): string {
-  return `TestDB_Utils_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+export function generateTestDatabaseName(prefix: string): string {
+  return `TestDB_${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 /**
