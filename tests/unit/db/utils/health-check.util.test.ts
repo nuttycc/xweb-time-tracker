@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { type MockProxy } from 'vitest-mock-extended';
-import { HealthCheckUtil, type HealthCheckResult, type WebTimeTrackerDB } from '@/db';
+import { HealthCheckUtil, type HealthCheckResult, type WebTimeTrackerDB } from '@/core/db';
 import {
   createMockDatabase,
   createTestHealthCheckOptions,

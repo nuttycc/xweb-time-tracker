@@ -14,7 +14,7 @@ import {
   getUtcDateString,
   generateAggregatedStatsKey,
   parseAggregatedStatsKey,
-} from '@/db/schemas';
+} from '@/core/db/schemas';
 
 describe('Database Schema Configuration', () => {
   let db: WebTimeTrackerDB;

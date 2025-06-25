@@ -6,18 +6,22 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { WebTimeTrackerDB, generateAggregatedStatsKey, getUtcDateString } from '@/db/schemas';
-import { DatabaseConnectionManager, ConnectionState, ConnectionService } from '@/db/connection';
+import { WebTimeTrackerDB, generateAggregatedStatsKey, getUtcDateString } from '@/core/db/schemas';
+import {
+  DatabaseConnectionManager,
+  ConnectionState,
+  ConnectionService,
+} from '@/core/db/connection';
 import {
   EventsLogValidation,
   AggregatedStatsValidation,
   type CreateEventsLogRecord,
   type CreateAggregatedStatsRecord,
-} from '@/db/models';
+} from '@/core/db/models';
 
 // Mock the connection manager module for Database Service Integration tests
-vi.mock('@/db/connection/manager', async () => {
-  const actual = await vi.importActual('@/db/connection/manager');
+vi.mock('@/core/db/connection/manager', async () => {
+  const actual = await vi.importActual('@/core/db/connection/manager');
   return {
     ...actual,
     connectionManager: {
@@ -314,7 +318,7 @@ describe('Database Operations Integration', () => {
     beforeEach(async () => {
       // Setup the mocked connectionManager to return our test instance
       const { connectionManager: mockedConnectionManager } = await import(
-        '@/db/connection/manager'
+        '@/core/db/connection/manager'
       );
 
       vi.mocked(mockedConnectionManager.getDatabase).mockResolvedValue(db);

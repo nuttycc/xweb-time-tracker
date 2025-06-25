@@ -7,9 +7,9 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Dexie from 'dexie';
-import { EventsLogRepository } from '@/db/repositories/eventslog.repository';
-import { ValidationError, RepositoryError } from '@/db/repositories/base.repository';
-import type { EventsLogRecord, EventType } from '@/db/schemas/eventslog.schema';
+import { EventsLogRepository } from '@/core/db/repositories/eventslog.repository';
+import { ValidationError, RepositoryError } from '@/core/db/repositories/base.repository';
+import type { EventsLogRecord, EventType } from '@/core/db/schemas/eventslog.schema';
 import { randomUUID } from 'crypto';
 
 // Test database class

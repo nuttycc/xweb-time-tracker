@@ -1,0 +1,47 @@
+%% @name: 项目开发阶段流程图 (PDP)  版本号: v1.01
+flowchart TD
+    Start([开始开发]) --> T1[阶段1: 聚合引擎基础架构]
+    
+    T1 --> T11[1.1 创建聚合引擎类结构]
+    T11 --> T12[1.2 实现增量聚合算法]
+    T12 --> T13[1.3 实现域名解析与错误处理]
+    
+    T13 --> V1{阶段1验收}
+    V1 -->|通过| T2[阶段2: 聚合调度器与任务管理]
+    V1 -->|失败| T11
+    
+    T2 --> T21[2.1 实现Chrome.alarms调度]
+    T21 --> T22[2.2 建立任务队列与并发控制]
+    T22 --> T23[2.3 实现监控与重试机制]
+    
+    T23 --> V2{阶段2验收}
+    V2 -->|通过| T3[阶段3: 数据清理器与保留策略]
+    V2 -->|失败| T21
+    
+    T3 --> T31[3.1 实现数据保留策略]
+    T31 --> T32[3.2 建立安全清理机制]
+    T32 --> T33[3.3 实现清理任务调度]
+    
+    T33 --> V3{阶段3验收}
+    V3 -->|通过| T4[阶段4: 系统集成与性能优化]
+    V3 -->|失败| T31
+    
+    T4 --> T41[4.1 完成系统组件集成]
+    T41 --> T42[4.2 实现全局错误恢复]
+    T42 --> T43[4.3 建立性能监控优化]
+    
+    T43 --> V4{最终验收}
+    V4 -->|通过| End([开发完成])
+    V4 -->|失败| T41
+
+    %% 优化样式：高对比度，提升可读性
+    style T1 fill:#1976d2,stroke:#1565c0,stroke-width:2px,color:#fff
+    style T2 fill:#8e24aa,stroke:#6d1b7b,stroke-width:2px,color:#fff
+    style T3 fill:#388e3c,stroke:#1b5e20,stroke-width:2px,color:#fff
+    style T4 fill:#f57c00,stroke:#e65100,stroke-width:2px,color:#fff
+    style V1 fill:#c62828,stroke:#b71c1c,stroke-width:2px,color:#fff
+    style V2 fill:#c62828,stroke:#b71c1c,stroke-width:2px,color:#fff
+    style V3 fill:#c62828,stroke:#b71c1c,stroke-width:2px,color:#fff
+    style V4 fill:#c62828,stroke:#b71c1c,stroke-width:2px,color:#fff
+    style Start fill:#263238,stroke:#212121,stroke-width:2px,color:#fff
+    style End fill:#263238,stroke:#212121,stroke-width:2px,color:#fff

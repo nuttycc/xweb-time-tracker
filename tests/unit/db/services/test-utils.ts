@@ -15,12 +15,12 @@ import type {
   EventsLogRepository,
   AggregatedStatsRepository,
   TimeAggregationData,
-} from '@/db/repositories';
-import type { EventsLogRecord } from '@/db/schemas/eventslog.schema';
-import type { CreateEventsLogRecord } from '@/db/models/eventslog.model';
-import type { AggregatedStatsRecord } from '@/db/models/aggregatedstats.model';
-import type { RepositoryOptions } from '@/db/repositories';
-import { getUtcDateString } from '@/db/schemas/aggregatedstats.schema';
+} from '@/core/db/repositories';
+import type { EventsLogRecord } from '@/core/db/schemas/eventslog.schema';
+import type { CreateEventsLogRecord } from '@/core/db/models/eventslog.model';
+import type { AggregatedStatsRecord } from '@/core/db/models/aggregatedstats.model';
+import type { RepositoryOptions } from '@/core/db/repositories';
+import { getUtcDateString } from '@/core/db/schemas/aggregatedstats.schema';
 
 /**
  * Returns a fully mocked instance of EventsLogRepository for use in tests.

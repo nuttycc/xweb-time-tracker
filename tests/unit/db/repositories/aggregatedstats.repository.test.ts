@@ -7,13 +7,16 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Dexie, { type EntityTable } from 'dexie';
-import { AggregatedStatsRepository } from '@/db/repositories/aggregatedstats.repository';
-import { ValidationError, RepositoryError } from '@/db/repositories/base.repository';
-import type { AggregatedStatsRecord } from '@/db/schemas/aggregatedstats.schema';
-import { generateAggregatedStatsKey, getUtcDateString } from '@/db/schemas/aggregatedstats.schema';
-import type { TimeAggregationData } from '@/db/repositories/aggregatedstats.repository';
-import type { WebTimeTrackerDB } from '@/db/schemas';
-import type { EventsLogRecord } from '@/db/schemas/eventslog.schema';
+import { AggregatedStatsRepository } from '@/core/db/repositories/aggregatedstats.repository';
+import { ValidationError, RepositoryError } from '@/core/db/repositories/base.repository';
+import type { AggregatedStatsRecord } from '@/core/db/schemas/aggregatedstats.schema';
+import {
+  generateAggregatedStatsKey,
+  getUtcDateString,
+} from '@/core/db/schemas/aggregatedstats.schema';
+import type { TimeAggregationData } from '@/core/db/repositories/aggregatedstats.repository';
+import type { WebTimeTrackerDB } from '@/core/db/schemas';
+import type { EventsLogRecord } from '@/core/db/schemas/eventslog.schema';
 
 // Type-safe test database implementation
 class TestDatabase extends Dexie implements WebTimeTrackerDB {

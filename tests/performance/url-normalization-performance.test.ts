@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { normalizeUrl, getNormalizationStats } from '@/db/utils/url-normalizer.util';
+import { normalizeUrl, getNormalizationStats } from '@/core/db/utils/url-normalizer.util';
 
 describe('URL Normalization Performance', () => {
   // Performance thresholds (in milliseconds) - relaxed targets to avoid premature optimization

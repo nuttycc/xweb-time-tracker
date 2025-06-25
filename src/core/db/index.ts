@@ -11,19 +11,19 @@
  * // Recommended import patterns:
  *
  * // For basic database operations:
- * import { businessDatabaseService } from '@/db';
+ * import { businessDatabaseService } from '@/core/db';
  *
  * // For specific repositories:
- * import { EventsLogRepository, AggregatedStatsRepository } from '@/db';
+ * import { EventsLogRepository, AggregatedStatsRepository } from '@/core/db';
  *
  * // For utilities:
- * import { HealthCheckUtil, VersionManagerUtil } from '@/db';
+ * import { HealthCheckUtil, VersionManagerUtil } from '@/core/db';
  *
  * // For types only:
- * import type { EventsLogRecord, HealthCheckResult } from '@/db';
+ * import type { EventsLogRecord, HealthCheckResult } from '@/core/db';
  *
  * // For advanced use cases:
- * import { DatabaseConnectionManager, createBusinessDatabaseService } from '@/db';
+ * import { DatabaseConnectionManager, createBusinessDatabaseService } from '@/core/db';
  */
 
 // ============================================================================

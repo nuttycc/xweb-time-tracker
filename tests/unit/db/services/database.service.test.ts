@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { WebTimeTrackerDB } from '@/db/schemas';
-import { ConnectionState } from '@/db/connection/manager';
+import type { WebTimeTrackerDB } from '@/core/db/schemas';
+import { ConnectionState } from '@/core/db/connection/manager';
 import {
   createMockEventsLogRepository,
   createMockAggregatedStatsRepository,
@@ -19,8 +19,8 @@ import {
 } from './test-utils';
 
 // Mock the database connection service
-vi.mock('@/db/connection', async () => {
-  const actual = await vi.importActual('@/db/connection');
+vi.mock('@/core/db/connection', async () => {
+  const actual = await vi.importActual('@/core/db/connection');
   return {
     ...actual,
     connectionService: {
@@ -36,7 +36,7 @@ vi.mock('@/db/connection', async () => {
 });
 
 // Import after mocking
-import { DatabaseService, type DatabaseHealthInfo } from '@/db/services/database.service';
+import { DatabaseService, type DatabaseHealthInfo } from '@/core/db/services/database.service';
 
 describe('DatabaseService (New CRUD-only Implementation)', () => {
   let service: DatabaseService;
@@ -402,7 +402,7 @@ describe('DatabaseService (New CRUD-only Implementation)', () => {
 
     it('should reflect unhealthy connection status', async () => {
       // Mock unhealthy connection service
-      const { connectionService } = await import('@/db/connection');
+      const { connectionService } = await import('@/core/db/connection');
       vi.mocked(connectionService.getHealthStatus).mockResolvedValue({
         isHealthy: false,
         state: ConnectionState.FAILED,

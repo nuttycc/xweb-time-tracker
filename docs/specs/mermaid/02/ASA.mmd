@@ -1,0 +1,63 @@
+%% @name: Aggregation System Architecture (ASA)  Version: v1.01
+graph LR
+    subgraph "聚合引擎边界"
+        AE[AggregationEngine]
+        AE --> |负责| AE_R1[事件到统计数据转换]
+        AE --> |负责| AE_R2[增量聚合逻辑]
+        AE --> |负责| AE_R3[时间累积计算]
+        AE --> |负责| AE_R4[域名解析处理]
+        AE --> |负责| AE_R5[基础错误处理]
+    end
+    
+    subgraph "调度器边界"
+        AS[AggregationScheduler]
+        AS --> |负责| AS_R1[Chrome.alarms管理]
+        AS --> |负责| AS_R2[任务队列控制]
+        AS --> |负责| AS_R3[并发防护]
+        AS --> |负责| AS_R4[执行监控]
+        AS --> |负责| AS_R5[重试机制]
+    end
+    
+    subgraph "清理器边界"
+        DP[DataPruner]
+        DP --> |负责| DP_R1[保留策略配置]
+        DP --> |负责| DP_R2[安全数据清理]
+        DP --> |负责| DP_R3[批量删除操作]
+        DP --> |负责| DP_R4[清理任务调度]
+    end
+    
+    subgraph "集成层边界"
+        SI[SystemIntegration]
+        SI --> |负责| SI_R1[组件协调]
+        SI --> |负责| SI_R2[全局错误恢复]
+        SI --> |负责| SI_R3[性能监控]
+        SI --> |负责| SI_R4[系统生命周期]
+    end
+    
+    subgraph "外部接口"
+        DB[(Database)]
+        CONFIG[Configuration]
+        CHROME[Chrome APIs]
+    end
+    
+    AS -.->|调用| AE
+    AS -.->|调用| DP
+    SI -.->|协调| AE
+    SI -.->|协调| AS
+    SI -.->|协调| DP
+    
+    AE <--> DB
+    DP <--> DB
+    AS <--> CHROME
+    AE <--> CONFIG
+    AS <--> CONFIG
+    DP <--> CONFIG
+
+    %% 优化样式：高对比度，提升可读性
+    style AE fill:#1976d2,stroke:#1565c0,stroke-width:2px,color:#fff
+    style AS fill:#8e24aa,stroke:#6d1b7b,stroke-width:2px,color:#fff
+    style DP fill:#388e3c,stroke:#1b5e20,stroke-width:2px,color:#fff
+    style SI fill:#f57c00,stroke:#e65100,stroke-width:2px,color:#fff
+    style DB fill:#263238,stroke:#212121,stroke-width:2px,color:#fff
+    style CONFIG fill:#455a64,stroke:#263238,stroke-width:2px,color:#fff
+    style CHROME fill:#0277bd,stroke:#01579b,stroke-width:2px,color:#fff
