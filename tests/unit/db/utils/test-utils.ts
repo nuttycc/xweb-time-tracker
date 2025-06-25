@@ -231,13 +231,6 @@ export function createErrorDatabase(
 }
 
 /**
- * Utility to wait for async operations in tests
- */
-export function waitForAsync(ms: number = 0): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
  * Reset all mocks in a mock database
  */
 export function resetMockDatabase(mockDb: MockProxy<WebTimeTrackerDB>): void {
