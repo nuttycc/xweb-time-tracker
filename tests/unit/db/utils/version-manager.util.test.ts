@@ -13,9 +13,9 @@ import {
   type VersionComparison,
   type WebTimeTrackerDB,
   UtilityError,
-} from '@/db';
-import { UtilityErrorType } from '@/db/utils/types';
-import { DATABASE_VERSION } from '@/db/schemas';
+} from '@/core/db';
+import { UtilityErrorType } from '@/core/db/utils/types';
+import { DATABASE_VERSION } from '@/core/db/schemas';
 import {
   createMockDatabase,
   createTestVersionManagerOptions,

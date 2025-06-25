@@ -30,7 +30,7 @@ indexedDB 模块：
 **Desc**：演示如何使用DatabaseService进行基本的数据库操作，包括添加事件、查询未处理事件和管理聚合统计数据。
 
 ```typescript
-import { database, DatabaseService } from '@/db';
+import { database, DatabaseService } from '@/core/db';
 
 // 使用模块提供的单例数据库实例，确保全局一致性
 const db = database;
@@ -287,7 +287,7 @@ class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord, 'k
 **功能目的**：防止URL参数爆炸导致的数据膨胀，通过移除营销追踪参数，确保统计数据的准确性和存储效率。
 
 ```typescript
-import { normalizeUrl } from '@/db';
+import { normalizeUrl } from '@/core/db';
 
 const originalUrl = 'https://example.com/page?id=123&utm_source=google&fbclid=abc';
 const normalizedUrl = normalizeUrl(originalUrl);
@@ -298,7 +298,7 @@ const normalizedUrl = normalizeUrl(originalUrl);
 **功能目的**：实时监控数据库运行状态，及时发现连接问题、性能瓶颈或数据异常，确保系统稳定运行。
 
 ```typescript
-import { HealthCheckUtil, database } from '@/db';
+import { HealthCheckUtil, database } from '@/core/db';
 
 const health = await HealthCheckUtil.performHealthCheck(database);
 console.log('数据库状态:', health.healthy ? '正常' : '异常');

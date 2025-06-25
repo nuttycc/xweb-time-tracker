@@ -1,0 +1,81 @@
+%% @name: Time Tracking Component Architecture v1.01
+graph TB
+    subgraph "时间追踪模块"
+        TT[Time Tracking]
+    end
+    
+    subgraph "数据库层"
+        EL[(EventsLog Table)]
+        AS[(AggregatedStats Table)]
+    end
+    
+    subgraph "数据聚合模块"
+        subgraph "聚合引擎 (AggregationEngine)"
+            AE1[类结构与接口定义]
+            AE2[增量聚合算法]
+            AE3[域名解析与错误处理]
+        end
+        
+        subgraph "聚合调度器 (AggregationScheduler)"
+            AS1[Chrome.alarms调度]
+            AS2[任务队列与并发控制]
+            AS3[监控与重试机制]
+        end
+        
+        subgraph "数据清理器 (DataPruner)"
+            DP1[数据保留策略]
+            DP2[安全清理机制]
+            DP3[清理任务调度]
+        end
+        
+        subgraph "系统集成层"
+            SI1[组件集成与协调]
+            SI2[全局错误恢复]
+            SI3[性能监控优化]
+        end
+    end
+    
+    subgraph "数据查询模块"
+        DQ[Data Query]
+    end
+    
+    TT --> EL
+    EL --> AE2
+    AE2 --> AS
+    AS --> DQ
+    
+    AS1 --> AE2
+    DP2 --> EL
+    
+    SI1 -.-> AE1
+    SI1 -.-> AS1
+    SI1 -.-> DP1
+    
+    %% 优化样式定义 - 高对比度配色
+    style TT fill:#2c3e50,stroke:#34495e,stroke-width:2px,color:#ffffff
+    style EL fill:#8e44ad,stroke:#9b59b6,stroke-width:2px,color:#ffffff
+    style AS fill:#8e44ad,stroke:#9b59b6,stroke-width:2px,color:#ffffff
+    style DQ fill:#2c3e50,stroke:#34495e,stroke-width:2px,color:#ffffff
+    
+    %% 聚合引擎模块样式
+    style AE1 fill:#3498db,stroke:#2980b9,stroke-width:2px,color:#ffffff
+    style AE2 fill:#2980b9,stroke:#1f4e79,stroke-width:3px,color:#ffffff
+    style AE3 fill:#3498db,stroke:#2980b9,stroke-width:2px,color:#ffffff
+    
+    %% 聚合调度器模块样式
+    style AS1 fill:#9b59b6,stroke:#8e44ad,stroke-width:3px,color:#ffffff
+    style AS2 fill:#af7ac5,stroke:#9b59b6,stroke-width:2px,color:#ffffff
+    style AS3 fill:#af7ac5,stroke:#9b59b6,stroke-width:2px,color:#ffffff
+    
+    %% 数据清理器模块样式
+    style DP1 fill:#27ae60,stroke:#229954,stroke-width:2px,color:#ffffff
+    style DP2 fill:#229954,stroke:#1e8449,stroke-width:3px,color:#ffffff
+    style DP3 fill:#27ae60,stroke:#229954,stroke-width:2px,color:#ffffff
+    
+    %% 系统集成层模块样式
+    style SI1 fill:#e67e22,stroke:#d35400,stroke-width:3px,color:#ffffff
+    style SI2 fill:#f39c12,stroke:#e67e22,stroke-width:2px,color:#ffffff
+    style SI3 fill:#f39c12,stroke:#e67e22,stroke-width:2px,color:#ffffff
+    
+    %% 子图样式优化
+    classDef subgraphStyle fill:#ecf0f1,stroke:#34495e,stroke-width:2px,color:#2c3e50

@@ -17,7 +17,7 @@ import {
   ErrorSeverity,
   ErrorCategory,
   type ErrorHandlingOptions,
-} from '@/db/services/error-handler.service';
+} from '@/core/db/services/error-handler.service';
 import { TestNetworkError, createMockConsole } from './test-utils';
 
 describe('ErrorHandlerService', () => {

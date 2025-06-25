@@ -7,7 +7,7 @@
 
 import { vi } from 'vitest';
 import { mock, type MockProxy } from 'vitest-mock-extended';
-import type { WebTimeTrackerDB } from '@/db/schemas';
+import type { WebTimeTrackerDB } from '@/core/db/schemas';
 import type {
   HealthCheckResult,
   VersionInfo,
@@ -15,8 +15,8 @@ import type {
   UtilityOptions,
   HealthCheckOptions,
   VersionManagerOptions,
-} from '@/db/utils';
-import { UtilityErrorType } from '@/db/utils/types';
+} from '@/core/db/utils';
+import { UtilityErrorType } from '@/core/db/utils/types';
 
 /**
  * Creates a fully mocked `WebTimeTrackerDB` instance with default behaviors for testing.

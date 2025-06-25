@@ -35,15 +35,15 @@ Web Time Tracker is a browser extension that helps you understand how you spend 
     ```
     This will create an `unpacked` extension in the `.output` directory.
 4.  **Load the extension in your browser:**
-    *   **Chrome/Edge:**
-        1.  Open `chrome://extensions` or `edge://extensions`.
-        2.  Enable "Developer mode".
-        3.  Click "Load unpacked".
-        4.  Select the `.output/chrome-mv3` directory.
-    *   **Firefox:**
-        1.  Open `about:debugging#/runtime/this-firefox`.
-        2.  Click "Load Temporary Add-on...".
-        3.  Select the `.output/firefox-mv2/manifest.json` file (or any file within that directory).
+    - **Chrome/Edge:**
+      1.  Open `chrome://extensions` or `edge://extensions`.
+      2.  Enable "Developer mode".
+      3.  Click "Load unpacked".
+      4.  Select the `.output/chrome-mv3` directory.
+    - **Firefox:**
+      1.  Open `about:debugging#/runtime/this-firefox`.
+      2.  Click "Load Temporary Add-on...".
+      3.  Select the `.output/firefox-mv2/manifest.json` file (or any file within that directory).
 
 ### Production Build
 
@@ -63,19 +63,19 @@ pnpm zip
 
 Once installed, the extension will automatically start tracking your browsing activity.
 
--   **Popup:** Click on the extension icon in your browser's toolbar to open the popup. This will display a summary of your tracked time and provide access to more detailed reports.
--   **Options Page:** (If applicable, describe how to access and what it does)
+- **Popup:** Click on the extension icon in your browser's toolbar to open the popup. This will display a summary of your tracked time and provide access to more detailed reports.
+- **Options Page:** (If applicable, describe how to access and what it does)
 
 ### How Time is Calculated
 
 The extension aims to provide flexible time tracking:
 
--   **By Domain:** Aggregates time spent on all pages under a specific domain (e.g., `google.com`).
--   **By Hostname:** Differentiates between subdomains (e.g., `mail.google.com` vs. `docs.google.com`).
--   **By Path:** Tracks time spent on specific pages or sections of a website.
--   **Open-Close vs. Active-Inactive:**
-    -   Currently, time is primarily calculated based on the duration a tab/page is open.
-    -   Future enhancements will incorporate more sophisticated active vs. inactive time detection (e.g., based on mouse movement, keyboard input, or page visibility).
+- **By Domain:** Aggregates time spent on all pages under a specific domain (e.g., `google.com`).
+- **By Hostname:** Differentiates between subdomains (e.g., `mail.google.com` vs. `docs.google.com`).
+- **By Path:** Tracks time spent on specific pages or sections of a website.
+- **Open-Close vs. Active-Inactive:**
+  - Currently, time is primarily calculated based on the duration a tab/page is open.
+  - Future enhancements will incorporate more sophisticated active vs. inactive time detection (e.g., based on mouse movement, keyboard input, or page visibility).
 
 ## Development
 
@@ -101,32 +101,33 @@ This project is built using [WXT](https://wxt.dev/), [Vue 3](https://vuejs.org/)
 
 ### Key Scripts
 
--   `pnpm dev`: Starts the development server with hot reloading.
--   `pnpm build`: Creates a production build.
--   `pnpm zip`: Creates a distributable ZIP file of the extension.
--   `pnpm test:watch`: Runs tests in watch mode.
--   `pnpm test:run`: Runs all tests.
--   `pnpm lint`: Lints the codebase using ESLint.
--   `pnpm format`: Formats the code using Prettier.
--   `pnpm check`: Runs formatting, linting, and type checking.
+- `pnpm dev`: Starts the development server with hot reloading.
+- `pnpm build`: Creates a production build.
+- `pnpm zip`: Creates a distributable ZIP file of the extension.
+- `pnpm test:watch`: Runs tests in watch mode.
+- `pnpm test:run`: Runs all tests.
+- `pnpm lint`: Lints the codebase using ESLint.
+- `pnpm format`: Formats the code using Prettier.
+- `pnpm check`: Runs formatting, linting, and type checking.
 
 Refer to `package.json` for a full list of scripts.
 
 ### Database
 
 The extension uses [Dexie.js](https://dexie.org/) for managing the IndexedDB database.
--   Schema definitions are in `src/db/schemas/`.
--   Database models (if using classes for table rows) are in `src/db/models/`.
--   Repositories for data access are in `src/db/repositories/`.
--   The main database service is `src/db/services/database.service.ts`.
+
+- Schema definitions are in `src/db/schemas/`.
+- Database models (if using classes for table rows) are in `src/db/models/`.
+- Repositories for data access are in `src/db/repositories/`.
+- The main database service is `src/db/services/database.service.ts`.
 
 ## Testing
 
 Tests are written using [Vitest](https://vitest.dev/).
 
--   **Unit Tests:** Located in `tests/unit/`.
--   **Integration Tests:** Located in `tests/integration/`.
--   **Performance Tests:** Located in `tests/performance/`.
+- **Unit Tests:** Located in `tests/unit/`.
+- **Integration Tests:** Located in `tests/integration/`.
+- **Performance Tests:** Located in `tests/performance/`.
 
 Run tests using the scripts mentioned above (e.g., `pnpm test:run`).
 
@@ -150,4 +151,4 @@ This project is licensed under the [MIT License](LICENSE). (Note: You'll need to
 
 ---
 
-*This README was generated with assistance from an AI coding partner.*
+_This README was generated with assistance from an AI coding partner._

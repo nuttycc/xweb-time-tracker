@@ -18,7 +18,7 @@ import {
   AggregatedStatsValidation,
   EventTypeSchema,
   ResolutionTypeSchema,
-} from '@/db/models';
+} from '@/core/db/models';
 
 describe('EventsLog Model Validation', () => {
   const validEventsLogData = {

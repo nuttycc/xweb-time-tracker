@@ -10,19 +10,20 @@ import {
   ConnectionService,
   type DatabaseOperationOptions,
   type TransactionCallback,
-} from '@/db/connection/service';
+} from '@/core/db/connection/service';
 import {
   connectionManager,
   type HealthCheckResult,
   ConnectionState,
-} from '@/db/connection/manager';
-import type { WebTimeTrackerDB } from '@/db/schemas';
+} from '@/core/db/connection/manager';
+import type { WebTimeTrackerDB } from '@/core/db/schemas';
 import type { Transaction } from 'dexie';
 
 // Mock the connection manager
-vi.mock('@/db/connection/manager', async () => {
-  const actual =
-    await vi.importActual<typeof import('@/db/connection/manager')>('@/db/connection/manager');
+vi.mock('@/core/db/connection/manager', async () => {
+  const actual = await vi.importActual<typeof import('@/core/db/connection/manager')>(
+    '@/core/db/connection/manager'
+  );
   return {
     ...actual,
     connectionManager: {

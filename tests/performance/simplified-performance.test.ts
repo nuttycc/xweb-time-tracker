@@ -6,10 +6,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { WebTimeTrackerDB } from '@/db/schemas';
-import { HealthCheckUtil } from '@/db/utils/health-check.util';
-import { VersionManagerUtil } from '@/db/utils/version-manager.util';
-import { ConnectionService } from '@/db/connection/service';
+import { WebTimeTrackerDB } from '@/core/db/schemas';
+import { HealthCheckUtil } from '@/core/db/utils/health-check.util';
+import { VersionManagerUtil } from '@/core/db/utils/version-manager.util';
+import { ConnectionService } from '@/core/db/connection/service';
 
 describe('Simplified Performance Validation', () => {
   let db: WebTimeTrackerDB;

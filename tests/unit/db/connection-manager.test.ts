@@ -11,8 +11,8 @@ import {
   type ConnectionManagerOptions,
   type DatabaseFactory,
   MockDatabaseFactory,
-} from '@/db/connection/manager';
-import type { WebTimeTrackerDB } from '@/db/schemas';
+} from '@/core/db/connection/manager';
+import type { WebTimeTrackerDB } from '@/core/db/schemas';
 
 // Test helper functions for creating mocks
 function createMockDatabase(overrides: Partial<WebTimeTrackerDB> = {}): WebTimeTrackerDB {

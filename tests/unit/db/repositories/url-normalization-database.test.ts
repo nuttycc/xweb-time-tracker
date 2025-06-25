@@ -9,12 +9,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   AggregatedStatsRepository,
   type TimeAggregationData,
-} from '@/db/repositories/aggregatedstats.repository';
-import { generateAggregatedStatsKey } from '@/db/schemas/aggregatedstats.schema';
-import { normalizeUrl } from '@/db/utils/url-normalizer.util';
-import type { WebTimeTrackerDB } from '@/db/schemas';
-import type { EventsLogRecord } from '@/db/models/eventslog.model';
-import type { AggregatedStatsRecord } from '@/db/models/aggregatedstats.model';
+} from '@/core/db/repositories/aggregatedstats.repository';
+import { generateAggregatedStatsKey } from '@/core/db/schemas/aggregatedstats.schema';
+import { normalizeUrl } from '@/core/db/utils/url-normalizer.util';
+import type { WebTimeTrackerDB } from '@/core/db/schemas';
+import type { EventsLogRecord } from '@/core/db/models/eventslog.model';
+import type { AggregatedStatsRecord } from '@/core/db/models/aggregatedstats.model';
 import Dexie, { type EntityTable } from 'dexie';
 
 // Create a test database

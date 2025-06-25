@@ -11,11 +11,11 @@ import {
   BaseRepository,
   RepositoryError,
   ValidationError,
-} from '@/db/repositories/base.repository';
+} from '@/core/db/repositories/base.repository';
 import type { EntityTable, IDType } from 'dexie';
-import type { WebTimeTrackerDB } from '@/db/schemas';
-import type { EventsLogRecord } from '@/db/schemas/eventslog.schema';
-import type { AggregatedStatsRecord } from '@/db/schemas/aggregatedstats.schema';
+import type { WebTimeTrackerDB } from '@/core/db/schemas';
+import type { EventsLogRecord } from '@/core/db/schemas/eventslog.schema';
+import type { AggregatedStatsRecord } from '@/core/db/schemas/aggregatedstats.schema';
 
 // Test entity interface
 interface TestEntity {

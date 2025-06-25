@@ -11,7 +11,7 @@ import {
   getNormalizationStats,
   ALLOWED_QUERY_PARAMS,
   type UrlNormalizationOptions,
-} from '@/db/utils/url-normalizer.util';
+} from '@/core/db/utils/url-normalizer.util';
 
 describe('URL Normalizer Utility', () => {
   describe('normalizeUrl', () => {
