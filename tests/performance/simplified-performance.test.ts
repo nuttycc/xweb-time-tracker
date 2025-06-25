@@ -23,8 +23,12 @@ describe('Simplified Performance Validation', () => {
 
   afterEach(async () => {
     if (db) {
-      await db.delete();
-      db.close();
+      try {
+        await db.delete();
+        db.close();
+      } catch (error) {
+        console.warn('Database cleanup failed:', error);
+      }
     }
   });
 
