@@ -412,7 +412,7 @@ describe('URL Normalizer Utility', () => {
         },
         {
           input: 'https://news.com/article?page=1&search=javascript&utm_campaign=ads',
-          expectedBase: 'https://news.com/article',
+          expectedBase: 'https://news.com/article?page=1&search=javascript',
         },
       ];
 
