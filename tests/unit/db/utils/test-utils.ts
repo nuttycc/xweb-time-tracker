@@ -26,7 +26,10 @@ export function createMockDatabase(): MockProxy<WebTimeTrackerDB> {
 
   // Set up default mock implementations
   mockDb.isOpen.mockReturnValue(true);
-  Object.defineProperty(mockDb, 'verno', { value: 1, writable: true });
+
+  // Define verno as getter for vitest-mock-extended compatibility
+  setMockDatabaseVersion(mockDb, 1);
+
   mockDb.transaction.mockResolvedValue(undefined);
 
   // Mock table objects with count methods
@@ -233,6 +236,18 @@ export function createErrorDatabase(
 }
 
 /**
+ * Set verno property on mock database with getter
+ * This is compatible with vitest-mock-extended and allows spying
+ */
+export function setMockDatabaseVersion(mockDb: MockProxy<WebTimeTrackerDB>, version: number): void {
+  Object.defineProperty(mockDb, 'verno', {
+    get: () => version,
+    enumerable: true,
+    configurable: true,
+  });
+}
+
+/**
  * Reset all mocks in a mock database
  */
 export function resetMockDatabase(mockDb: MockProxy<WebTimeTrackerDB>): void {
@@ -240,7 +255,10 @@ export function resetMockDatabase(mockDb: MockProxy<WebTimeTrackerDB>): void {
 
   // Reset to default implementations
   mockDb.isOpen.mockReturnValue(true);
-  Object.defineProperty(mockDb, 'verno', { value: 1, writable: true });
+
+  // Define verno as getter for vitest-mock-extended compatibility
+  setMockDatabaseVersion(mockDb, 1);
+
   mockDb.transaction.mockResolvedValue(undefined);
 
   if (mockDb.eventslog?.count) {

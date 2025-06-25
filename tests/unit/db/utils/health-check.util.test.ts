@@ -16,6 +16,7 @@ import {
   mockDateNow,
   validateHealthCheckResult,
   createPerformanceTestData,
+  setMockDatabaseVersion,
 } from './test-utils';
 
 describe('HealthCheckUtil', () => {
@@ -132,7 +133,7 @@ describe('HealthCheckUtil', () => {
 
     it('should handle all options combined', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: 2, writable: true });
+      setMockDatabaseVersion(mockDb, 2);
       const options = createTestHealthCheckOptions({
         includePerformance: true,
         testOperations: true,
@@ -173,7 +174,7 @@ describe('HealthCheckUtil', () => {
   describe('Edge Cases and Error Handling', () => {
     it('should handle database with zero version', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: 0, writable: true });
+      setMockDatabaseVersion(mockDb, 0);
 
       // Act
       const result = await HealthCheckUtil.performHealthCheck(mockDb);
@@ -186,7 +187,11 @@ describe('HealthCheckUtil', () => {
 
     it('should handle undefined database version', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: undefined, writable: true });
+      Object.defineProperty(mockDb, 'verno', {
+        get: () => undefined,
+        enumerable: true,
+        configurable: true,
+      });
 
       // Act
       const result = await HealthCheckUtil.performHealthCheck(mockDb);
