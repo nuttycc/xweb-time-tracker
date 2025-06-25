@@ -20,6 +20,7 @@ import {
   createMockDatabase,
   createTestVersionManagerOptions,
   validateVersionInfo,
+  setMockDatabaseVersion,
 } from './test-utils';
 
 describe('VersionManagerUtil', () => {
@@ -37,7 +38,7 @@ describe('VersionManagerUtil', () => {
   describe('getVersionInfo', () => {
     it('should get version info for current database', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: 1, writable: true });
+      setMockDatabaseVersion(mockDb, 1);
 
       // Act
       const versionInfo = await VersionManagerUtil.getVersionInfo(mockDb);
@@ -53,7 +54,7 @@ describe('VersionManagerUtil', () => {
     it('should handle closed database', async () => {
       // Arrange
       mockDb.isOpen.mockReturnValue(false);
-      Object.defineProperty(mockDb, 'verno', { value: 0, writable: true });
+      setMockDatabaseVersion(mockDb, 0);
 
       // Act
       const versionInfo = await VersionManagerUtil.getVersionInfo(mockDb);
@@ -66,7 +67,7 @@ describe('VersionManagerUtil', () => {
 
     it('should include migration path when upgrade needed', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: 1, writable: true });
+      setMockDatabaseVersion(mockDb, 1);
       // Assume DATABASE_VERSION is higher than 1
 
       // Act
@@ -82,7 +83,7 @@ describe('VersionManagerUtil', () => {
 
     it('should include version history', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: 1, writable: true });
+      setMockDatabaseVersion(mockDb, 1);
 
       // Act
       const versionInfo = await VersionManagerUtil.getVersionInfo(mockDb);
@@ -117,7 +118,7 @@ describe('VersionManagerUtil', () => {
 
     it('should work with custom options', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: 1, writable: true });
+      setMockDatabaseVersion(mockDb, 1);
       const options = createTestVersionManagerOptions({
         allowDowngrade: true,
         backupBeforeUpgrade: false,
@@ -168,7 +169,7 @@ describe('VersionManagerUtil', () => {
   describe('needsUpgrade', () => {
     it('should return true when upgrade needed', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: 1, writable: true });
+      setMockDatabaseVersion(mockDb, 1);
       // Assume DATABASE_VERSION > 1
 
       // Act
@@ -180,7 +181,7 @@ describe('VersionManagerUtil', () => {
 
     it('should return false when no upgrade needed', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: DATABASE_VERSION, writable: true });
+      setMockDatabaseVersion(mockDb, DATABASE_VERSION);
 
       // Act
       const needsUpgrade = await VersionManagerUtil.needsUpgrade(mockDb);
@@ -192,7 +193,7 @@ describe('VersionManagerUtil', () => {
     it('should handle closed database', async () => {
       // Arrange
       mockDb.isOpen.mockReturnValue(false);
-      Object.defineProperty(mockDb, 'verno', { value: 0, writable: true });
+      setMockDatabaseVersion(mockDb, 0);
 
       // Act
       const needsUpgrade = await VersionManagerUtil.needsUpgrade(mockDb);
@@ -215,7 +216,7 @@ describe('VersionManagerUtil', () => {
   describe('isCompatible', () => {
     it('should return true when compatible with default version', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: DATABASE_VERSION, writable: true });
+      setMockDatabaseVersion(mockDb, DATABASE_VERSION);
 
       // Act
       const isCompatible = await VersionManagerUtil.isCompatible(mockDb);
@@ -226,7 +227,7 @@ describe('VersionManagerUtil', () => {
 
     it('should return false when incompatible with default version', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: DATABASE_VERSION - 1, writable: true });
+      setMockDatabaseVersion(mockDb, DATABASE_VERSION - 1);
 
       // Act
       const isCompatible = await VersionManagerUtil.isCompatible(mockDb);
@@ -237,7 +238,7 @@ describe('VersionManagerUtil', () => {
 
     it('should return true when compatible with specified version', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: 2, writable: true });
+      setMockDatabaseVersion(mockDb, 2);
 
       // Act
       const isCompatible = await VersionManagerUtil.isCompatible(mockDb, 1);
@@ -248,7 +249,7 @@ describe('VersionManagerUtil', () => {
 
     it('should return false when incompatible with specified version', async () => {
       // Arrange
-      Object.defineProperty(mockDb, 'verno', { value: 1, writable: true });
+      setMockDatabaseVersion(mockDb, 1);
 
       // Act
       const isCompatible = await VersionManagerUtil.isCompatible(mockDb, 2);
@@ -260,7 +261,7 @@ describe('VersionManagerUtil', () => {
     it('should handle closed database', async () => {
       // Arrange
       mockDb.isOpen.mockReturnValue(false);
-      Object.defineProperty(mockDb, 'verno', { value: 0, writable: true });
+      setMockDatabaseVersion(mockDb, 0);
 
       // Act
       const isCompatible = await VersionManagerUtil.isCompatible(mockDb, 1);
