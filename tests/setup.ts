@@ -3,6 +3,8 @@
  *
  * Global test setup configuration for the WebTime Tracker project.
  * This file is executed before all tests run.
+ *
+ * @vitest-environment jsdom
  */
 
 import { expect, beforeEach, afterEach } from 'vitest';
