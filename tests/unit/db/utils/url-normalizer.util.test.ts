@@ -193,8 +193,22 @@ describe('URL Normalizer Utility', () => {
         const url = 'https://example.com/page?id=123&=invalid&valid=test';
         const result = normalizeUrl(url);
 
+        // Should preserve whitelisted parameters
         expect(result).toContain('id=123');
-        // Should handle malformed parameters gracefully
+
+        // Should remove non-whitelisted parameters (valid is not in ALLOWED_QUERY_PARAMS)
+        expect(result).not.toContain('valid=test');
+        expect(result).not.toContain('valid');
+
+        // Should ignore/remove malformed parameters (parameter with no key)
+        expect(result).not.toContain('=invalid');
+        expect(result).not.toContain('invalid');
+
+        // Should produce a valid URL structure
+        expect(() => new URL(result)).not.toThrow();
+
+        // Should only contain the base URL and whitelisted parameters
+        expect(result).toBe('https://example.com/page?id=123');
       });
 
       it('should handle very long URLs', () => {
