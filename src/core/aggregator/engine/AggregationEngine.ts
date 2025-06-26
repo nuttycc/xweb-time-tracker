@@ -57,7 +57,8 @@ export class AggregationEngine {
    */
   private async processEvents(events: EventsLogRecord[]): Promise<void> {
     const visits = this.groupEventsByVisit(events);
-    const aggregatedData: AggregatedData = new Map();
+
+    const aggregatedData: AggregatedData = {};
 
     for (const visit of visits.values()) {
       this.calculateTime(visit, aggregatedData);
@@ -172,18 +173,20 @@ export class AggregationEngine {
     const date = getUtcDateString(visit.events[0].timestamp);
     const key = `${date}:${visit.url}`;
 
-    if (!aggregatedData.has(key)) {
-      aggregatedData.set(key, {
+
+    if (!(key in aggregatedData)) {
+      aggregatedData[key] = {
         openTime: 0,
         activeTime: 0,
         url: visit.url,
         date,
         hostname,
         parentDomain,
-      });
+      };
     }
 
-    const data = aggregatedData.get(key)!;
+    const data = aggregatedData[key];
+
     data.openTime += openTimeToAdd;
     data.activeTime += activeTimeToAdd;
   }
@@ -199,7 +202,7 @@ export class AggregationEngine {
     aggregatedData: AggregatedData,
     eventIds: number[]
   ): Promise<void> {
-    const upsertPromises = Array.from(aggregatedData.values()).map(data =>
+    const upsertPromises = Object.values(aggregatedData).map(data =>
       this.aggregatedStatsRepo.upsertTimeAggregation({
         date: data.date,
         url: data.url,
