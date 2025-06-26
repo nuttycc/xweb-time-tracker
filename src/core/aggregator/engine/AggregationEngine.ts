@@ -173,7 +173,6 @@ export class AggregationEngine {
     const date = getUtcDateString(visit.events[0].timestamp);
     const key = `${date}:${visit.url}`;
 
-
     if (!(key in aggregatedData)) {
       aggregatedData[key] = {
         openTime: 0,
