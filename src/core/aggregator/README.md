@@ -1,103 +1,30 @@
 # Data Aggregation Module
 
-This module provides comprehensive data aggregation functionality for the WebTime tracker, including event processing, scheduling, data pruning, and service management.
+This module is responsible for processing raw event logs into meaningful, aggregated statistics. It operates in the background, ensuring that data is periodically and efficiently summarized.
 
-## Architecture
+## Key Components
 
-```
-src/core/aggregator/
-├── index.ts              # Main module entry point
-├── engine/               # Core aggregation logic
-│   ├── AggregationEngine.ts
-│   └── index.ts
-├── scheduler/            # Task scheduling
-│   ├── AggregationScheduler.ts
-│   └── index.ts
-├── pruner/              # Data cleanup
-│   ├── DataPruner.ts
-│   └── index.ts
-├── services/            # Service coordination
-│   ├── AggregationService.ts
-│   └── index.ts
-└── utils/               # Shared utilities
-    ├── constants.ts
-    └── types.ts
-```
+- **`AggregationEngine`**: The core of the module. It fetches unprocessed events from the database, groups them by visit sessions, calculates `Open Time` and `Active Time`, and handles `checkpoint` events for long-running sessions. It uses `psl` for accurate parent domain parsing.
 
-## Usage
+- **`AggregationScheduler`**: Manages when the aggregation process runs. It uses `chrome.alarms` to periodically trigger the engine. It includes a locking mechanism (`AGGREGATION_LOCK_KEY`) to prevent multiple aggregation tasks from running concurrently.
 
-### Importing Components
+- **`DataPruner`**: Responsible for data lifecycle management. After a successful aggregation run, it cleans up old, already-processed events from the database based on a configurable retention period (`PRUNER_RETENTION_DAYS_KEY`).
 
-```typescript
-// Import main components
-import {
-  AggregationEngine,
-  AggregationScheduler,
-  DataPruner,
-  AggregationService,
-} from '@/core/aggregator';
+- **`AggregationService`**: The main entry point and coordinator for the module. It initializes and manages the lifecycle (start/stop) of the `AggregationScheduler`.
 
-// Import types
-import type {
-  AggregationResult,
-  VisitGroup,
-  AggregatedData,
-  Logger,
-  SchedulerOptions,
-} from '@/core/aggregator';
+## Data Flow
 
-// Import constants
-import {
-  DEFAULT_PRUNER_RETENTION_DAYS,
-  AGGREGATION_ALARM_NAME,
-  AGGREGATION_LOCK_KEY,
-} from '@/core/aggregator';
+1.  `AggregationScheduler` triggers a task based on its schedule.
+2.  The scheduler invokes the `AggregationEngine` to run.
+3.  The `AggregationEngine` fetches unprocessed events, calculates time statistics, and saves the results to the `aggregated_stats` table.
+4.  After the engine successfully completes, the `DataPruner` is invoked to delete old events from the `events_log` table.
+5.  The scheduler releases its lock, ready for the next run.
 
-// Import namespaced types (alternative)
-import { AggregatorTypes } from '@/core/aggregator';
-type Result = AggregatorTypes.AggregationResult;
-```
+## Current Status
 
-### Legacy Imports (Still Supported)
+- The `AggregationEngine` is fully implemented and handles core time calculation logic, including support for `checkpoint` events.
+- The `AggregationScheduler` provides reliable, periodic execution with concurrency control.
+- The `DataPruner` ensures that the event log database does not grow indefinitely.
+- The `AggregationService` properly orchestrates the components.
 
-```typescript
-// Sub-module imports still work for backward compatibility
-import { AggregationEngine } from '@/core/aggregator/engine';
-import { AggregationScheduler } from '@/core/aggregator/scheduler';
-```
-
-## Components
-
-### AggregationEngine
-
-Core component for processing raw event logs and converting them into aggregated statistical data.
-
-### AggregationScheduler
-
-Manages the scheduling of aggregation tasks using the browser.alarms API with concurrency control and monitoring.
-
-### DataPruner
-
-Cleans up old, processed event logs from the database based on configurable retention policies.
-
-### AggregationService
-
-Main service for coordinating all aggregation components and managing their lifecycle.
-
-## Configuration
-
-The module uses several configuration constants that can be customized:
-
-- `DEFAULT_PRUNER_RETENTION_DAYS`: Default retention period for event logs (30 days)
-- `AGGREGATION_LOCK_TTL_MS`: Lock timeout for preventing concurrent aggregation (5 minutes)
-- `SCHEDULER_PERIOD_MINUTES_KEY`: Storage key for scheduler period configuration
-
-## Internal Structure
-
-- **engine/**: Contains the core aggregation logic and algorithms
-- **scheduler/**: Handles task scheduling and Chrome alarms integration
-- **pruner/**: Manages data cleanup and retention policies
-- **services/**: Provides high-level service coordination
-- **utils/**: Shared types, constants, and utilities
-
-Each sub-module maintains its own `index.ts` for backward compatibility and internal organization.
+The module is stable and functional, forming a critical part of the extension's data processing pipeline.
