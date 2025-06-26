@@ -25,9 +25,16 @@ export class DataPruner {
       const oldEvents = await this.eventsLogRepo.getProcessedEventsOlderThan(retentionTimestamp);
 
       if (oldEvents.length > 0) {
-        const eventIds = oldEvents.map((event: EventsLogRecord) => event.id!);
-        await this.eventsLogRepo.deleteEventsByIds(eventIds);
-        console.log(`Pruned ${eventIds.length} old events.`);
+        const eventIds = oldEvents
+          .filter((event: EventsLogRecord) => event.id != null)
+          .map((event: EventsLogRecord) => event.id!);
+
+        if (eventIds.length > 0) {
+          await this.eventsLogRepo.deleteEventsByIds(eventIds);
+          console.log(`Pruned ${eventIds.length} old events.`);
+        } else {
+          console.warn('No valid event IDs found for pruning.');
+        }
       }
     } catch (error) {
       console.error('Error during data pruning:', error);
