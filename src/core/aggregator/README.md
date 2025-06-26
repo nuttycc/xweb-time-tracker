@@ -1,4 +1,4 @@
-# Data Aggregation Module v1
+# Data Aggregation Module v1.0.0
 
 This module is responsible for processing raw event logs into meaningful, aggregated statistics. It operates in the background, ensuring that data is periodically and efficiently summarized.
 
