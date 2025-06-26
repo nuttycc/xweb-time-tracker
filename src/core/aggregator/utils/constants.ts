@@ -23,8 +23,7 @@ export const PRUNER_RETENTION_DAYS_KEY = 'sync:pruner_retention_days';
  * 🔧 USER CONFIGURABLE: Yes (for advanced users)
  * 📊 Default: 60 minutes
  * 📏 Range: 10-240 minutes
- * 💾 Storage Key: sync:scheduler_period (reserved for future system tuning)
- * 📝 Note: Based on CSPEC AGGREGATION_INTERVAL - not user configurable for performance reasons
+ * 💾 Storage Key: sync:scheduler_period
  */
 export const DEFAULT_AGGREGATION_INTERVAL_MINUTES = 60;
 export const SCHEDULER_PERIOD_MINUTES_KEY = 'sync:scheduler_period';
