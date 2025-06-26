@@ -5,20 +5,9 @@
  * The table stores raw domain events as the source of truth for the system.
  */
 
-/**
- * Event type enumeration based on LLD specification
- */
-export type EventType =
-  | 'open_time_start'
-  | 'open_time_end'
-  | 'active_time_start'
-  | 'active_time_end'
-  | 'checkpoint';
-
-/**
- * Resolution type for special event source markers
- */
-export type ResolutionType = 'crash_recovery';
+// Import and re-export types from models (single source of truth)
+import type { EventType, ResolutionType } from '../models/eventslog.model';
+export type { EventType, ResolutionType };
 
 /**
  * Events log table record interface
