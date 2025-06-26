@@ -57,6 +57,7 @@ export class AggregationEngine {
    */
   private async processEvents(events: EventsLogRecord[]): Promise<void> {
     const visits = this.groupEventsByVisit(events);
+
     const aggregatedData: AggregatedData = {};
 
     for (const visit of visits.values()) {
@@ -172,6 +173,7 @@ export class AggregationEngine {
     const date = getUtcDateString(visit.events[0].timestamp);
     const key = `${date}:${visit.url}`;
 
+
     if (!(key in aggregatedData)) {
       aggregatedData[key] = {
         openTime: 0,
@@ -184,6 +186,7 @@ export class AggregationEngine {
     }
 
     const data = aggregatedData[key];
+
     data.openTime += openTimeToAdd;
     data.activeTime += activeTimeToAdd;
   }
