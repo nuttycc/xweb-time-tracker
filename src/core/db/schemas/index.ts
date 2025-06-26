@@ -21,6 +21,8 @@ export const DATABASE_VERSION = 1;
 
 // Re-export interfaces for external use
 export type { EventsLogRecord, AggregatedStatsRecord };
+// Re-export types from models (EventType, ResolutionType are now in models)
+export type { EventType, ResolutionType } from '../models/eventslog.model';
 export * from './eventslog.schema';
 export * from './aggregatedstats.schema';
 export * from './hooks';
