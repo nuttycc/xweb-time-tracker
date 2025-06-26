@@ -10,7 +10,7 @@
  * import { AggregationEngine, AggregationScheduler, DataPruner } from '@/core/aggregator';
  *
  * // Import types and constants
- * import { AggregatorTypes, AggregatorConstants } from '@/core/aggregator';
+ * import { AggregatorTypes, DEFAULT_PRUNER_RETENTION_DAYS, AGGREGATION_ALARM_NAME } from '@/core/aggregator';
  *
  * // Or import specific items
  * import { DEFAULT_PRUNER_RETENTION_DAYS, AGGREGATION_ALARM_NAME } from '@/core/aggregator';
