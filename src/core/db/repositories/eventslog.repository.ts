@@ -400,55 +400,6 @@ export class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id'> {
     }
   }
 
-  /**
-   * Get processed events older than a specific timestamp.
-   *
-   * @param timestamp - The timestamp to compare against (events older than this timestamp).
-   * @param options - Query options.
-   * @returns Promise resolving to an array of processed events older than the given timestamp.
-   */
-  async getProcessedEventsOlderThan(
-    timestamp: number,
-    options: EventsLogQueryOptions = {}
-  ): Promise<EventsLogRecord[]> {
-    try {
-      const { limit, offset = 0, orderBy = 'timestamp', orderDirection = 'asc' } = options;
-
-      const result = await this.executeWithRetry(
-        async () => {
-          let collection = this.table
-            .where('isProcessed')
-            .equals(1) // Only processed events
-            .and(event => event.timestamp < timestamp); // Older than the given timestamp
-
-          // Apply ordering
-          if (orderBy === 'timestamp') {
-            const results = await collection.toArray();
-            const sorted = this.sortRecords(results, orderBy, orderDirection);
-            const start = offset;
-            const end = limit ? start + limit : undefined;
-            return sorted.slice(start, end);
-          }
-
-          if (offset > 0) {
-            collection = collection.offset(offset);
-          }
-          if (limit && limit > 0) {
-            collection = collection.limit(limit);
-          }
-
-          return collection.toArray();
-        },
-        'getProcessedEventsOlderThan',
-        options
-      );
-
-      return result;
-    } catch (error) {
-      throw this.handleError(error, 'getProcessedEventsOlderThan');
-    }
-  }
-
   protected async validateForUpsert(entity: InsertType<EventsLogRecord, 'id'>): Promise<void> {
     // For upsert, use the same validation as create
     await this.validateForCreate(entity);

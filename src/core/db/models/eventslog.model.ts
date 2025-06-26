@@ -8,43 +8,20 @@
 import { z } from 'zod/v4';
 
 /**
- * Event type constants - Single source of truth
- *
- * All event types are defined here as a constant array to ensure consistency
- * across the application and eliminate duplication between Zod schemas and TypeScript types.
+ * Event type enumeration schema
  */
-export const EVENT_TYPES = [
+export const EventTypeSchema = z.enum([
   'open_time_start',
   'open_time_end',
   'active_time_start',
   'active_time_end',
   'checkpoint',
-] as const;
+]);
 
 /**
- * Resolution type constants for special event source markers
+ * Resolution type enumeration schema for special event source markers
  */
-export const RESOLUTION_TYPES = ['crash_recovery'] as const;
-
-/**
- * Event type enumeration schema (derived from constants)
- */
-export const EventTypeSchema = z.enum(EVENT_TYPES);
-
-/**
- * TypeScript type for event types (derived from constants)
- */
-export type EventType = (typeof EVENT_TYPES)[number];
-
-/**
- * Resolution type enumeration schema (derived from constants)
- */
-export const ResolutionTypeSchema = z.enum(RESOLUTION_TYPES);
-
-/**
- * TypeScript type for resolution types (derived from constants)
- */
-export type ResolutionType = (typeof RESOLUTION_TYPES)[number];
+export const ResolutionTypeSchema = z.enum(['crash_recovery']);
 
 /**
  * Events log record Zod schema
