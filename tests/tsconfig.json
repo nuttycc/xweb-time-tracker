@@ -1,7 +1,7 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ESNext", "DOM"],
     "types": ["vitest/globals", "jsdom"],
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,

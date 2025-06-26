@@ -11,19 +11,4 @@ export default defineConfig([
   tseslint.configs.recommended,
   pluginVue.configs['flat/essential'],
   { files: ['**/*.vue'], languageOptions: { parserOptions: { parser: tseslint.parser } } },
-
-  // Custom rules
-  {
-    rules: {
-      // Allow unused variables that start with underscore (common convention for required but unused parameters)
-      // '@typescript-eslint/no-unused-vars': [
-      //   'error',
-      //   {
-      //     argsIgnorePattern: '^_',
-      //     varsIgnorePattern: '^_',
-      //     caughtErrorsIgnorePattern: '^_',
-      //   },
-      // ],
-    },
-  },
 ]);

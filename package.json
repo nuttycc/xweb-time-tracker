@@ -6,26 +6,15 @@
   "type": "module",
   "scripts": {
     "dev": "wxt",
-    "dev:firefox": "wxt -b firefox",
     "build": "wxt build",
-    "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
-    "zip:firefox": "wxt zip -b firefox",
-    "check": "concurrently \"pnpm run format\" \"pnpm run lint\" \"pnpm run compile\"",
-    "check:quick": "concurrently \"pnpm run lint\" \"pnpm run compile\"",
-    "compile": "vue-tsc --noEmit",
-    "lint": "eslint --fix .",
-    "format": "prettier --write .",
-    "lint-staged": "lint-staged",
-    "test:watch": "vitest",
-    "test:run": "vitest run",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage",
+    "check": "concurrently \"eslint --max-warnings=0 .\" \"vue-tsc --noEmit\"",
+    "fix": "eslint --fix . && prettier --write . && vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:ci": "vitest run --coverage",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration tests/database",
-    "test:boundary": "vitest run tests/boundary",
-    "test:performance": "vitest run tests/performance",
-    "test:bench": "vitest bench",
+    "test:perf": "vitest run tests/boundary tests/performance",
     "postinstall": "wxt prepare",
     "prepare": "husky"
   },
@@ -35,7 +24,6 @@
     "dexie": "^4.0.11",
     "es-toolkit": "^1.39.3",
     "psl": "^1.15.0",
-    "query-string": "^9.2.1",
     "vue": "^3.5.16",
     "vue-i18n": "^11.1.6",
     "vue-router": "^4.5.1",
@@ -75,7 +63,7 @@
     "**/*.{json,js,ts,jsx,tsx,html,vue}": [
       "prettier --write --ignore-unknown"
     ],
-    "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,astro,svelte}": [
+    "**/*.{js,mjs,cjs,jsx,ts,tsx,vue}": [
       "eslint --fix"
     ],
     "**/*.{vue,ts,tsx}": [

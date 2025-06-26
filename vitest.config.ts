@@ -25,7 +25,6 @@ export default defineConfig({
     // 重试机制 - 提高测试稳定性
     retry: 1,
 
-    // 测试文件匹配模式 - 支持四分类测试结构
     include: [
       'tests/**/*.{test,spec}.{js,ts}',
       'tests/**/*.test-d.ts',
@@ -33,11 +32,9 @@ export default defineConfig({
       'tests/integration/**/*.test.ts',
       'tests/boundary/**/*.test.ts',
       'tests/performance/**/*.test.ts',
-      'tests/database/**/*.test.ts', // 保持现有数据库测试
     ],
     exclude: ['node_modules/**', 'dist/**', '.wxt/**', 'coverage/**'],
 
-    // 覆盖率配置
     coverage: {
       enabled: false,
       provider: 'v8',

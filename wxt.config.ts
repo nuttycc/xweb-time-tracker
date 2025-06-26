@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { defineConfig } from 'wxt';
 import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'node:path';
 
-// See https://wxt.dev/api/config.html
+// https://wxt.dev/api/config.html
 export default defineConfig({
   srcDir: 'src',
   imports: false,
