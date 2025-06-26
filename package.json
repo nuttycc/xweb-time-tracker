@@ -9,7 +9,7 @@
     "build": "wxt build",
     "zip": "wxt zip",
     "check": "concurrently \"eslint --max-warnings=0 .\" \"vue-tsc --noEmit\"",
-    "fix": "eslint --fix . && prettier --write . && vue-tsc --noEmit",
+    "fix": "eslint --fix . && prettier --write .",
     "test": "vitest run",
     "test:ci": "vitest run --coverage",
     "test:unit": "vitest run tests/unit",
@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@vueuse/core": "^13.3.0",
+    "@webext-core/messaging": "^2.3.0",
     "date-fns": "^4.1.0",
     "dexie": "^4.0.11",
     "es-toolkit": "^1.39.3",
