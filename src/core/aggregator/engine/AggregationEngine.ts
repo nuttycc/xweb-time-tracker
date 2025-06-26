@@ -57,8 +57,7 @@ export class AggregationEngine {
    */
   private async processEvents(events: EventsLogRecord[]): Promise<void> {
     const visits = this.groupEventsByVisit(events);
-
-    const aggregatedData: AggregatedData = {};
+    const aggregatedData: AggregatedData = new Map();
 
     for (const visit of visits.values()) {
       this.calculateTime(visit, aggregatedData);
@@ -97,37 +96,24 @@ export class AggregationEngine {
     visit.events.sort((a, b) => a.timestamp - b.timestamp);
 
     // --- Calculate Open Time (based on visitId) ---
-    let openTimeToAdd = 0;
+    let openTime = 0;
     let openTimeStartTimestamp: number | null = null;
-    // Include checkpoint events with null activityId (Open Time checkpoints)
-    const openTimeEvents = visit.events.filter(
-      e =>
-        e.eventType.startsWith('open_time') ||
-        (e.eventType === 'checkpoint' && e.activityId === null)
-    );
+    const openTimeEvents = visit.events.filter(e => e.eventType.startsWith('open_time'));
     for (const event of openTimeEvents) {
       if (event.eventType === 'open_time_start') {
         if (openTimeStartTimestamp === null) {
           openTimeStartTimestamp = event.timestamp;
         }
-      } else if (event.eventType === 'checkpoint' && event.activityId === null) {
-        if (openTimeStartTimestamp !== null) {
-          openTimeToAdd += event.timestamp - openTimeStartTimestamp;
-          openTimeStartTimestamp = event.timestamp; // Reset for next interval
-        } else {
-          // Checkpoint without start event - use checkpoint as new start point
-          openTimeStartTimestamp = event.timestamp;
-        }
       } else if (event.eventType === 'open_time_end') {
         if (openTimeStartTimestamp !== null) {
-          openTimeToAdd += event.timestamp - openTimeStartTimestamp;
+          openTime += event.timestamp - openTimeStartTimestamp;
           openTimeStartTimestamp = null;
         }
       }
     }
 
     // --- Calculate Active Time (based on activityId) ---
-    let activeTimeToAdd = 0;
+    let activeTime = 0;
     const activityEvents = visit.events.filter(e => e.activityId !== null);
     const activities = new Map<string, EventsLogRecord[]>();
 
@@ -150,22 +136,19 @@ export class AggregationEngine {
           }
         } else if (event.eventType === 'checkpoint') {
           if (activityStartTimestamp !== null) {
-            activeTimeToAdd += event.timestamp - activityStartTimestamp;
+            activeTime += event.timestamp - activityStartTimestamp;
             activityStartTimestamp = event.timestamp; // Reset for next interval
-          } else {
-            // Checkpoint without start event - use checkpoint as new start point
-            activityStartTimestamp = event.timestamp;
           }
         } else if (event.eventType === 'active_time_end') {
           if (activityStartTimestamp !== null) {
-            activeTimeToAdd += event.timestamp - activityStartTimestamp;
+            activeTime += event.timestamp - activityStartTimestamp;
             activityStartTimestamp = null;
           }
         }
       }
     }
 
-    if (openTimeToAdd === 0 && activeTimeToAdd === 0) {
+    if (openTime === 0 && activeTime === 0) {
       return; // Nothing to aggregate
     }
 
@@ -173,21 +156,20 @@ export class AggregationEngine {
     const date = getUtcDateString(visit.events[0].timestamp);
     const key = `${date}:${visit.url}`;
 
-    if (!(key in aggregatedData)) {
-      aggregatedData[key] = {
+    if (!aggregatedData.has(key)) {
+      aggregatedData.set(key, {
         openTime: 0,
         activeTime: 0,
         url: visit.url,
         date,
         hostname,
         parentDomain,
-      };
+      });
     }
 
-    const data = aggregatedData[key];
-
-    data.openTime += openTimeToAdd;
-    data.activeTime += activeTimeToAdd;
+    const data = aggregatedData.get(key)!;
+    data.openTime += openTime;
+    data.activeTime += activeTime;
   }
 
   /**
@@ -201,7 +183,7 @@ export class AggregationEngine {
     aggregatedData: AggregatedData,
     eventIds: number[]
   ): Promise<void> {
-    const upsertPromises = Object.values(aggregatedData).map(data =>
+    const upsertPromises = Array.from(aggregatedData.values()).map(data =>
       this.aggregatedStatsRepo.upsertTimeAggregation({
         date: data.date,
         url: data.url,
