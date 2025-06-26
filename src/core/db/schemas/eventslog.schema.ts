@@ -83,8 +83,9 @@ export interface EventsLogRecord {
  * - isProcessed: Index for fast query of unprocessed events
  * - visitId: Index for grouping by visit session
  * - activityId: Index for grouping by activity interval
+ * - timestamp: Index for efficient timestamp-based queries (pruning operations)
  */
-export const EVENTSLOG_SCHEMA = '++id, isProcessed, visitId, activityId';
+export const EVENTSLOG_SCHEMA = '++id, isProcessed, visitId, activityId, timestamp';
 
 /**
  * Table name constant
