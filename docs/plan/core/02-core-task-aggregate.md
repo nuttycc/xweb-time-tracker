@@ -1,6 +1,6 @@
 # Core Logic task plan: Data Aggregation - v1.5
 
-Status：🔄 In Progress
+Status：🔄 In Progress - Reviewing
 
 ## Scope
 

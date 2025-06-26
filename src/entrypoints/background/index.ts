@@ -1,6 +1,6 @@
 /**
- * 后台脚本入口点
- * 负责标签页监听、时间追踪协调、数据聚合等后台任务
+ * background script entry point
+ * responsible for tab listening, time tracking coordination, and data aggregation
  */
 
 import { browser, defineBackground } from '#imports';
