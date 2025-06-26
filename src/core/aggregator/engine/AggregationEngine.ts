@@ -96,24 +96,37 @@ export class AggregationEngine {
     visit.events.sort((a, b) => a.timestamp - b.timestamp);
 
     // --- Calculate Open Time (based on visitId) ---
-    let openTime = 0;
+    let openTimeToAdd = 0;
     let openTimeStartTimestamp: number | null = null;
-    const openTimeEvents = visit.events.filter(e => e.eventType.startsWith('open_time'));
+    // Include checkpoint events with null activityId (Open Time checkpoints)
+    const openTimeEvents = visit.events.filter(
+      e =>
+        e.eventType.startsWith('open_time') ||
+        (e.eventType === 'checkpoint' && e.activityId === null)
+    );
     for (const event of openTimeEvents) {
       if (event.eventType === 'open_time_start') {
         if (openTimeStartTimestamp === null) {
           openTimeStartTimestamp = event.timestamp;
         }
+      } else if (event.eventType === 'checkpoint' && event.activityId === null) {
+        if (openTimeStartTimestamp !== null) {
+          openTimeToAdd += event.timestamp - openTimeStartTimestamp;
+          openTimeStartTimestamp = event.timestamp; // Reset for next interval
+        } else {
+          // Checkpoint without start event - use checkpoint as new start point
+          openTimeStartTimestamp = event.timestamp;
+        }
       } else if (event.eventType === 'open_time_end') {
         if (openTimeStartTimestamp !== null) {
-          openTime += event.timestamp - openTimeStartTimestamp;
+          openTimeToAdd += event.timestamp - openTimeStartTimestamp;
           openTimeStartTimestamp = null;
         }
       }
     }
 
     // --- Calculate Active Time (based on activityId) ---
-    let activeTime = 0;
+    let activeTimeToAdd = 0;
     const activityEvents = visit.events.filter(e => e.activityId !== null);
     const activities = new Map<string, EventsLogRecord[]>();
 
@@ -136,19 +149,22 @@ export class AggregationEngine {
           }
         } else if (event.eventType === 'checkpoint') {
           if (activityStartTimestamp !== null) {
-            activeTime += event.timestamp - activityStartTimestamp;
+            activeTimeToAdd += event.timestamp - activityStartTimestamp;
             activityStartTimestamp = event.timestamp; // Reset for next interval
+          } else {
+            // Checkpoint without start event - use checkpoint as new start point
+            activityStartTimestamp = event.timestamp;
           }
         } else if (event.eventType === 'active_time_end') {
           if (activityStartTimestamp !== null) {
-            activeTime += event.timestamp - activityStartTimestamp;
+            activeTimeToAdd += event.timestamp - activityStartTimestamp;
             activityStartTimestamp = null;
           }
         }
       }
     }
 
-    if (openTime === 0 && activeTime === 0) {
+    if (openTimeToAdd === 0 && activeTimeToAdd === 0) {
       return; // Nothing to aggregate
     }
 
@@ -168,8 +184,8 @@ export class AggregationEngine {
     }
 
     const data = aggregatedData.get(key)!;
-    data.openTime += openTime;
-    data.activeTime += activeTime;
+    data.openTime += openTimeToAdd;
+    data.activeTime += activeTimeToAdd;
   }
 
   /**

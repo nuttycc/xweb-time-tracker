@@ -42,7 +42,9 @@ export class AggregationScheduler {
    * Creates a recurring alarm that will trigger the aggregation process.
    */
   public async start(): Promise<void> {
-    const periodInMinutes = (await storage.getItem<number>(SCHEDULER_PERIOD_MINUTES_KEY)) ?? 60;
+    const periodInMinutes =
+      (await storage.getItem<number>(SCHEDULER_PERIOD_MINUTES_KEY)) ??
+      DEFAULT_AGGREGATION_INTERVAL_MINUTES;
     browser.alarms.create(AGGREGATION_ALARM_NAME, {
       periodInMinutes,
     });
