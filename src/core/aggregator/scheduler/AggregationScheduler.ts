@@ -3,6 +3,7 @@ import {
   AGGREGATION_LOCK_KEY,
   AGGREGATION_LOCK_TTL_MS,
   SCHEDULER_PERIOD_MINUTES_KEY,
+  DEFAULT_AGGREGATION_INTERVAL_MINUTES,
 } from '../utils/constants';
 import type { AggregationEngine } from '../engine';
 import type { DataPruner } from '../pruner';
