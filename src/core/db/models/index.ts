@@ -7,23 +7,15 @@
 
 // Export EventsLog model
 export {
-  // Constants (single source of truth)
-  EVENT_TYPES,
-  RESOLUTION_TYPES,
-  // Schemas
   EventsLogSchema,
   CreateEventsLogSchema,
   UpdateEventsLogSchema,
   EventTypeSchema,
   ResolutionTypeSchema,
-  // Types
-  type EventType,
-  type ResolutionType,
+  EventsLogValidation,
   type EventsLogRecord,
   type CreateEventsLogRecord,
   type UpdateEventsLogRecord,
-  // Validation helpers
-  EventsLogValidation,
 } from './eventslog.model';
 
 // Export AggregatedStats model
