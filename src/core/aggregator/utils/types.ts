@@ -11,7 +11,7 @@ export interface VisitGroup {
   url: string;
 }
 
-export type AggregatedData = Map<
+export type AggregatedData = Record<
   string,
   {
     openTime: number;
