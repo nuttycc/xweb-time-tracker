@@ -70,6 +70,7 @@ export default defineConfig({
       '@': resolve(__dirname, './src'),
       '~': resolve(__dirname, './src'),
       '@tests': resolve(__dirname, './tests'),
+      '#imports': resolve(__dirname, './tests/mocks/wxt-imports.ts'),
     },
   },
 });
