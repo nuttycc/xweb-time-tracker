@@ -12,7 +12,10 @@ import type { FocusStateManager } from '../../src/core/tracker/state/FocusStateM
 import type { InteractionDetector } from '../../src/core/tracker/messaging/InteractionDetector';
 
 /**
- * Create a type-safe mock for StartupRecovery
+ * Creates a type-safe mock of the StartupRecovery component for testing.
+ *
+ * The returned mock includes a stubbed `executeRecovery` method that resolves to a default recovery result object.
+ * @returns A partial mock of StartupRecovery with predefined method behavior.
  */
 export function createMockStartupRecovery(): Partial<StartupRecovery> {
   return {
@@ -28,7 +31,11 @@ export function createMockStartupRecovery(): Partial<StartupRecovery> {
 }
 
 /**
- * Create a type-safe mock for EventQueue
+ * Creates a type-safe mock of the EventQueue for testing purposes.
+ *
+ * The returned mock provides stubbed implementations of `flush`, `enqueue`, and `size` methods, simulating asynchronous behavior and default values.
+ *
+ * @returns A partial mock object of EventQueue with methods suitable for use in tests
  */
 export function createMockEventQueue(): Partial<EventQueue> {
   return {
@@ -39,7 +46,9 @@ export function createMockEventQueue(): Partial<EventQueue> {
 }
 
 /**
- * Create a type-safe mock for CheckpointScheduler
+ * Creates a type-safe mock of the CheckpointScheduler with stubbed asynchronous methods.
+ *
+ * @returns A partial mock object with `initialize` and `stop` methods that resolve to undefined.
  */
 export function createMockCheckpointScheduler(): Partial<CheckpointScheduler> {
   return {
@@ -49,7 +58,11 @@ export function createMockCheckpointScheduler(): Partial<CheckpointScheduler> {
 }
 
 /**
- * Create a type-safe mock for FocusStateManager
+ * Creates a type-safe mock of the FocusStateManager for testing purposes.
+ *
+ * The returned mock provides stubbed methods for managing and querying tab focus state, with default return values suitable for isolated tests.
+ *
+ * @returns A partial mock implementation of FocusStateManager with all methods stubbed.
  */
 export function createMockFocusStateManager(): Partial<FocusStateManager> {
   return {
@@ -67,7 +80,9 @@ export function createMockFocusStateManager(): Partial<FocusStateManager> {
 }
 
 /**
- * Create a type-safe mock for InteractionDetector
+ * Creates a type-safe mock of the InteractionDetector with the initialize method stubbed.
+ *
+ * @returns A partial mock object for InteractionDetector suitable for testing.
  */
 export function createMockInteractionDetector(): Partial<InteractionDetector> {
   return {

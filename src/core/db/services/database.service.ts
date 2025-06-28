@@ -288,22 +288,22 @@ export class DatabaseService {
 }
 
 /**
- * Create a database service instance
+ * Creates a new DatabaseService instance with optional health checker integration.
  *
- * @param db - Database instance
- * @param healthChecker - Optional health checker for dependency injection
- * @returns Database service instance
+ * If a health checker is provided, it will be used for health status queries; otherwise, default health checks are used.
+ *
+ * @returns A DatabaseService instance configured with the given database and optional health checker.
  */
 export function createDatabaseService(db: WebTimeTrackerDB, healthChecker?: HealthChecker): DatabaseService {
   return new DatabaseService(db, healthChecker);
 }
 
 /**
- * Create a database service instance with connection service health checker
+ * Creates a `DatabaseService` instance configured with a health checker that uses the provided connection service.
  *
- * @param db - Database instance
- * @param connectionService - Connection service for health checking
- * @returns Database service instance with health checking
+ * The returned service supports health monitoring by delegating health checks to the given connection service.
+ *
+ * @returns A `DatabaseService` instance with integrated health checking.
  */
 export function createDatabaseServiceWithHealthChecker(db: WebTimeTrackerDB, connectionService: ConnectionService): DatabaseService {
   const healthChecker = new ConnectionServiceHealthChecker(connectionService);

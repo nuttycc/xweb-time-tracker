@@ -480,21 +480,20 @@ export class EventGenerator {
 // ============================================================================
 
 /**
- * Creates an event generator with default configuration
+ * Instantiates a new EventGenerator with optional configuration overrides.
  *
- * @param options - Optional configuration overrides
- * @returns Configured event generator
+ * @returns An EventGenerator instance configured with the provided options.
  */
 export function createEventGenerator(options: EventGenerationOptions = {}): EventGenerator {
   return new EventGenerator(options);
 }
 
 /**
- * Creates an event generator with custom URL processor
+ * Creates an EventGenerator instance configured with a custom URL processor.
  *
- * @param urlProcessor - Custom URL processor instance
- * @param options - Additional options
- * @returns Configured event generator
+ * The returned EventGenerator will use the provided URL processor for all URL normalization and filtering, along with any additional configuration options supplied.
+ *
+ * @returns An EventGenerator instance using the specified URL processor and options.
  */
 export function createEventGeneratorWithURLProcessor(
   urlProcessor: URLProcessor,

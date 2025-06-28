@@ -309,10 +309,12 @@ export class URLProcessor {
 // ============================================================================
 
 /**
- * Creates a URL processor with default CSPEC configuration
+ * Creates a URL processor instance with default configuration for time tracking, allowing optional customization.
  *
- * @param additionalOptions - Additional options to apply
- * @returns Configured URL processor
+ * By default, the processor does not preserve URL fragments and sorts query parameters. Additional options can be provided to override or extend the default behavior.
+ *
+ * @param additionalOptions - Optional settings to customize ignored hostnames, query parameters, fragment preservation, or parameter sorting
+ * @returns A URLProcessor configured with default and provided options
  */
 export function createDefaultURLProcessor(
   additionalOptions: URLProcessingOptions = {}
@@ -325,10 +327,12 @@ export function createDefaultURLProcessor(
 }
 
 /**
- * Quick validation function for URLs
+ * Determines whether a URL is valid for time tracking based on default processing rules.
  *
- * @param url - URL to validate
- * @returns True if URL is valid for tracking
+ * Returns true if the URL passes hostname, protocol, and query parameter checks for tracking purposes.
+ *
+ * @param url - The URL to validate
+ * @returns True if the URL is valid for tracking; otherwise, false
  */
 export function isValidTrackingUrl(url: string): boolean {
   const processor = createDefaultURLProcessor();
@@ -336,10 +340,12 @@ export function isValidTrackingUrl(url: string): boolean {
 }
 
 /**
- * Quick normalization function for URLs
+ * Normalizes a URL for time tracking by removing ignored query parameters and applying standard normalization rules.
  *
- * @param url - URL to normalize
- * @returns Normalized URL or original URL if normalization fails
+ * Returns the normalized URL, or the original URL if normalization is not possible.
+ *
+ * @param url - The URL to normalize
+ * @returns The normalized tracking URL, or the original URL if normalization fails
  */
 export function normalizeTrackingUrl(url: string): string {
   const processor = createDefaultURLProcessor();
