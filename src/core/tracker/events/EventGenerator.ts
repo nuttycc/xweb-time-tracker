@@ -12,7 +12,7 @@
 
 import { randomUUID } from 'crypto';
 import { z } from 'zod/v4';
-import { DomainEvent, DomainEventSchema, TabState, CheckpointData } from '../types';
+import { DomainEvent, DomainEventSchema, TabState, TabStateSchema, CheckpointData } from '../types';
 import { URLProcessor, createDefaultURLProcessor } from '../url/URLProcessor';
 import { ResolutionType } from '../../db/models/eventslog.model';
 import {
@@ -57,18 +57,7 @@ export interface EventGenerationOptions {
  * Schema for event generation context
  */
 export const EventGenerationContextSchema = z.object({
-  tabState: z.object({
-    url: z.string().url(),
-    visitId: z.string().uuid(),
-    activityId: z.string().uuid().nullable(),
-    isAudible: z.boolean(),
-    lastInteractionTimestamp: z.number().int().min(0),
-    openTimeStart: z.number().int().min(0),
-    activeTimeStart: z.number().int().min(0).nullable(),
-    isFocused: z.boolean(),
-    tabId: z.number().int().nonnegative(),
-    windowId: z.number().int().nonnegative(),
-  }),
+  tabState: TabStateSchema,
   timestamp: z.number().int().min(1000000000000),
   resolution: z.enum(['crash_recovery']).optional(),
 });
