@@ -16,7 +16,8 @@ import {
   URLProcessorValidation,
   type URLProcessingOptions,
 } from '@/core/tracker/url/URLProcessor';
-import { IGNORED_HOSTNAMES_DEFAULT, IGNORED_QUERY_PARAMS_DEFAULT } from '@/config/constants';
+import { IGNORED_HOSTNAMES_DEFAULT } from '@/config/constants';
+import { ALLOWED_QUERY_PARAMS } from '@/core/db/utils/url-normalizer.util';
 
 describe('URLProcessor', () => {
   let processor: URLProcessor;
@@ -32,15 +33,15 @@ describe('URLProcessor', () => {
       expect(defaultProcessor.getIgnoredHostnames()).toEqual(
         expect.arrayContaining([...IGNORED_HOSTNAMES_DEFAULT])
       );
-      expect(defaultProcessor.getIgnoredQueryParams()).toEqual(
-        expect.arrayContaining([...IGNORED_QUERY_PARAMS_DEFAULT])
+      expect(defaultProcessor.getAllowedQueryParams()).toEqual(
+        expect.arrayContaining([...ALLOWED_QUERY_PARAMS])
       );
     });
 
     it('should create processor with custom options', () => {
       const options: URLProcessingOptions = {
         additionalIgnoredHostnames: ['custom.com'],
-        additionalIgnoredParams: ['custom_param'],
+        additionalAllowedParams: ['custom_param'],
         preserveFragment: true,
         sortParams: false,
       };
@@ -49,16 +50,14 @@ describe('URLProcessor', () => {
       expect(customProcessor.getIgnoredHostnames()).toEqual(
         expect.arrayContaining([...IGNORED_HOSTNAMES_DEFAULT, 'custom.com'])
       );
-      expect(customProcessor.getIgnoredQueryParams()).toEqual(
-        expect.arrayContaining([...IGNORED_QUERY_PARAMS_DEFAULT, 'custom_param'])
-      );
+      expect(customProcessor.getAllowedQueryParams()).toContain('custom_param');
     });
 
     it('should validate options with zod schema', () => {
       expect(() => {
         URLProcessorValidation.validateOptions({
           additionalIgnoredHostnames: ['valid.com'],
-          additionalIgnoredParams: ['valid_param'],
+          additionalAllowedParams: ['valid_param'],
           preserveFragment: true,
           sortParams: false,
         });
@@ -178,18 +177,19 @@ describe('URLProcessor', () => {
       expect(result).not.toContain('fbclid');
     });
 
-    it('should remove custom ignored query parameters', () => {
+    it('should preserve additional allowed query parameters', () => {
       const customProcessor = new URLProcessor({
-        additionalIgnoredParams: ['custom_param', 'tracking_id'],
+        additionalAllowedParams: ['custom_param', 'tracking_id'],
       });
 
       const urlWithCustomParams =
-        'https://example.com/page?id=123&custom_param=value&tracking_id=abc';
+        'https://example.com/page?id=123&custom_param=value&tracking_id=abc&utm_source=google';
       const result = customProcessor.normalizeUrlForTracking(urlWithCustomParams);
 
-      expect(result).toContain('id=123');
-      expect(result).not.toContain('custom_param');
-      expect(result).not.toContain('tracking_id');
+      expect(result).toContain('id=123'); // Default allowed param
+      expect(result).toContain('custom_param=value'); // Additional allowed param
+      expect(result).toContain('tracking_id=abc'); // Additional allowed param
+      expect(result).not.toContain('utm_source'); // Not in whitelist
     });
 
     it('should preserve allowed query parameters', () => {
@@ -250,14 +250,14 @@ describe('URLProcessor', () => {
       expect(updatedHostnames.length).toBeGreaterThan(initialHostnames.length);
     });
 
-    it('should update query parameters dynamically', () => {
-      const initialParams = processor.getIgnoredQueryParams();
+    it('should update allowed query parameters dynamically', () => {
+      const initialParams = processor.getAllowedQueryParams();
 
       processor.updateOptions({
-        additionalIgnoredParams: ['new_param'],
+        additionalAllowedParams: ['new_param'],
       });
 
-      const updatedParams = processor.getIgnoredQueryParams();
+      const updatedParams = processor.getAllowedQueryParams();
       expect(updatedParams).toContain('new_param');
       expect(updatedParams.length).toBeGreaterThan(initialParams.length);
     });

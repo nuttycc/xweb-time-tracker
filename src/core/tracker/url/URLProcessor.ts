@@ -11,8 +11,8 @@
  * @version 1.0.0
  */
 
-import { normalizeUrl, isAllowedQueryParam } from '../../db/utils/url-normalizer.util';
-import { IGNORED_HOSTNAMES_DEFAULT, IGNORED_QUERY_PARAMS_DEFAULT } from '../../../config/constants';
+import { normalizeUrl, isAllowedQueryParam, ALLOWED_QUERY_PARAMS } from '../../db/utils/url-normalizer.util';
+import { IGNORED_HOSTNAMES_DEFAULT } from '../../../config/constants';
 import { z } from 'zod/v4';
 
 // ============================================================================
@@ -26,8 +26,8 @@ export interface URLProcessingOptions {
   /** Additional hostnames to ignore beyond defaults */
   additionalIgnoredHostnames?: string[];
 
-  /** Additional query parameters to ignore beyond defaults */
-  additionalIgnoredParams?: string[];
+  /** Additional query parameters to allow beyond the default whitelist */
+  additionalAllowedParams?: string[];
 
   /** Whether to preserve fragment (hash) in URLs */
   preserveFragment?: boolean;
@@ -61,7 +61,7 @@ export interface URLValidationResult {
  */
 export const URLProcessingOptionsSchema = z.object({
   additionalIgnoredHostnames: z.array(z.string()).optional(),
-  additionalIgnoredParams: z.array(z.string()).optional(),
+  additionalAllowedParams: z.array(z.string()).optional(),
   preserveFragment: z.boolean().optional(),
   sortParams: z.boolean().optional(),
 });
@@ -78,7 +78,6 @@ export const URLProcessingOptionsSchema = z.object({
  */
 export class URLProcessor {
   private ignoredHostnamesSet: Set<string>;
-  private ignoredParamsSet: Set<string>;
   private options: URLProcessingOptions;
 
   constructor(options: URLProcessingOptions = {}) {
@@ -88,12 +87,6 @@ export class URLProcessor {
     this.ignoredHostnamesSet = new Set([
       ...IGNORED_HOSTNAMES_DEFAULT,
       ...(this.options.additionalIgnoredHostnames || []),
-    ]);
-
-    // Build ignored params set
-    this.ignoredParamsSet = new Set([
-      ...IGNORED_QUERY_PARAMS_DEFAULT,
-      ...(this.options.additionalIgnoredParams || []),
     ]);
   }
 
@@ -186,6 +179,7 @@ export class URLProcessor {
       const baseNormalizedUrl = normalizeUrl(parsedUrl.toString(), {
         preserveFragment: this.options.preserveFragment,
         sortParams: this.options.sortParams,
+        additionalAllowedParams: this.options.additionalAllowedParams,
       });
 
       return baseNormalizedUrl;
@@ -217,12 +211,12 @@ export class URLProcessor {
   }
 
   /**
-   * Gets the list of ignored query parameters
+   * Gets the current list of allowed query parameters
    *
-   * @returns Array of ignored query parameters
+   * @returns Array of allowed query parameters (default whitelist + additional)
    */
-  getIgnoredQueryParams(): string[] {
-    return Array.from(this.ignoredParamsSet);
+  getAllowedQueryParams(): string[] {
+    return [...ALLOWED_QUERY_PARAMS, ...(this.options.additionalAllowedParams || [])];
   }
 
   /**
@@ -233,7 +227,7 @@ export class URLProcessor {
   updateOptions(newOptions: Partial<URLProcessingOptions>): void {
     this.options = { ...this.options, ...newOptions };
 
-    // Rebuild sets if hostnames or params changed
+    // Rebuild hostname set if changed
     if (newOptions.additionalIgnoredHostnames) {
       this.ignoredHostnamesSet = new Set([
         ...IGNORED_HOSTNAMES_DEFAULT,
@@ -241,12 +235,8 @@ export class URLProcessor {
       ]);
     }
 
-    if (newOptions.additionalIgnoredParams) {
-      this.ignoredParamsSet = new Set([
-        ...IGNORED_QUERY_PARAMS_DEFAULT,
-        ...newOptions.additionalIgnoredParams,
-      ]);
-    }
+    // Note: additionalAllowedParams are used directly from options,
+    // no need to rebuild a separate set
   }
 
   // ============================================================================
@@ -267,17 +257,15 @@ export class URLProcessor {
   /**
    * Checks if a query parameter should be ignored
    *
+   * Uses whitelist approach: parameters are ignored unless they are explicitly allowed.
+   * This method integrates with the existing url-normalizer whitelist system.
+   *
    * @param paramName - Parameter name to check
-   * @returns True if parameter should be ignored
+   * @returns True if parameter should be ignored (not in whitelist)
    */
   private shouldIgnoreQueryParam(paramName: string): boolean {
-    // Check against ignored params list
-    if (this.ignoredParamsSet.has(paramName.toLowerCase())) {
-      return true;
-    }
-
-    // Use existing normalizer logic for allowed params
-    return !isAllowedQueryParam(paramName, this.options.additionalIgnoredParams || []);
+    // Use whitelist approach: ignore parameters that are not explicitly allowed
+    return !isAllowedQueryParam(paramName, this.options.additionalAllowedParams || []);
   }
 
   /**
