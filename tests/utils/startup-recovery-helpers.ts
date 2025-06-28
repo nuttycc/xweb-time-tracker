@@ -76,11 +76,25 @@ export function createTestEventsLogRecord(
 
   const result = { ...defaults, ...overrides };
 
-  // Convert null to undefined for optional fields to match schema expectations
+  // This section intentionally converts `null` to `undefined` for specific fields.
+  // This serves two purposes:
+  // 1. Consistency: It standardizes the representation of "missing" or "not applicable"
+  //    values to `undefined`. This simplifies downstream logic and aligns with the
+  //    behavior of Zod's `.optional()` fields. While `activityId` is `nullable` in the
+  //    schema (string | null), treating it as `undefined` here makes its handling
+  //    consistent with other optional fields in the application.
+  // 2. Fail-Fast Testing: For required fields like `visitId`, a test might erroneously
+  //    pass `null`. This code converts `null` to `undefined`, which will cause Zod
+  //    validation to fail immediately with a clear "required" error message. This
+  //    helps catch invalid test data early.
+  // The `@ts-expect-error` comments are necessary because this conversion is a
+  // deliberate type coercion that TypeScript would otherwise flag as an error.
   if (result.activityId === null) {
+    // @ts-expect-error - Deliberate conversion for consistency
     result.activityId = undefined;
   }
   if (result.visitId === null) {
+    // @ts-expect-error - Deliberate conversion for fail-fast validation
     result.visitId = undefined;
   }
 
