@@ -32,6 +32,9 @@ const TEST_CONFIG = {
     activeTimeThresholdHours: 0.5, // Minimum allowed value
     openTimeThresholdHours: 1, // Minimum allowed value
   },
+  startupRecovery: {
+    maxSessionAge: 86400000, // 24 hours (default)
+  },
 };
 
 // Mock browser APIs
