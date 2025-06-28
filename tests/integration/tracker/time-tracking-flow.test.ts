@@ -210,7 +210,7 @@ describe('Time Tracking Flow Integration', () => {
             active: false,
           } as Browser.tabs.Tab);
         }
-        return Promise.reject(new Error('Tab not found'));
+        return Promise.resolve(null);
       });
 
       // Activate tab 1
