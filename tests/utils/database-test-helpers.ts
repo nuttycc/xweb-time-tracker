@@ -9,7 +9,12 @@ import { WebTimeTrackerDB, DATABASE_NAME } from '../../src/core/db/schemas';
 import { DatabaseService } from '../../src/core/db/services/database.service';
 
 /**
- * Create a test database instance with proper initialization
+ * Creates and initializes a new WebTimeTrackerDB instance for testing with a unique or specified database name.
+ *
+ * Ensures that required tables are present and throws an error if initialization fails.
+ *
+ * @param dbName - Optional custom name for the test database
+ * @returns The initialized WebTimeTrackerDB instance
  */
 export async function createTestDatabase(dbName?: string): Promise<WebTimeTrackerDB> {
   const testDbName = dbName || `${DATABASE_NAME}_test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -32,7 +37,10 @@ export async function createTestDatabase(dbName?: string): Promise<WebTimeTracke
 }
 
 /**
- * Create a test database service with proper initialization
+ * Creates and returns a DatabaseService instance backed by a newly initialized test database.
+ *
+ * The test database is isolated for testing purposes and is fully initialized before use.
+ * @returns A DatabaseService instance connected to a test database
  */
 export async function createTestDatabaseService(): Promise<DatabaseService> {
   const testDb = await createTestDatabase();
@@ -44,7 +52,9 @@ export async function createTestDatabaseService(): Promise<DatabaseService> {
 }
 
 /**
- * Clean up test database
+ * Closes and deletes the provided test database instance, removing it from IndexedDB if possible.
+ *
+ * Any errors encountered during cleanup are logged as warnings and do not interrupt test execution.
  */
 export async function cleanupTestDatabase(db: WebTimeTrackerDB): Promise<void> {
   try {
@@ -63,7 +73,9 @@ export async function cleanupTestDatabase(db: WebTimeTrackerDB): Promise<void> {
 }
 
 /**
- * Wait for IndexedDB to be ready in test environment
+ * Waits for IndexedDB to become available in the current environment.
+ *
+ * Resolves immediately if IndexedDB is present, or after a short delay if using a mock or polyfill in test environments.
  */
 export async function waitForIndexedDB(): Promise<void> {
   return new Promise((resolve) => {
@@ -78,7 +90,11 @@ export async function waitForIndexedDB(): Promise<void> {
 }
 
 /**
- * Create test data for integration tests
+ * Inserts predefined test event records into the database for integration testing.
+ *
+ * Adds two recent event objects to the `eventslog` table of the provided database instance and returns the inserted event data.
+ *
+ * @returns The array of inserted test event objects.
  */
 export async function createTestData(db: WebTimeTrackerDB) {
   const testEvents = [

@@ -332,14 +332,21 @@ export class EventQueue {
 // ============================================================================
 
 /**
- * Create an EventQueue with default configuration
+ * Creates an EventQueue instance with default or custom configuration.
+ *
+ * @param config - Optional partial configuration to override default queue settings
+ * @returns A new EventQueue instance
  */
 export function createEventQueue(db: WebTimeTrackerDB, config?: Partial<QueueConfig>): EventQueue {
   return new EventQueue(db, config);
 }
 
 /**
- * Create an EventQueue optimized for high-throughput scenarios
+ * Creates an EventQueue instance configured for high-throughput event processing.
+ *
+ * The returned queue uses larger batch sizes, shorter wait times, increased retry attempts, and reduced retry delays to maximize write throughput.
+ *
+ * @returns An EventQueue optimized for handling large volumes of events efficiently.
  */
 export function createHighThroughputEventQueue(db: WebTimeTrackerDB): EventQueue {
   return new EventQueue(db, {
@@ -351,7 +358,11 @@ export function createHighThroughputEventQueue(db: WebTimeTrackerDB): EventQueue
 }
 
 /**
- * Create an EventQueue optimized for low-latency scenarios
+ * Creates an EventQueue instance configured for low-latency event processing.
+ *
+ * The returned queue uses small batch sizes and short wait times to minimize delay between event enqueue and database write, making it suitable for scenarios where timely persistence is critical.
+ *
+ * @returns An EventQueue with low-latency settings.
  */
 export function createLowLatencyEventQueue(db: WebTimeTrackerDB): EventQueue {
   return new EventQueue(db, {
