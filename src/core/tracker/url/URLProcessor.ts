@@ -297,12 +297,11 @@ export class URLProcessor {
 // ============================================================================
 
 /**
- * Creates a URL processor instance with default configuration for time tracking, allowing optional customization.
+ * Creates a URLProcessor instance preconfigured for time tracking, with optional overrides.
  *
- * By default, the processor does not preserve URL fragments and sorts query parameters. Additional options can be provided to override or extend the default behavior.
+ * By default, fragments are not preserved and query parameters are sorted. Additional options can customize ignored hostnames, allowed query parameters, fragment handling, or parameter sorting.
  *
- * @param additionalOptions - Optional settings to customize ignored hostnames, query parameters, fragment preservation, or parameter sorting
- * @returns A URLProcessor configured with default and provided options
+ * @returns A URLProcessor configured with default and custom options
  */
 export function createDefaultURLProcessor(
   additionalOptions: URLProcessingOptions = {}
@@ -315,11 +314,11 @@ export function createDefaultURLProcessor(
 }
 
 /**
- * Determines whether a URL is valid for time tracking based on default processing rules.
+ * Checks if a URL is valid for time tracking using default processing rules.
  *
- * Returns true if the URL passes hostname, protocol, and query parameter checks for tracking purposes.
+ * Returns true if the URL is accepted after applying default hostname, protocol, and query parameter filters.
  *
- * @param url - The URL to validate
+ * @param url - The URL to check for tracking eligibility
  * @returns True if the URL is valid for tracking; otherwise, false
  */
 export function isValidTrackingUrl(url: string): boolean {
@@ -328,12 +327,12 @@ export function isValidTrackingUrl(url: string): boolean {
 }
 
 /**
- * Normalizes a URL for time tracking by removing ignored query parameters and applying standard normalization rules.
+ * Returns a normalized version of the given URL for time tracking, filtering out disallowed query parameters and applying standard normalization.
  *
- * Returns the normalized URL, or the original URL if normalization is not possible.
+ * If normalization fails, the original URL is returned.
  *
- * @param url - The URL to normalize
- * @returns The normalized tracking URL, or the original URL if normalization fails
+ * @param url - The URL to be normalized for tracking
+ * @returns The normalized tracking URL, or the original URL if normalization is unsuccessful
  */
 export function normalizeTrackingUrl(url: string): string {
   const processor = createDefaultURLProcessor();

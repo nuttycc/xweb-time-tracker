@@ -377,9 +377,9 @@ export class CheckpointScheduler {
 // ============================================================================
 
 /**
- * Creates a new CheckpointScheduler instance with the provided managers and optional configuration.
+ * Instantiates a CheckpointScheduler using the specified managers and optional configuration.
  *
- * @returns A CheckpointScheduler configured with the given parameters.
+ * @returns A new CheckpointScheduler instance.
  */
 export function createCheckpointScheduler(
   focusStateManager: FocusStateManager,
@@ -393,7 +393,9 @@ export function createCheckpointScheduler(
 /**
  * Creates a CheckpointScheduler instance with debug logging enabled.
  *
- * @returns A CheckpointScheduler configured for debug logging.
+ * The returned scheduler will output detailed debug information during operation.
+ *
+ * @returns A CheckpointScheduler configured to log debug messages.
  */
 export function createDebugCheckpointScheduler(
   focusStateManager: FocusStateManager,

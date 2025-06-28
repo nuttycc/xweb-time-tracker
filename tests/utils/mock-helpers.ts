@@ -12,10 +12,10 @@ import type { FocusStateManager } from '../../src/core/tracker/state/FocusStateM
 import type { InteractionDetector } from '../../src/core/tracker/messaging/InteractionDetector';
 
 /**
- * Creates a type-safe mock of the StartupRecovery component for testing.
+ * Returns a partial mock of the StartupRecovery component with a stubbed `executeRecovery` method.
  *
- * The returned mock includes a stubbed `executeRecovery` method that resolves to a default recovery result object.
- * @returns A partial mock of StartupRecovery with predefined method behavior.
+ * The mock's `executeRecovery` method asynchronously resolves to a default recovery result with zeroed statistics, current timestamps, and no errors.
+ * @returns A partial mock of StartupRecovery suitable for unit testing.
  */
 export function createMockStartupRecovery(): Partial<StartupRecovery> {
   return {
@@ -31,11 +31,11 @@ export function createMockStartupRecovery(): Partial<StartupRecovery> {
 }
 
 /**
- * Creates a type-safe mock of the EventQueue for testing purposes.
+ * Returns a partial mock of the EventQueue with stubbed methods for testing.
  *
- * The returned mock provides stubbed implementations of `flush`, `enqueue`, and `size` methods, simulating asynchronous behavior and default values.
+ * The mock provides asynchronous `flush` and `enqueue` methods that resolve to `undefined`, and a synchronous `size` method that returns `0`.
  *
- * @returns A partial mock object of EventQueue with methods suitable for use in tests
+ * @returns A partial EventQueue mock suitable for unit tests
  */
 export function createMockEventQueue(): Partial<EventQueue> {
   return {
@@ -46,9 +46,11 @@ export function createMockEventQueue(): Partial<EventQueue> {
 }
 
 /**
- * Creates a type-safe mock of the CheckpointScheduler with stubbed asynchronous methods.
+ * Returns a partial mock of the CheckpointScheduler with stubbed asynchronous `initialize` and `stop` methods.
  *
- * @returns A partial mock object with `initialize` and `stop` methods that resolve to undefined.
+ * The returned mock is suitable for unit testing scenarios where the actual behavior of the CheckpointScheduler is not required.
+ *
+ * @returns A partial CheckpointScheduler mock with `initialize` and `stop` methods that resolve to undefined.
  */
 export function createMockCheckpointScheduler(): Partial<CheckpointScheduler> {
   return {
@@ -58,11 +60,11 @@ export function createMockCheckpointScheduler(): Partial<CheckpointScheduler> {
 }
 
 /**
- * Creates a type-safe mock of the FocusStateManager for testing purposes.
+ * Returns a partial mock of FocusStateManager with stubbed methods for testing.
  *
- * The returned mock provides stubbed methods for managing and querying tab focus state, with default return values suitable for isolated tests.
+ * The mock provides default behaviors for focus state management methods, returning `null` or default context values as appropriate.
  *
- * @returns A partial mock implementation of FocusStateManager with all methods stubbed.
+ * @returns A partial FocusStateManager mock with all methods stubbed for isolated unit tests.
  */
 export function createMockFocusStateManager(): Partial<FocusStateManager> {
   return {
@@ -80,9 +82,11 @@ export function createMockFocusStateManager(): Partial<FocusStateManager> {
 }
 
 /**
- * Creates a type-safe mock of the InteractionDetector with the initialize method stubbed.
+ * Returns a partial mock of the InteractionDetector with the initialize method stubbed for testing.
  *
- * @returns A partial mock object for InteractionDetector suitable for testing.
+ * The mock provides a no-op implementation of the initialize method using Vitest's mocking utilities.
+ *
+ * @returns A partial InteractionDetector mock with stubbed methods.
  */
 export function createMockInteractionDetector(): Partial<InteractionDetector> {
   return {

@@ -240,11 +240,12 @@ export const DEFAULT_CONFIG: Config = {
 };
 
 /**
- * Validates a configuration object against the CSPEC configuration schema.
+ * Validates and parses a configuration object using the CSPEC configuration schema.
  *
- * Parses and checks the provided config for correctness, returning a typed configuration object if valid. Throws an error if validation fails.
+ * Ensures the provided configuration matches the expected structure and types, returning a fully typed configuration object if valid.
  *
- * @returns The validated and typed configuration object
+ * @returns The validated configuration object
+ * @throws If the configuration does not conform to the schema
  */
 export function validateConfig(config: unknown): Config {
   return ConfigSchema.parse(config);

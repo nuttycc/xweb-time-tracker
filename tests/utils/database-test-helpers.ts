@@ -9,9 +9,9 @@ import { WebTimeTrackerDB, DATABASE_NAME } from '../../src/core/db/schemas';
 import { DatabaseService } from '../../src/core/db/services/database.service';
 
 /**
- * Creates and initializes a new WebTimeTrackerDB instance for testing with a unique or specified database name.
+ * Creates and initializes a WebTimeTrackerDB instance for testing, using a unique or specified database name.
  *
- * Ensures that required tables are present and throws an error if initialization fails.
+ * Ensures that the required tables (`eventslog` and `aggregatedstats`) are present, throwing an error if initialization fails.
  *
  * @param dbName - Optional custom name for the test database
  * @returns The initialized WebTimeTrackerDB instance
@@ -37,10 +37,10 @@ export async function createTestDatabase(dbName?: string): Promise<WebTimeTracke
 }
 
 /**
- * Creates and returns a DatabaseService instance backed by a newly initialized test database.
+ * Creates a DatabaseService instance connected to a freshly initialized test database.
  *
- * The test database is isolated for testing purposes and is fully initialized before use.
- * @returns A DatabaseService instance connected to a test database
+ * The returned service uses an isolated database instance suitable for testing scenarios.
+ * @returns A DatabaseService instance backed by a test database
  */
 export async function createTestDatabaseService(): Promise<DatabaseService> {
   const testDb = await createTestDatabase();
@@ -52,9 +52,9 @@ export async function createTestDatabaseService(): Promise<DatabaseService> {
 }
 
 /**
- * Closes and deletes the provided test database instance, removing it from IndexedDB if possible.
+ * Closes and deletes the specified test database instance, and attempts to remove it from IndexedDB storage.
  *
- * Any errors encountered during cleanup are logged as warnings and do not interrupt test execution.
+ * Errors encountered during cleanup are logged as warnings and do not interrupt test execution.
  */
 export async function cleanupTestDatabase(db: WebTimeTrackerDB): Promise<void> {
   try {
@@ -73,9 +73,9 @@ export async function cleanupTestDatabase(db: WebTimeTrackerDB): Promise<void> {
 }
 
 /**
- * Waits for IndexedDB to become available in the current environment.
+ * Ensures that IndexedDB is available before proceeding.
  *
- * Resolves immediately if IndexedDB is present, or after a short delay if using a mock or polyfill in test environments.
+ * Resolves immediately if IndexedDB is present, or waits briefly to accommodate environments where IndexedDB is initialized asynchronously, such as with mocks or polyfills.
  */
 export async function waitForIndexedDB(): Promise<void> {
   return new Promise((resolve) => {
@@ -90,11 +90,11 @@ export async function waitForIndexedDB(): Promise<void> {
 }
 
 /**
- * Inserts predefined test event records into the database for integration testing.
+ * Inserts two predefined event records into the `eventslog` table of the provided database instance for integration testing.
  *
- * Adds two recent event objects to the `eventslog` table of the provided database instance and returns the inserted event data.
+ * The inserted events simulate recent user activity with valid UUIDs and timestamps within the last hour.
  *
- * @returns The array of inserted test event objects.
+ * @returns An array containing the inserted test event objects.
  */
 export async function createTestData(db: WebTimeTrackerDB) {
   const testEvents = [
