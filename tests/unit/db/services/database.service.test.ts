@@ -379,53 +379,101 @@ describe('DatabaseService (New CRUD-only Implementation)', () => {
   // ==================== HEALTH CHECK OPERATIONS TESTS ====================
 
   describe('getDatabaseHealth', () => {
-    it('should return comprehensive health information', async () => {
-      // Mock repository counts
-      mockEventsLogRepo.getUnprocessedEventsCount.mockResolvedValue(5);
-      mockEventsLogRepo.count.mockResolvedValue(100);
-      mockAggregatedStatsRepo.count.mockResolvedValue(50);
+    describe('without health checker (standalone mode)', () => {
+      it('should return healthy status when database operations succeed', async () => {
+        // Mock repository counts
+        mockEventsLogRepo.getUnprocessedEventsCount.mockResolvedValue(5);
+        mockEventsLogRepo.count.mockResolvedValue(100);
+        mockAggregatedStatsRepo.count.mockResolvedValue(50);
 
-      const result = await service.getDatabaseHealth();
+        const result = await service.getDatabaseHealth();
 
-      expect(result.isHealthy).toBe(true);
-      expect(result.unprocessedEventCount).toBe(5);
-      expect(result.totalEventCount).toBe(100);
-      expect(result.totalStatsCount).toBe(50);
-      expect(result.lastProcessedDate).toBeDefined();
-      expect(typeof result.lastProcessedDate).toBe('string');
-      expect(result.lastProcessedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/); // YYYY-MM-DD format
+        expect(result.isHealthy).toBe(true);
+        expect(result.unprocessedEventCount).toBe(5);
+        expect(result.totalEventCount).toBe(100);
+        expect(result.totalStatsCount).toBe(50);
+        expect(result.lastProcessedDate).toBeDefined();
+        expect(typeof result.lastProcessedDate).toBe('string');
+        expect(result.lastProcessedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/); // YYYY-MM-DD format
 
-      expect(mockEventsLogRepo.getUnprocessedEventsCount).toHaveBeenCalledTimes(1);
-      expect(mockEventsLogRepo.count).toHaveBeenCalledTimes(1);
-      expect(mockAggregatedStatsRepo.count).toHaveBeenCalledTimes(1);
-    });
-
-    it('should reflect unhealthy connection status', async () => {
-      // Mock unhealthy connection service
-      const { connectionService } = await import('@/core/db/connection');
-      vi.mocked(connectionService.getHealthStatus).mockResolvedValue({
-        isHealthy: false,
-        state: ConnectionState.FAILED,
-        version: null,
-        lastError: new Error('Connection failed'),
-        lastChecked: Date.now(),
+        expect(mockEventsLogRepo.getUnprocessedEventsCount).toHaveBeenCalledTimes(1);
+        expect(mockEventsLogRepo.count).toHaveBeenCalledTimes(1);
+        expect(mockAggregatedStatsRepo.count).toHaveBeenCalledTimes(1);
       });
 
-      mockEventsLogRepo.getUnprocessedEventsCount.mockResolvedValue(0);
-      mockEventsLogRepo.count.mockResolvedValue(0);
-      mockAggregatedStatsRepo.count.mockResolvedValue(0);
+      it('should handle repository errors gracefully', async () => {
+        const repositoryError = new Error('Repository unavailable');
+        mockEventsLogRepo.getUnprocessedEventsCount.mockRejectedValue(repositoryError);
 
-      const result = await service.getDatabaseHealth();
+        const result = await service.getDatabaseHealth();
 
-      expect(result.isHealthy).toBe(false);
+        expect(result.isHealthy).toBe(false);
+        expect(result.unprocessedEventCount).toBe(0);
+        expect(result.totalEventCount).toBe(0);
+        expect(result.totalStatsCount).toBe(0);
+        expect(result.lastProcessedDate).toBeDefined();
+      });
     });
 
-    it('should handle repository errors in health check', async () => {
-      const repositoryError = new Error('Repository unavailable');
+    describe('with health checker (production mode)', () => {
+      let serviceWithHealthChecker: DatabaseService;
+      let mockHealthChecker: { getHealthStatus: ReturnType<typeof vi.fn> };
 
-      mockEventsLogRepo.getUnprocessedEventsCount.mockRejectedValue(repositoryError);
+      beforeEach(() => {
+        mockHealthChecker = {
+          getHealthStatus: vi.fn(),
+        };
+        serviceWithHealthChecker = new DatabaseService(mockDb, mockHealthChecker);
 
-      await expect(service.getDatabaseHealth()).rejects.toThrow('Repository unavailable');
+        // Replace the repository instances with mocks
+        (serviceWithHealthChecker as unknown as { eventsLogRepo: unknown }).eventsLogRepo = mockEventsLogRepo;
+        (serviceWithHealthChecker as unknown as { aggregatedStatsRepo: unknown }).aggregatedStatsRepo = mockAggregatedStatsRepo;
+      });
+
+      it('should return healthy status when health checker reports healthy', async () => {
+        mockHealthChecker.getHealthStatus.mockResolvedValue({ isHealthy: true });
+        mockEventsLogRepo.getUnprocessedEventsCount.mockResolvedValue(5);
+        mockEventsLogRepo.count.mockResolvedValue(100);
+        mockAggregatedStatsRepo.count.mockResolvedValue(50);
+
+        const result = await serviceWithHealthChecker.getDatabaseHealth();
+
+        expect(result.isHealthy).toBe(true);
+        expect(result.unprocessedEventCount).toBe(5);
+        expect(result.totalEventCount).toBe(100);
+        expect(result.totalStatsCount).toBe(50);
+        expect(mockHealthChecker.getHealthStatus).toHaveBeenCalledTimes(1);
+      });
+
+      it('should reflect unhealthy status when health checker reports unhealthy', async () => {
+        mockHealthChecker.getHealthStatus.mockResolvedValue({ isHealthy: false });
+        mockEventsLogRepo.getUnprocessedEventsCount.mockResolvedValue(0);
+        mockEventsLogRepo.count.mockResolvedValue(0);
+        mockAggregatedStatsRepo.count.mockResolvedValue(0);
+
+        const result = await serviceWithHealthChecker.getDatabaseHealth();
+
+        expect(result.isHealthy).toBe(false);
+        expect(result.unprocessedEventCount).toBe(0);
+        expect(result.totalEventCount).toBe(0);
+        expect(result.totalStatsCount).toBe(0);
+        expect(mockHealthChecker.getHealthStatus).toHaveBeenCalledTimes(1);
+      });
+
+      it('should handle repository errors even with health checker', async () => {
+        const repositoryError = new Error('Repository unavailable');
+        mockEventsLogRepo.getUnprocessedEventsCount.mockRejectedValue(repositoryError);
+
+        const result = await serviceWithHealthChecker.getDatabaseHealth();
+
+        expect(result.isHealthy).toBe(false);
+        expect(result.unprocessedEventCount).toBe(0);
+        expect(result.totalEventCount).toBe(0);
+        expect(result.totalStatsCount).toBe(0);
+        expect(result.lastProcessedDate).toBeDefined();
+        // Health checker should not be called if database operations fail
+        expect(mockHealthChecker.getHealthStatus).not.toHaveBeenCalled();
+      });
     });
   });
 

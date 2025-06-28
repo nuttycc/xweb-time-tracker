@@ -1,10 +1,11 @@
 import { defineConfig } from 'vitest/config';
+import { WxtVitest } from 'wxt/testing';
 import { resolve } from 'path';
 
 export default defineConfig({
+  plugins: [WxtVitest()],
   test: {
-    // 基础配置
-    environment: 'jsdom',
+    // 基础配置 - 让WxtVitest自动处理环境配置
     globals: true,
     setupFiles: ['./tests/setup.ts'],
 

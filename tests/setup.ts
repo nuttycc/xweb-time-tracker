@@ -8,10 +8,14 @@
  */
 
 import { expect, beforeEach, afterEach } from 'vitest';
+import { fakeBrowser } from 'wxt/testing';
 import 'fake-indexeddb/auto';
 
 // Global test configuration
 beforeEach(() => {
+  // Reset WXT fake browser state for clean test isolation
+  fakeBrowser.reset();
+
   // Clear any existing IndexedDB data before each test
   if (typeof indexedDB !== 'undefined') {
     // Reset IndexedDB state for clean test isolation

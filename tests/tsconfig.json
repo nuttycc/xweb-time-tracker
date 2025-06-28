@@ -7,6 +7,6 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["./**/*.ts", "../src/**/*.ts"],
+  "include": ["./**/*.ts", "../src/**/*.ts", "../.wxt/wxt.d.ts"],
   "exclude": ["node_modules"]
 }

@@ -58,13 +58,16 @@ export type {
 export {
   DatabaseService,
   createDatabaseService,
+  createDatabaseServiceWithHealthChecker,
   databaseService,
   ErrorHandlerService,
+  ConnectionServiceHealthChecker,
 } from './services';
 
 // Export service types and interfaces
 export type {
   DatabaseHealthInfo,
+  HealthChecker,
   ErrorInfo,
   ErrorHandlingOptions,
   RecoveryResult,
