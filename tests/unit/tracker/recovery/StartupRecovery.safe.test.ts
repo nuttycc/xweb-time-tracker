@@ -7,6 +7,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing';
 import { StartupRecovery } from '../../../../src/core/tracker/recovery/StartupRecovery';
+import { EventGenerator } from '../../../../src/core/tracker/events/EventGenerator';
+import { DatabaseService } from '../../../../src/core/db/services/database.service';
 import {
   createMockEventGenerator,
   createMockDatabaseService,
@@ -20,16 +22,16 @@ const mockTabs = {
 
 describe('StartupRecovery (Type-Safe)', () => {
   let startupRecovery: StartupRecovery;
-  let mockEventGenerator: ReturnType<typeof createMockEventGenerator>;
-  let mockDatabaseService: ReturnType<typeof createMockDatabaseService>;
+  let mockEventGenerator: EventGenerator;
+  let mockDatabaseService: DatabaseService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     fakeBrowser.reset();
     vi.clearAllMocks();
 
     // Create type-safe mocks
     mockEventGenerator = createMockEventGenerator();
-    mockDatabaseService = createMockDatabaseService();
+    mockDatabaseService = await createMockDatabaseService();
 
     // Setup browser mocks
     fakeBrowser.tabs.query = mockTabs.query;
@@ -37,8 +39,8 @@ describe('StartupRecovery (Type-Safe)', () => {
     // Note: In a real implementation, we would use dependency injection
     // For now, we create a real instance and test the public interface
     startupRecovery = new StartupRecovery(
-      mockEventGenerator as unknown as ConstructorParameters<typeof StartupRecovery>[0],
-      mockDatabaseService as unknown as ConstructorParameters<typeof StartupRecovery>[1],
+      mockEventGenerator,
+      mockDatabaseService,
       {
         enableDebugLogging: true,
       }

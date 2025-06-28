@@ -3,53 +3,128 @@
  */
 
 import { vi } from 'vitest';
-import type { EventGenerator } from '../../src/core/tracker/events/EventGenerator';
-import type { DatabaseService } from '../../src/core/db/services/database.service';
+import { EventGenerator } from '../../src/core/tracker/events/EventGenerator';
+import { DatabaseService } from '../../src/core/db/services/database.service';
 import type { EventsLogRecord } from '../../src/core/db/models/eventslog.model';
+import { createTestDatabase } from './database-test-helpers';
 
 /**
- * Creates a partial mock implementation of the EventGenerator interface for testing.
+ * Creates a mock EventGenerator instance for testing.
  *
- * The returned mock provides stubbed `generateOpenTimeEnd` and `generateActiveTimeEnd` methods, each returning a fixed success response with a crash recovery event object.
+ * Creates a real EventGenerator instance with disabled validation and then mocks
+ * its methods to provide predictable responses for testing recovery scenarios.
  *
- * @returns A partial EventGenerator mock with predefined recovery event responses
+ * @returns A real EventGenerator instance with mocked methods
  */
-export function createMockEventGenerator(): Partial<EventGenerator> {
-  return {
-    generateOpenTimeEnd: vi.fn().mockReturnValue({
-      success: true,
-      event: {
-        id: 'recovery-event-1',
-        eventType: 'open_time_end',
-        visitId: 'visit-1',
-        resolution: 'crash_recovery',
-      },
-    }),
-    generateActiveTimeEnd: vi.fn().mockReturnValue({
-      success: true,
-      event: {
-        id: 'recovery-event-2',
-        eventType: 'active_time_end',
-        activityId: 'activity-1',
-        resolution: 'crash_recovery',
-      },
-    }),
-  };
+export function createMockEventGenerator(): EventGenerator {
+  // Create a real EventGenerator instance with disabled validation for testing
+  const mockEventGenerator = new EventGenerator({
+    validateEvents: false,
+    timeouts: {
+      inactiveDefault: 30000,
+      inactiveMedia: 60000,
+    },
+  });
+
+  // Mock the methods we need for testing
+  vi.spyOn(mockEventGenerator, 'generateOpenTimeStart').mockReturnValue({
+    success: true,
+    event: {
+      timestamp: Date.now(),
+      eventType: 'open_time_start',
+      tabId: 1,
+      url: 'https://example.com',
+      visitId: 'visit-1',
+      activityId: null,
+      isProcessed: 0,
+    },
+  });
+
+  vi.spyOn(mockEventGenerator, 'generateOpenTimeEnd').mockReturnValue({
+    success: true,
+    event: {
+      timestamp: Date.now(),
+      eventType: 'open_time_end',
+      tabId: 1,
+      url: 'https://example.com',
+      visitId: 'visit-1',
+      activityId: null,
+      isProcessed: 0,
+      resolution: 'crash_recovery',
+    },
+  });
+
+  vi.spyOn(mockEventGenerator, 'generateActiveTimeStart').mockReturnValue({
+    success: true,
+    event: {
+      timestamp: Date.now(),
+      eventType: 'active_time_start',
+      tabId: 1,
+      url: 'https://example.com',
+      visitId: 'visit-1',
+      activityId: 'activity-1',
+      isProcessed: 0,
+    },
+  });
+
+  vi.spyOn(mockEventGenerator, 'generateActiveTimeEnd').mockReturnValue({
+    success: true,
+    event: {
+      timestamp: Date.now(),
+      eventType: 'active_time_end',
+      tabId: 1,
+      url: 'https://example.com',
+      visitId: 'visit-1',
+      activityId: 'activity-1',
+      isProcessed: 0,
+      resolution: 'crash_recovery',
+    },
+  });
+
+  vi.spyOn(mockEventGenerator, 'generateCheckpoint').mockReturnValue({
+    success: true,
+  });
+
+  vi.spyOn(mockEventGenerator, 'shouldTriggerActiveTimeTimeout').mockReturnValue(false);
+  vi.spyOn(mockEventGenerator, 'shouldGenerateCheckpoint').mockReturnValue(false);
+  vi.spyOn(mockEventGenerator, 'updateURLProcessor').mockImplementation(() => {});
+
+  return mockEventGenerator;
 }
 
 /**
- * Creates a partial mock of the DatabaseService interface with stubbed methods returning empty results.
+ * Creates a mock DatabaseService instance for testing.
  *
- * The returned mock implements the public API methods used by StartupRecovery, each resolving to an empty array to simulate no events found.
- * @returns A partial DatabaseService mock with stubbed event retrieval methods
+ * Creates a real DatabaseService instance and mocks its methods to provide
+ * predictable responses for testing recovery scenarios.
+ *
+ * @returns A real DatabaseService instance with mocked methods
  */
-export function createMockDatabaseService(): Partial<DatabaseService> {
-  return {
-    // Use the public API methods that StartupRecovery actually calls
-    getEventsByTypeAndTimeRange: vi.fn().mockResolvedValue([]),
-    getEventsByVisitId: vi.fn().mockResolvedValue([]),
-    getEventsByActivityId: vi.fn().mockResolvedValue([]),
-  };
+export async function createMockDatabaseService(): Promise<DatabaseService> {
+  // Create a real DatabaseService instance with a test database
+  const testDb = await createTestDatabase();
+  const mockDatabaseService = new DatabaseService(testDb);
+
+  // Mock the methods we need for testing
+  vi.spyOn(mockDatabaseService, 'getEventsByTypeAndTimeRange').mockResolvedValue([]);
+  vi.spyOn(mockDatabaseService, 'getEventsByVisitId').mockResolvedValue([]);
+  vi.spyOn(mockDatabaseService, 'getEventsByActivityId').mockResolvedValue([]);
+  vi.spyOn(mockDatabaseService, 'addEvent').mockResolvedValue(1); // Returns event ID
+  vi.spyOn(mockDatabaseService, 'getUnprocessedEvents').mockResolvedValue([]);
+  vi.spyOn(mockDatabaseService, 'markEventsAsProcessed').mockResolvedValue(0); // Returns count of updated events
+  vi.spyOn(mockDatabaseService, 'deleteEventsByIds').mockResolvedValue(0); // Returns count of deleted events
+  vi.spyOn(mockDatabaseService, 'upsertStat').mockResolvedValue('test-key'); // Returns primary key
+  vi.spyOn(mockDatabaseService, 'getStatsByDateRange').mockResolvedValue([]);
+  vi.spyOn(mockDatabaseService, 'getStatsByHostname').mockResolvedValue([]);
+  vi.spyOn(mockDatabaseService, 'getStatsByParentDomain').mockResolvedValue([]);
+  vi.spyOn(mockDatabaseService, 'getDatabaseHealth').mockResolvedValue({
+    isHealthy: true,
+    unprocessedEventCount: 0,
+    totalEventCount: 0,
+    totalStatsCount: 0,
+  });
+
+  return mockDatabaseService;
 }
 
 /**
