@@ -10,7 +10,6 @@ import Dexie from 'dexie';
 import { EventsLogRepository } from '@/core/db/repositories/eventslog.repository';
 import { ValidationError, RepositoryError } from '@/core/db/repositories/base.repository';
 import type { EventsLogRecord, EventType } from '@/core/db/schemas/eventslog.schema';
-import { randomUUID } from 'crypto';
 
 // Test database class
 class TestDB extends Dexie {
@@ -27,8 +26,15 @@ class TestDB extends Dexie {
 describe('EventsLogRepository', () => {
   let db: TestDB;
   let repository: EventsLogRepository;
+  let mockUuidCounter: number; // Declare here
 
   beforeEach(async () => {
+    mockUuidCounter = 0; // Reset counter for each test
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockImplementation(() => {
+      mockUuidCounter++;
+      return `mock-uuid-${mockUuidCounter}`;
+    });
+
     db = new TestDB();
     repository = new EventsLogRepository(
       db as unknown as ConstructorParameters<typeof EventsLogRepository>[0]
@@ -49,8 +55,8 @@ describe('EventsLogRepository', () => {
     eventType: 'checkpoint',
     tabId: 1,
     url: 'https://example.com',
-    visitId: randomUUID(),
-    activityId: randomUUID(),
+    visitId: globalThis.crypto.randomUUID(),
+    activityId: globalThis.crypto.randomUUID(),
     ...overrides,
   });
 
@@ -76,8 +82,8 @@ describe('EventsLogRepository', () => {
         eventType: 'invalid_type' as unknown as EventType, // Invalid event type
         tabId: 1,
         url: 'https://example.com',
-        visitId: randomUUID(),
-        activityId: randomUUID(),
+        visitId: globalThis.crypto.randomUUID(),
+        activityId: globalThis.crypto.randomUUID(),
       };
 
       await expect(repository.createEvent(invalidEvent)).rejects.toThrow(ValidationError);
@@ -190,14 +196,15 @@ describe('EventsLogRepository', () => {
   });
 
   describe('getEventsByVisitId', () => {
-    const testVisitId = randomUUID();
+    let testVisitId: string;
 
     beforeEach(async () => {
+      testVisitId = globalThis.crypto.randomUUID();
       // Create events with same visitId and different visitIds
       const events = [
         { ...createTestEvent(), visitId: testVisitId, isProcessed: 0 as const },
         { ...createTestEvent(), visitId: testVisitId, isProcessed: 0 as const },
-        { ...createTestEvent(), visitId: randomUUID(), isProcessed: 0 as const }, // Different visitId
+        { ...createTestEvent(), visitId: globalThis.crypto.randomUUID(), isProcessed: 0 as const }, // Different visitId
         { ...createTestEvent(), visitId: testVisitId, isProcessed: 0 as const },
       ];
 
@@ -238,14 +245,15 @@ describe('EventsLogRepository', () => {
   });
 
   describe('getEventsByActivityId', () => {
-    const testActivityId = randomUUID();
+    let testActivityId: string;
 
     beforeEach(async () => {
+      testActivityId = globalThis.crypto.randomUUID();
       // Create events with same activityId and different activityIds
       const events = [
         { ...createTestEvent(), activityId: testActivityId, isProcessed: 0 as const },
         { ...createTestEvent(), activityId: testActivityId, isProcessed: 0 as const },
-        { ...createTestEvent(), activityId: randomUUID(), isProcessed: 0 as const }, // Different activityId
+        { ...createTestEvent(), activityId: globalThis.crypto.randomUUID(), isProcessed: 0 as const }, // Different activityId
         { ...createTestEvent(), activityId: null, isProcessed: 0 as const }, // Null activityId
       ];
 
