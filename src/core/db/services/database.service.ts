@@ -15,9 +15,9 @@ import type {
 } from '../repositories';
 import type { EventsLogRecord, CreateEventsLogRecord } from '../models/eventslog.model';
 import type { AggregatedStatsRecord } from '../models/aggregatedstats.model';
-import { connectionService } from '../connection';
 import type { WebTimeTrackerDB } from '../schemas';
 import { getUtcDateString } from '../schemas/aggregatedstats.schema';
+import type { ConnectionService } from '../connection/service';
 
 /**
  * Database health information interface
@@ -28,6 +28,25 @@ export interface DatabaseHealthInfo {
   totalEventCount: number;
   totalStatsCount: number;
   lastProcessedDate?: string;
+}
+
+/**
+ * Health checker interface for dependency injection
+ */
+export interface HealthChecker {
+  getHealthStatus(): Promise<{ isHealthy: boolean }>;
+}
+
+/**
+ * Connection service health checker adapter
+ */
+export class ConnectionServiceHealthChecker implements HealthChecker {
+  constructor(private connectionService: ConnectionService) {}
+
+  async getHealthStatus(): Promise<{ isHealthy: boolean }> {
+    const health = await this.connectionService.getHealthStatus();
+    return { isHealthy: health.isHealthy };
+  }
 }
 
 /**
@@ -43,10 +62,12 @@ export interface DatabaseHealthInfo {
 export class DatabaseService {
   private eventsLogRepo: EventsLogRepository;
   private aggregatedStatsRepo: AggregatedStatsRepository;
+  private healthChecker?: HealthChecker;
 
-  constructor(db: WebTimeTrackerDB) {
+  constructor(db: WebTimeTrackerDB, healthChecker?: HealthChecker) {
     this.eventsLogRepo = new EventsLogRepository(db);
     this.aggregatedStatsRepo = new AggregatedStatsRepository(db);
+    this.healthChecker = healthChecker;
   }
 
   // ==================== EVENT CRUD OPERATIONS ====================
@@ -54,16 +75,18 @@ export class DatabaseService {
   /**
    * Add a new event to the database
    *
-   * @param event - The event data to create (without id and isProcessed)
+   * @param event - The event data to create (without id, isProcessed will be set to 0)
    * @param options - Repository operation options
    * @returns Promise resolving to the generated event ID
    * @throws {RepositoryError} If database operation fails
    */
   async addEvent(
-    event: Omit<CreateEventsLogRecord, 'isProcessed'>,
+    event: Omit<CreateEventsLogRecord, 'id' | 'isProcessed'>,
     options: RepositoryOptions = {}
   ): Promise<number> {
-    return this.eventsLogRepo.createEvent(event, options);
+    // Add isProcessed: 0 for new events
+    const eventWithProcessed = { ...event, isProcessed: 0 as const };
+    return this.eventsLogRepo.createEvent(eventWithProcessed, options);
   }
 
   /**
@@ -168,19 +191,94 @@ export class DatabaseService {
   // ==================== HEALTH CHECK OPERATIONS ====================
 
   /**
+   * Get events by type and time range
+   *
+   * @param eventType - Type of events to retrieve
+   * @param startTime - Start timestamp (inclusive)
+   * @param endTime - End timestamp (inclusive)
+   * @param options - Query options
+   * @returns Promise resolving to array of events
+   * @throws {RepositoryError} If query fails
+   */
+  async getEventsByTypeAndTimeRange(
+    eventType:
+      | 'open_time_start'
+      | 'active_time_start'
+      | 'open_time_end'
+      | 'active_time_end'
+      | 'checkpoint',
+    startTime: number,
+    endTime: number,
+    options?: EventsLogQueryOptions
+  ): Promise<EventsLogRecord[]> {
+    return this.eventsLogRepo.getEventsByTypeAndTimeRange(eventType, startTime, endTime, options);
+  }
+
+  /**
+   * Get events by visit ID
+   *
+   * @param visitId - Visit identifier
+   * @param options - Query options
+   * @returns Promise resolving to array of events
+   * @throws {RepositoryError} If query fails
+   */
+  async getEventsByVisitId(
+    visitId: string,
+    options?: EventsLogQueryOptions
+  ): Promise<EventsLogRecord[]> {
+    return this.eventsLogRepo.getEventsByVisitId(visitId, options);
+  }
+
+  /**
+   * Get events by activity ID
+   *
+   * @param activityId - Activity identifier
+   * @param options - Query options
+   * @returns Promise resolving to array of events
+   * @throws {RepositoryError} If query fails
+   */
+  async getEventsByActivityId(
+    activityId: string,
+    options?: EventsLogQueryOptions
+  ): Promise<EventsLogRecord[]> {
+    return this.eventsLogRepo.getEventsByActivityId(activityId, options);
+  }
+
+  /**
    * Get comprehensive database health information
    *
    * @returns Promise resolving to database health information
    * @throws {RepositoryError} If health check fails
    */
   async getDatabaseHealth(): Promise<DatabaseHealthInfo> {
-    const healthStatus = await connectionService.getHealthStatus();
-    const unprocessedCount = await this.eventsLogRepo.getUnprocessedEventsCount();
-    const totalEvents = await this.eventsLogRepo.count();
-    const totalStats = await this.aggregatedStatsRepo.count();
+    let isHealthy = false;
+    let unprocessedCount = 0;
+    let totalEvents = 0;
+    let totalStats = 0;
+
+    try {
+      // Get database operation results first
+      unprocessedCount = await this.eventsLogRepo.getUnprocessedEventsCount();
+      totalEvents = await this.eventsLogRepo.count();
+      totalStats = await this.aggregatedStatsRepo.count();
+
+      // Check health using injected health checker
+      if (this.healthChecker) {
+        const connectionHealth = await this.healthChecker.getHealthStatus();
+        isHealthy = connectionHealth.isHealthy;
+      } else {
+        // No health checker provided - perform basic health check
+        // If database operations succeeded, consider it healthy
+        isHealthy = true;
+      }
+    } catch (error) {
+      console.warn('Database health check failed:', error);
+      isHealthy = false;
+      // Keep default values (0) for counts when health check fails
+    }
 
     return {
-      isHealthy: healthStatus.isHealthy,
+      isHealthy,
       unprocessedEventCount: unprocessedCount,
       totalEventCount: totalEvents,
       totalStatsCount: totalStats,
@@ -193,10 +291,23 @@ export class DatabaseService {
  * Create a database service instance
  *
  * @param db - Database instance
+ * @param healthChecker - Optional health checker for dependency injection
  * @returns Database service instance
  */
-export function createDatabaseService(db: WebTimeTrackerDB): DatabaseService {
-  return new DatabaseService(db);
+export function createDatabaseService(db: WebTimeTrackerDB, healthChecker?: HealthChecker): DatabaseService {
+  return new DatabaseService(db, healthChecker);
+}
+
+/**
+ * Create a database service instance with connection service health checker
+ *
+ * @param db - Database instance
+ * @param connectionService - Connection service for health checking
+ * @returns Database service instance with health checking
+ */
+export function createDatabaseServiceWithHealthChecker(db: WebTimeTrackerDB, connectionService: ConnectionService): DatabaseService {
+  const healthChecker = new ConnectionServiceHealthChecker(connectionService);
+  return new DatabaseService(db, healthChecker);
 }
 
 /**
@@ -209,7 +320,8 @@ export const databaseService = {
   async getInstance(): Promise<DatabaseService> {
     if (!_databaseServiceInstance) {
       const { db } = await import('../schemas');
-      _databaseServiceInstance = createDatabaseService(db);
+      const { connectionService } = await import('../connection');
+      _databaseServiceInstance = createDatabaseServiceWithHealthChecker(db, connectionService);
     }
     return _databaseServiceInstance;
   },

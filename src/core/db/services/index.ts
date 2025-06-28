@@ -9,8 +9,11 @@
 export {
   DatabaseService,
   createDatabaseService,
+  createDatabaseServiceWithHealthChecker,
   databaseService,
   type DatabaseHealthInfo,
+  type HealthChecker,
+  ConnectionServiceHealthChecker,
 } from './database.service';
 
 export {

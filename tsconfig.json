@@ -2,5 +2,6 @@
   "extends": "./.wxt/tsconfig.json",
   "compilerOptions": {
     "skipLibCheck": true
-  }
+  },
+  "exclude": ["tests/**/*", "**/*.test.ts", "**/*.spec.ts"]
 }
