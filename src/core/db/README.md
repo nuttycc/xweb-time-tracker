@@ -30,13 +30,14 @@ indexedDB 模块：
 **Desc**：演示如何使用DatabaseService进行基本的数据库操作，包括添加事件、查询未处理事件和管理聚合统计数据。
 
 ```typescript
-import { database, DatabaseService } from '@/core/db';
+import { database, databaseService } from '@/core/db';
 
-// 使用模块提供的单例数据库实例，确保全局一致性
-const db = database;
+// 推荐：使用模块提供的单例服务实例（包含健康检查）
+const dbService = await databaseService.getInstance();
 
-// 初始化数据库服务，提供类型安全的 CRUD 操作接口
-const dbService = new DatabaseService(db);
+// 或者：手动创建服务实例（测试环境）
+// const db = database;
+// const dbService = new DatabaseService(db);
 
 const eventId = await dbService.addEvent({
   eventType: 'open_time_start',

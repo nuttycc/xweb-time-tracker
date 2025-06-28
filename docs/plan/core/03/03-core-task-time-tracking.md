@@ -26,6 +26,7 @@
 - `docs/specs/base/4-LLD.md`
 - `docs/specs/base/5-CSPEC.md`
 
+`
 ## 关键技术栈 (Key Tech Stack)
 
 - WXT: Next-gen Web Extension Framework
@@ -67,6 +68,19 @@ const showChangelogOnUpdate = storage.defineItem<boolean>('local:showChangelogOn
 });
 ```
 
+3. use zod/v4
+
+对于 "zod": "^3.25.67"
+我们需要使用路径导入并使用 zod v4
+
+```ts
+import * as z from "zod/v4"; 
+ 
+const Player = z.object({ 
+  username: z.string(),
+  xp: z.number()
+});
+```
 ## 任务总览 (Task Overview)
 
 时间追踪引擎是整个系统的数据源头，负责将用户的浏览器行为转化为结构化的领域事件流。它的准确性和可靠性直接决定了最终统计数据的质量。本计划将严格按照LLD中定义的`Time Tracking Engine`和`启动恢复流程`进行任务分解。
