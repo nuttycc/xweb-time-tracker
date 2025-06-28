@@ -412,8 +412,8 @@ export class EventGenerator {
     }
 
     const timeoutThreshold = tabState.isAudible
-      ? this.options.timeouts!.inactiveMedia!
-      : this.options.timeouts!.inactiveDefault!;
+      ? this.options.timeouts?.inactiveMedia ?? INACTIVE_TIMEOUT_MEDIA
+      : this.options.timeouts?.inactiveDefault ?? INACTIVE_TIMEOUT_DEFAULT;
 
     const timeSinceLastInteraction = currentTimestamp - tabState.lastInteractionTimestamp;
     return timeSinceLastInteraction >= timeoutThreshold;
