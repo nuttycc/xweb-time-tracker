@@ -46,6 +46,9 @@ export const TabStateSchema = z.object({
   /** Whether this tab is currently the focused tab */
   isFocused: z.boolean(),
 
+  /** Browser tab ID (unique identifier for the tab) */
+  tabId: z.number().int().nonnegative(),
+
   /** Browser window ID that contains this tab */
   windowId: z.number().int().nonnegative(),
 });

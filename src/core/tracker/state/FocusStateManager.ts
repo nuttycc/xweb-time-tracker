@@ -171,12 +171,13 @@ export class FocusStateManager {
    */
   createTabState(
     tabId: number,
-    initialState: Omit<TabState, 'isFocused' | 'windowId'>,
+    initialState: Omit<TabState, 'isFocused' | 'tabId' | 'windowId'>,
     windowId: number
   ): void {
     const tabState: TabState = {
       ...initialState,
       isFocused: this.focusContext.focusedTabId === tabId,
+      tabId,
       windowId,
     };
 

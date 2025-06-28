@@ -42,7 +42,7 @@ describe('FocusStateManager', () => {
   });
 
   describe('Tab State Management', () => {
-    const mockTabState: Omit<TabState, 'isFocused' | 'windowId'> = {
+    const mockTabState: Omit<TabState, 'isFocused' | 'tabId' | 'windowId'> = {
       url: 'https://example.com',
       visitId: '123e4567-e89b-12d3-a456-426614174000',
       activityId: null,
@@ -120,7 +120,7 @@ describe('FocusStateManager', () => {
     const tabId1 = 1;
     const tabId2 = 2;
     const windowId = 100;
-    const mockTabState1: Omit<TabState, 'isFocused' | 'windowId'> = {
+    const mockTabState1: Omit<TabState, 'isFocused' | 'tabId' | 'windowId'> = {
       url: 'https://example1.com',
       visitId: '123e4567-e89b-12d3-a456-426614174001',
       activityId: null,
@@ -129,7 +129,7 @@ describe('FocusStateManager', () => {
       openTimeStart: Date.now(),
       activeTimeStart: null,
     };
-    const mockTabState2: Omit<TabState, 'isFocused' | 'windowId'> = {
+    const mockTabState2: Omit<TabState, 'isFocused' | 'tabId' | 'windowId'> = {
       url: 'https://example2.com',
       visitId: '123e4567-e89b-12d3-a456-426614174002',
       activityId: null,
@@ -219,7 +219,7 @@ describe('FocusStateManager', () => {
   describe('Active Time Management', () => {
     const tabId = 1;
     const windowId = 100;
-    const mockTabState: Omit<TabState, 'isFocused' | 'windowId'> = {
+    const mockTabState: Omit<TabState, 'isFocused' | 'tabId' | 'windowId'> = {
       url: 'https://example.com',
       visitId: '123e4567-e89b-12d3-a456-426614174000',
       activityId: null,
@@ -336,7 +336,7 @@ describe('FocusStateManager', () => {
     it('should validate state consistency', () => {
       const tabId = 1;
       const windowId = 100;
-      const mockTabState: Omit<TabState, 'isFocused' | 'windowId'> = {
+      const mockTabState: Omit<TabState, 'isFocused' | 'tabId' | 'windowId'> = {
         url: 'https://example.com',
         visitId: '123e4567-e89b-12d3-a456-426614174000',
         activityId: null,
@@ -355,7 +355,7 @@ describe('FocusStateManager', () => {
     it('should clear all state', () => {
       const tabId = 1;
       const windowId = 100;
-      const mockTabState: Omit<TabState, 'isFocused' | 'windowId'> = {
+      const mockTabState: Omit<TabState, 'isFocused' | 'tabId' | 'windowId'> = {
         url: 'https://example.com',
         visitId: '123e4567-e89b-12d3-a456-426614174000',
         activityId: null,
@@ -380,7 +380,7 @@ describe('FocusStateManager', () => {
       const tabId1 = 1;
       const tabId2 = 2;
       const windowId = 100;
-      const mockTabState: Omit<TabState, 'isFocused' | 'windowId'> = {
+      const mockTabState: Omit<TabState, 'isFocused' | 'tabId' | 'windowId'> = {
         url: 'https://example.com',
         visitId: '123e4567-e89b-12d3-a456-426614174000',
         activityId: null,

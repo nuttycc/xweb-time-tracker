@@ -54,6 +54,7 @@ describe('EventGenerator', () => {
       openTimeStart: Date.now() - 60000,
       activeTimeStart: Date.now() - 30000,
       isFocused: true,
+      tabId: 123,
       windowId: 1,
     };
   });
@@ -160,7 +161,7 @@ describe('EventGenerator', () => {
         expect(result.success).toBe(true);
         expect(result.event).toBeDefined();
         expect(result.event!.eventType).toBe('open_time_end');
-        expect(result.event!.tabId).toBe(mockTabState.windowId);
+        expect(result.event!.tabId).toBe(mockTabState.tabId);
         expect(result.event!.url).toBe(mockTabState.url);
         expect(result.event!.visitId).toBe(mockTabState.visitId);
         expect(result.event!.activityId).toBe(mockTabState.activityId);
@@ -445,6 +446,7 @@ describe('Validation Helpers', () => {
           openTimeStart: Date.now(),
           activeTimeStart: Date.now(),
           isFocused: true,
+          tabId: 123,
           windowId: 1,
         },
         timestamp: Date.now(),

@@ -56,6 +56,7 @@ function createTestTabState(overrides: Partial<TabState> = {}): TabState {
     openTimeStart: Date.now() - 2 * 60 * 60 * 1000, // 2 hours ago
     activeTimeStart: Date.now() - 1 * 60 * 60 * 1000, // 1 hour ago
     isFocused: true,
+    tabId: 123,
     windowId: 1,
     ...overrides,
   };

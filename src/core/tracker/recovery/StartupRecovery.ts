@@ -375,7 +375,8 @@ export class StartupRecovery {
       openTimeStart: session.timestamp,
       activeTimeStart: session.eventType === 'active_time_start' ? session.timestamp : null,
       isFocused: false,
-      windowId: session.tabId || 0,
+      tabId: session.tabId || 0,
+      windowId: 0, // Window ID is not available in recovery context
     };
 
     const context = {

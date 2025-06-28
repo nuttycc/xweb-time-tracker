@@ -66,6 +66,7 @@ export const EventGenerationContextSchema = z.object({
     openTimeStart: z.number().int().min(0),
     activeTimeStart: z.number().int().min(0).nullable(),
     isFocused: z.boolean(),
+    tabId: z.number().int().nonnegative(),
     windowId: z.number().int().nonnegative(),
   }),
   timestamp: z.number().int().min(1000000000000),
@@ -203,7 +204,7 @@ export class EventGenerator {
       const event: DomainEvent = {
         timestamp,
         eventType: 'open_time_end',
-        tabId: tabState.windowId, // Using windowId as tabId for consistency
+        tabId: tabState.tabId,
         url: tabState.url,
         visitId: tabState.visitId,
         activityId: tabState.activityId,
@@ -266,7 +267,7 @@ export class EventGenerator {
       const event: DomainEvent = {
         timestamp,
         eventType: 'active_time_start',
-        tabId: tabState.windowId,
+        tabId: tabState.tabId,
         url: urlResult.normalizedUrl!,
         visitId: tabState.visitId,
         activityId,
@@ -322,7 +323,7 @@ export class EventGenerator {
       const event: DomainEvent = {
         timestamp,
         eventType: 'active_time_end',
-        tabId: tabState.windowId,
+        tabId: tabState.tabId,
         url: tabState.url,
         visitId: tabState.visitId,
         activityId: tabState.activityId,
@@ -377,7 +378,7 @@ export class EventGenerator {
       const event: DomainEvent = {
         timestamp,
         eventType: 'checkpoint',
-        tabId: tabState.windowId,
+        tabId: tabState.tabId,
         url: tabState.url,
         visitId: tabState.visitId,
         activityId: checkpointData.checkpointType === 'active_time' ? tabState.activityId : null,

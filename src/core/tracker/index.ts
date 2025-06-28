@@ -549,7 +549,7 @@ export class TimeTracker {
       await this.eventQueue.enqueue(result.event);
 
       // Update tab state
-      this.focusStateManager.updateTabState(tabState.windowId, {
+      this.focusStateManager.updateTabState(tabState.tabId, {
         activityId: result.event.activityId!,
         activeTimeStart: timestamp,
       });
