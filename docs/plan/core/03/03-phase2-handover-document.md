@@ -268,7 +268,7 @@ interface QueuedEvent {
 
 ### Dependencies Used
 - `zod/v4` - Runtime validation
-- `crypto.randomUUID` - UUID generation
+- `crypto.randomUUID` (Web Crypto API) - UUID generation for Manifest V3 compatibility
 - `@/config/constants` - CSPEC configuration
 - `@/core/db/models` - Database type definitions
 

@@ -19,10 +19,9 @@ import {
 import { URLProcessor } from '@/core/tracker/url/URLProcessor';
 import { TabState, CheckpointData } from '@/core/tracker/types';
 
-// Mock crypto.randomUUID
-vi.mock('crypto', () => ({
-  randomUUID: vi.fn(() => 'mock-uuid-123'),
-}));
+// Mock Web Crypto API randomUUID
+const mockRandomUUID = vi.fn(() => '550e8400-e29b-41d4-a716-446655440000' as `${string}-${string}-${string}-${string}-${string}`);
+vi.spyOn(globalThis.crypto, 'randomUUID').mockImplementation(mockRandomUUID);
 
 describe('EventGenerator', () => {
   let generator: EventGenerator;
@@ -110,7 +109,7 @@ describe('EventGenerator', () => {
         expect(result.event!.eventType).toBe('open_time_start');
         expect(result.event!.tabId).toBe(1);
         expect(result.event!.url).toBe('https://example.com/page');
-        expect(result.event!.visitId).toBe('mock-uuid-123');
+        expect(result.event!.visitId).toBe('550e8400-e29b-41d4-a716-446655440000');
         expect(result.event!.activityId).toBeNull();
         expect(result.event!.isProcessed).toBe(0);
       });
@@ -200,7 +199,7 @@ describe('EventGenerator', () => {
         expect(result.success).toBe(true);
         expect(result.event).toBeDefined();
         expect(result.event!.eventType).toBe('active_time_start');
-        expect(result.event!.activityId).toBe('mock-uuid-123');
+        expect(result.event!.activityId).toBe('550e8400-e29b-41d4-a716-446655440000');
         expect(result.event!.visitId).toBe(mockTabState.visitId);
       });
 

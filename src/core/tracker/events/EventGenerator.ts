@@ -10,7 +10,7 @@
  * @version 1.0.0
  */
 
-import { randomUUID } from 'crypto';
+
 import { z } from 'zod/v4';
 import { DomainEvent, DomainEventSchema, TabState, TabStateSchema, CheckpointData } from '../types';
 import { URLProcessor, createDefaultURLProcessor } from '../url/URLProcessor';
@@ -143,7 +143,7 @@ export class EventGenerator {
       }
 
       // Generate new visit ID
-      const visitId = randomUUID();
+      const visitId = crypto.randomUUID();
 
       // Create domain event
       const event: DomainEvent = {
@@ -250,7 +250,7 @@ export class EventGenerator {
       }
 
       // Generate new activity ID
-      const activityId = randomUUID();
+      const activityId = crypto.randomUUID();
 
       // Create domain event
       const event: DomainEvent = {
