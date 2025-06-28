@@ -79,7 +79,9 @@ export default defineBackground(async () => {
 });
 
 /**
- * Registers listeners for browser events relevant to time tracking, forwarding structured event data to the time tracker and handling page status notifications and graceful shutdown as needed.
+ * Sets up listeners for browser events and forwards relevant event data to the time tracker.
+ *
+ * Registers handlers for tab activation, tab updates, tab removal, window focus changes, main frame navigation commits, and runtime suspension. Forwards structured event data to the time tracker and notifies content scripts of page status updates when appropriate. Handles graceful shutdown of the time tracker on runtime suspension.
  */
 function setupBrowserEventListeners(): void {
   // Tab activation events
@@ -184,9 +186,9 @@ function setupBrowserEventListeners(): void {
 }
 
 /**
- * Registers handlers for messages from content scripts, enabling user interaction reporting and tracking status queries.
+ * Sets up message handlers for communication with content scripts, enabling user interaction event forwarding and tracking status queries.
  *
- * Handles 'interaction-detected' messages by forwarding user interaction events to the time tracker, and responds to 'get-tracking-status' messages with the current tracking state and sender tab ID.
+ * Forwards user interaction events received from content scripts to the time tracker, and responds to tracking status requests with the current tracking state and sender tab ID.
  */
 function setupMessagingHandlers(): void {
   // Handle interaction messages from content scripts

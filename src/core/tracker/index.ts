@@ -602,11 +602,11 @@ export class TimeTracker {
 }
 
 /**
- * Creates and returns a new TimeTracker instance with optional configuration and database overrides.
+ * Instantiates a new TimeTracker with optional configuration and database overrides.
  *
- * @param config - Optional configuration overrides for the time tracker
- * @param database - Optional database instance, primarily for testing or custom storage
- * @returns A configured TimeTracker instance
+ * @param config - Optional configuration settings to override defaults
+ * @param database - Optional database instance for custom storage or testing
+ * @returns A new TimeTracker instance
  */
 export function createTimeTracker(
   config: Partial<TimeTrackerConfig> = {},

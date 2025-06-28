@@ -332,21 +332,22 @@ export class EventQueue {
 // ============================================================================
 
 /**
- * Creates an EventQueue instance with default or custom configuration.
+ * Creates a new EventQueue for batching and persisting domain events.
  *
- * @param config - Optional partial configuration to override default queue settings
- * @returns A new EventQueue instance
+ * Accepts an optional partial configuration to override default queue settings.
+ *
+ * @returns An EventQueue instance configured for efficient event batching and database writes.
  */
 export function createEventQueue(db: WebTimeTrackerDB, config?: Partial<QueueConfig>): EventQueue {
   return new EventQueue(db, config);
 }
 
 /**
- * Creates an EventQueue instance configured for high-throughput event processing.
+ * Creates an EventQueue optimized for high-throughput batch processing.
  *
- * The returned queue uses larger batch sizes, shorter wait times, increased retry attempts, and reduced retry delays to maximize write throughput.
+ * The queue is configured with large batch sizes, short flush intervals, increased retry attempts, and reduced retry delays to efficiently handle large volumes of events.
  *
- * @returns An EventQueue optimized for handling large volumes of events efficiently.
+ * @returns An EventQueue instance tuned for maximum write throughput.
  */
 export function createHighThroughputEventQueue(db: WebTimeTrackerDB): EventQueue {
   return new EventQueue(db, {
@@ -358,11 +359,11 @@ export function createHighThroughputEventQueue(db: WebTimeTrackerDB): EventQueue
 }
 
 /**
- * Creates an EventQueue instance configured for low-latency event processing.
+ * Creates an EventQueue optimized for minimal delay between event enqueue and database write.
  *
- * The returned queue uses small batch sizes and short wait times to minimize delay between event enqueue and database write, making it suitable for scenarios where timely persistence is critical.
+ * The queue is configured with small batch sizes, short flush intervals, and limited retries, making it suitable for applications requiring rapid event persistence.
  *
- * @returns An EventQueue with low-latency settings.
+ * @returns An EventQueue instance with low-latency configuration.
  */
 export function createLowLatencyEventQueue(db: WebTimeTrackerDB): EventQueue {
   return new EventQueue(db, {

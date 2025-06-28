@@ -9,12 +9,11 @@ import type { EventsLogRecord } from '../../src/core/db/models/eventslog.model';
 import { createTestDatabase } from './database-test-helpers';
 
 /**
- * Creates a mock EventGenerator instance for testing.
+ * Returns an EventGenerator instance with key methods mocked to provide fixed, predictable outputs for recovery scenario testing.
  *
- * Creates a real EventGenerator instance with disabled validation and then mocks
- * its methods to provide predictable responses for testing recovery scenarios.
+ * The returned instance disables event validation and overrides event generation and control methods to ensure deterministic behavior in tests.
  *
- * @returns A real EventGenerator instance with mocked methods
+ * @returns An EventGenerator with mocked event generation and control methods for use in recovery tests
  */
 export function createMockEventGenerator(): EventGenerator {
   // Create a real EventGenerator instance with disabled validation for testing
@@ -93,12 +92,11 @@ export function createMockEventGenerator(): EventGenerator {
 }
 
 /**
- * Creates a mock DatabaseService instance for testing.
+ * Asynchronously creates a DatabaseService instance with all methods mocked to return predictable results for testing recovery scenarios.
  *
- * Creates a real DatabaseService instance and mocks its methods to provide
- * predictable responses for testing recovery scenarios.
+ * The returned DatabaseService uses a test database and has its query and mutation methods mocked to resolve to fixed values or empty arrays, simulating database behavior in a controlled test environment.
  *
- * @returns A real DatabaseService instance with mocked methods
+ * @returns A DatabaseService instance with all relevant methods mocked for testing
  */
 export async function createMockDatabaseService(): Promise<DatabaseService> {
   // Create a real DatabaseService instance with a test database
@@ -128,12 +126,12 @@ export async function createMockDatabaseService(): Promise<DatabaseService> {
 }
 
 /**
- * Creates a test EventsLogRecord object with default values, allowing optional field overrides.
+ * Generates a fully populated EventsLogRecord object for testing, with optional field overrides.
  *
- * If `activityId` or `visitId` are set to `null` in the overrides, they are converted to `undefined` to match schema expectations.
+ * Converts `null` values for `activityId` and `visitId` in overrides to `undefined` to enforce schema consistency and enable fail-fast validation.
  *
- * @param overrides - Optional fields to override the default EventsLogRecord values
- * @returns A fully populated EventsLogRecord object for testing
+ * @param overrides - Optional fields to override default EventsLogRecord values
+ * @returns A test EventsLogRecord object with defaults and applied overrides
  */
 export function createTestEventsLogRecord(
   overrides: Partial<EventsLogRecord> = {}
