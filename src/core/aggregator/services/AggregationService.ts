@@ -1,4 +1,5 @@
 import type { AggregationScheduler } from '../scheduler';
+import { createLogger } from '@/utils/logger';
 
 /**
  * Main service for the aggregation module.
@@ -6,6 +7,8 @@ import type { AggregationScheduler } from '../scheduler';
  * Initializes and manages the aggregation engine, scheduler, and pruner.
  */
 export class AggregationService {
+  private static readonly logger = createLogger('AggregationService');
+
   /**
    * @param aggregationScheduler - The scheduler to manage.
    */
@@ -17,9 +20,9 @@ export class AggregationService {
   public async start(): Promise<void> {
     try {
       await this.aggregationScheduler.start();
-      console.log('Aggregation service started successfully.');
+      AggregationService.logger.info('Aggregation service started successfully.');
     } catch (error) {
-      console.error('Failed to start aggregation service:', error);
+      AggregationService.logger.error('Failed to start aggregation service:', error);
       throw error;
     }
   }
@@ -30,9 +33,9 @@ export class AggregationService {
   public async stop(): Promise<void> {
     try {
       await this.aggregationScheduler.stop();
-      console.log('Aggregation service stopped successfully.');
+      AggregationService.logger.info('Aggregation service stopped successfully.');
     } catch (error) {
-      console.error('Failed to stop aggregation service:', error);
+      AggregationService.logger.error('Failed to stop aggregation service:', error);
       throw error;
     }
   }

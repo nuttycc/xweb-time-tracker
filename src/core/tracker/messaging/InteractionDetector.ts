@@ -18,6 +18,7 @@ import {
   BackgroundMessageSchema,
 } from '../types';
 import { SCROLL_THRESHOLD_PIXELS, MOUSEMOVE_THRESHOLD_PIXELS } from '../../../config/constants';
+import { createLogger } from '@/utils/logger';
 
 // ============================================================================
 // Message Protocol Definition
@@ -54,6 +55,7 @@ export const { sendMessage, onMessage } = defineExtensionMessaging<TrackerProtoc
  * Handles user interaction detection and threshold validation
  */
 export class InteractionDetector {
+  private static readonly logger = createLogger('InteractionDetector');
   private lastScrollPosition = { x: 0, y: 0 };
   private lastMousePosition = { x: 0, y: 0 };
   private isEnabled = true;
@@ -85,7 +87,7 @@ export class InteractionDetector {
    */
   initialize(): void {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
-      console.warn('InteractionDetector: Not running in browser environment');
+      InteractionDetector.logger.warn('Not running in browser environment');
       return;
     }
 
@@ -95,7 +97,7 @@ export class InteractionDetector {
     }
 
     this.setupEventListeners();
-    console.log('InteractionDetector initialized');
+    InteractionDetector.logger.info('InteractionDetector initialized');
   }
 
   /**
@@ -104,7 +106,7 @@ export class InteractionDetector {
   destroy(): void {
     this.removeEventListeners();
     this.clearAllThrottleTimers();
-    console.log('InteractionDetector destroyed');
+    InteractionDetector.logger.info('InteractionDetector destroyed');
   }
 
   /**
@@ -229,7 +231,7 @@ export class InteractionDetector {
     data?: { scrollDelta?: number; movementDelta?: number }
   ): Promise<void> {
     if (this.tabId === null) {
-      console.warn('InteractionDetector: Tab ID not available, cannot send message');
+      InteractionDetector.logger.warn('Tab ID not available, cannot send message');
       return;
     }
 
@@ -247,7 +249,7 @@ export class InteractionDetector {
       // Send to background script
       await sendMessage('interaction-detected', message);
     } catch (error) {
-      console.error('InteractionDetector: Error sending interaction message:', error);
+      InteractionDetector.logger.error('Error sending interaction message:', error);
     }
   }
 
@@ -256,7 +258,7 @@ export class InteractionDetector {
       const response = await sendMessage('get-tracking-status', undefined);
       this.tabId = response.tabId;
     } catch (error) {
-      console.error('InteractionDetector: Error getting tab ID:', error);
+      InteractionDetector.logger.error('Error getting tab ID:', error);
     }
   }
 
@@ -306,6 +308,7 @@ export class InteractionDetector {
  * Background script message handler for interaction detection
  */
 export class InteractionMessageHandler {
+  private static readonly logger = createLogger('InteractionMessageHandler');
   private onInteractionCallback: ((message: InteractionMessage) => void) | null = null;
 
   /**
@@ -323,7 +326,7 @@ export class InteractionMessageHandler {
           this.onInteractionCallback(message.data);
         }
       } catch (error) {
-        console.error('InteractionMessageHandler: Invalid interaction message:', error);
+        InteractionMessageHandler.logger.error('Invalid interaction message:', error);
       }
     });
 
@@ -335,7 +338,7 @@ export class InteractionMessageHandler {
       };
     });
 
-    console.log('InteractionMessageHandler initialized');
+    InteractionMessageHandler.logger.info('InteractionMessageHandler initialized');
   }
 
   /**
@@ -352,7 +355,7 @@ export class InteractionMessageHandler {
     try {
       await sendMessage('focus-changed', { isFocused, tabId }, { tabId });
     } catch (error) {
-      console.error('InteractionMessageHandler: Error sending focus change:', error);
+      InteractionMessageHandler.logger.error('Error sending focus change:', error);
     }
   }
 
@@ -366,7 +369,7 @@ export class InteractionMessageHandler {
 
       await sendMessage('page-status-update', message, { tabId });
     } catch (error) {
-      console.error('InteractionMessageHandler: Error sending page status update:', error);
+      InteractionMessageHandler.logger.error('Error sending page status update:', error);
     }
   }
 }

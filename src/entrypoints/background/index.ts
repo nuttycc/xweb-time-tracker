@@ -16,6 +16,7 @@ import {
   type BrowserEventData,
   type InteractionMessage,
 } from '../../core/tracker';
+import { createLogger } from '@/utils/logger';
 
 // Define messaging protocol for communication with content scripts
 interface TrackerProtocolMap {
@@ -35,6 +36,9 @@ interface TrackerProtocolMap {
 // Initialize messaging
 const { sendMessage, onMessage } = defineExtensionMessaging<TrackerProtocolMap>();
 
+// Initialize logger
+const logger = createLogger('Background');
+
 // Initialize time tracker
 const timeTracker = createTimeTracker({
   enableDebugLogging: true, // Enable for development
@@ -43,28 +47,28 @@ const timeTracker = createTimeTracker({
 });
 
 export default defineBackground(async () => {
-  console.log('[Background] WebTime Tracker starting...');
+  logger.info('WebTime Tracker starting...');
 
   try {
     // Initialize the time tracker
     const initResult = await timeTracker.initialize();
 
     if (!initResult.success) {
-      console.error('[Background] Failed to initialize time tracker:', initResult.error);
+      logger.error('Failed to initialize time tracker:', initResult.error);
       return;
     }
 
-    console.log('[Background] Time tracker initialized successfully:', initResult.stats);
+    logger.info('Time tracker initialized successfully:', initResult.stats);
 
     // Start the time tracker
     const startSuccess = await timeTracker.start();
 
     if (!startSuccess) {
-      console.error('[Background] Failed to start time tracker');
+      logger.error('Failed to start time tracker');
       return;
     }
 
-    console.log('[Background] Time tracker started successfully');
+    logger.info('Time tracker started successfully');
 
     // Set up browser event listeners
     setupBrowserEventListeners();
@@ -72,9 +76,9 @@ export default defineBackground(async () => {
     // Set up messaging handlers
     setupMessagingHandlers();
 
-    console.log('[Background] WebTime Tracker ready');
+    logger.info('WebTime Tracker ready');
   } catch (error) {
-    console.error('[Background] Error during initialization:', error);
+    logger.error('Error during initialization:', error);
   }
 });
 
@@ -169,7 +173,7 @@ function setupBrowserEventListeners(): void {
 
   // Runtime suspend events (for graceful shutdown)
   browser.runtime.onSuspend.addListener(async () => {
-    console.log('[Background] Runtime suspending...');
+    logger.info('Runtime suspending...');
 
     const eventData: BrowserEventData = {
       type: 'runtime-suspend',
@@ -181,7 +185,7 @@ function setupBrowserEventListeners(): void {
     // Stop the time tracker gracefully
     await timeTracker.stop();
 
-    console.log('[Background] Time tracker stopped for suspension');
+    logger.info('Time tracker stopped for suspension');
   });
 }
 
@@ -196,7 +200,7 @@ function setupMessagingHandlers(): void {
     const { data, sender } = message;
 
     if (!sender.tab?.id) {
-      console.warn('[Background] Received interaction without tab ID');
+      logger.warn('Received interaction without tab ID');
       return;
     }
 

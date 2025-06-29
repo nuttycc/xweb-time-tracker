@@ -18,24 +18,36 @@ import {
   ErrorCategory,
   type ErrorHandlingOptions,
 } from '@/core/db/services/error-handler.service';
-import { TestNetworkError, createMockConsole } from './test-utils';
+import { TestNetworkError } from './test-utils';
+
+// Mock the logger module
+vi.mock('@/utils/logger', () => {
+  const mockLoggerFunctions = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    trace: vi.fn(),
+  };
+  return {
+    createLogger: vi.fn(() => mockLoggerFunctions),
+    mockLoggerFunctions, // Export for testing
+  };
+});
+
+// Import the mocked functions
+import { mockLoggerFunctions } from '@/utils/logger';
 
 describe('ErrorHandlerService', () => {
   let errorHandler: ErrorHandlerService;
-  let mockConsole: ReturnType<typeof createMockConsole>;
 
   beforeEach(() => {
     errorHandler = new ErrorHandlerService();
-    mockConsole = createMockConsole();
-
-    // Mock console methods
-    vi.spyOn(console, 'error').mockImplementation(mockConsole.error);
-    vi.spyOn(console, 'warn').mockImplementation(mockConsole.warn);
-    vi.spyOn(console, 'info').mockImplementation(mockConsole.info);
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
     errorHandler.resetStatistics();
   });
 
@@ -169,7 +181,7 @@ describe('ErrorHandlerService', () => {
 
       expect(errorInfo.category).toBe(ErrorCategory.BUSINESS_LOGIC);
       expect(errorInfo.severity).toBe(ErrorSeverity.MEDIUM);
-      expect(mockConsole.warn).toHaveBeenCalledWith(
+      expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
         '[ERROR-MEDIUM]',
         expect.stringContaining(errorInfo.id)
       );
@@ -181,9 +193,9 @@ describe('ErrorHandlerService', () => {
 
       await errorHandler.handleError(error, options);
 
-      expect(mockConsole.error).not.toHaveBeenCalled();
-      expect(mockConsole.warn).not.toHaveBeenCalled();
-      expect(mockConsole.info).not.toHaveBeenCalled();
+      expect(mockLoggerFunctions.error).not.toHaveBeenCalled();
+      expect(mockLoggerFunctions.warn).not.toHaveBeenCalled();
+      expect(mockLoggerFunctions.info).not.toHaveBeenCalled();
     });
 
     it('should attempt recovery for recoverable errors', async () => {
@@ -293,19 +305,19 @@ describe('ErrorHandlerService', () => {
       await errorHandler.handleError(lowError);
 
       // High errors should be logged as error
-      expect(mockConsole.error).toHaveBeenCalledWith(
+      expect(mockLoggerFunctions.error).toHaveBeenCalledWith(
         '[ERROR-HIGH]',
         expect.stringContaining('DatabaseConnectionError')
       );
 
       // Medium errors should be logged as warn
-      expect(mockConsole.warn).toHaveBeenCalledWith(
+      expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
         '[ERROR-MEDIUM]',
         expect.stringContaining('Error')
       );
 
       // Medium errors should be logged as warn (unknown errors are medium severity)
-      expect(mockConsole.warn).toHaveBeenCalledWith(
+      expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
         '[ERROR-MEDIUM]',
         expect.stringContaining('UnknownError')
       );
@@ -318,7 +330,7 @@ describe('ErrorHandlerService', () => {
 
       await errorHandler.handleError(error, options);
 
-      expect(mockConsole.warn).toHaveBeenCalledWith(
+      expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
         '[ERROR-MEDIUM]',
         expect.stringContaining('"userId": "123"')
       );
@@ -330,7 +342,7 @@ describe('ErrorHandlerService', () => {
 
       await errorHandler.handleError(error, options);
 
-      expect(mockConsole.warn).toHaveBeenCalledWith(
+      expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
         '[ERROR-MEDIUM]',
         expect.stringContaining('"stack":')
       );

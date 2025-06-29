@@ -13,6 +13,7 @@ import { defineContentScript } from '#imports';
 import { defineExtensionMessaging } from '@webext-core/messaging';
 import { SCROLL_THRESHOLD_PIXELS, MOUSEMOVE_THRESHOLD_PIXELS } from '../config/constants';
 import type { InteractionMessage } from '../core/tracker/types';
+import { createLogger } from '@/utils/logger';
 
 // Define messaging protocol (must match background script)
 interface TrackerProtocolMap {
@@ -32,11 +33,14 @@ interface TrackerProtocolMap {
 // Initialize messaging
 const { sendMessage, onMessage } = defineExtensionMessaging<TrackerProtocolMap>();
 
+// Initialize logger
+const logger = createLogger('Content');
+
 export default defineContentScript({
   matches: ['<all_urls>'],
 
   main() {
-    console.log('[Content] WebTime Tracker content script loaded');
+    logger.info('WebTime Tracker content script loaded');
 
     // Initialize interaction detector
     const interactionDetector = new InteractionDetector();
@@ -51,6 +55,7 @@ export default defineContentScript({
  * when they exceed configured thresholds.
  */
 class InteractionDetector {
+  private readonly logger = createLogger('InteractionDetector');
   private isInitialized = false;
   private isTracking = false;
   private tabId = 0;
@@ -94,12 +99,12 @@ class InteractionDetector {
       this.setupMessageHandlers();
 
       this.isInitialized = true;
-      console.log('[Content] Interaction detector initialized', {
+      this.logger.info('Interaction detector initialized', {
         isTracking: this.isTracking,
         tabId: this.tabId,
       });
     } catch (error) {
-      console.error('[Content] Failed to initialize interaction detector:', error);
+      this.logger.error('Failed to initialize interaction detector:', error);
     }
   }
 
@@ -121,7 +126,7 @@ class InteractionDetector {
     // Keyboard events
     this.addEventListener(document, 'keydown', this.handleKeyDown.bind(this), { passive: true });
 
-    console.log('[Content] Event listeners set up');
+    this.logger.debug('Event listeners set up');
   }
 
   /**
@@ -134,7 +139,7 @@ class InteractionDetector {
       this.isTracking = data.isTracking;
       this.tabId = data.tabId;
 
-      console.log('[Content] Tracking status updated', {
+      this.logger.info('Tracking status updated', {
         isTracking: this.isTracking,
         tabId: this.tabId,
       });
@@ -145,7 +150,7 @@ class InteractionDetector {
       const { data } = message;
 
       if (data.tabId === this.tabId) {
-        console.log('[Content] Focus changed', { isFocused: data.isFocused });
+        this.logger.debug('Focus changed', { isFocused: data.isFocused });
 
         // Reset accumulators when focus changes
         if (data.isFocused) {
@@ -273,9 +278,9 @@ class InteractionDetector {
 
       await sendMessage('interaction-detected', interaction);
 
-      console.log('[Content] Interaction sent', { type, tabId: this.tabId });
+      this.logger.debug('Interaction sent', { type, tabId: this.tabId });
     } catch (error) {
-      console.error('[Content] Failed to send interaction:', error);
+      this.logger.error('Failed to send interaction:', error);
     }
   }
 
@@ -314,6 +319,6 @@ class InteractionDetector {
     this.eventListeners = [];
     this.isInitialized = false;
 
-    console.log('[Content] Interaction detector cleaned up');
+    this.logger.info('Interaction detector cleaned up');
   }
 }

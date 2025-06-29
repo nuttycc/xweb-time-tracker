@@ -7,6 +7,7 @@
 
 import { z } from 'zod/v4';
 import { RepositoryError, ValidationError, NotFoundError } from '../repositories';
+import { createLogger } from '@/utils/logger';
 
 /**
  * Error severity levels
@@ -117,6 +118,7 @@ export class QuotaExceededError extends Error {
  * for all database and business logic operations.
  */
 export class ErrorHandlerService {
+  private static readonly logger = createLogger('ErrorHandlerService');
   private errorCount = 0;
 
   /**
@@ -272,16 +274,16 @@ export class ErrorHandlerService {
     // Log based on severity
     switch (errorInfo.severity) {
       case ErrorSeverity.LOW:
-        console.info('[ERROR-LOW]', JSON.stringify(logData, null, 2));
+        ErrorHandlerService.logger.info('[ERROR-LOW]', JSON.stringify(logData, null, 2));
         break;
       case ErrorSeverity.MEDIUM:
-        console.warn('[ERROR-MEDIUM]', JSON.stringify(logData, null, 2));
+        ErrorHandlerService.logger.warn('[ERROR-MEDIUM]', JSON.stringify(logData, null, 2));
         break;
       case ErrorSeverity.HIGH:
-        console.error('[ERROR-HIGH]', JSON.stringify(logData, null, 2));
+        ErrorHandlerService.logger.error('[ERROR-HIGH]', JSON.stringify(logData, null, 2));
         break;
       case ErrorSeverity.CRITICAL:
-        console.error('[ERROR-CRITICAL]', JSON.stringify(logData, null, 2));
+        ErrorHandlerService.logger.error('[ERROR-CRITICAL]', JSON.stringify(logData, null, 2));
         // In a real application, you might send alerts here
         break;
     }

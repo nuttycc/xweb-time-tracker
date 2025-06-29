@@ -18,6 +18,7 @@ import { EventGenerator } from './events/EventGenerator';
 import { EventQueue } from './queue/EventQueue';
 import { CheckpointScheduler } from './scheduler/CheckpointScheduler';
 import { StartupRecovery } from './recovery/StartupRecovery';
+import { createLogger } from '@/utils/logger';
 import { InteractionDetector } from './messaging/InteractionDetector';
 import { DatabaseService } from '../db/services/database.service';
 import { db, type WebTimeTrackerDB } from '../db/schemas';
@@ -129,6 +130,7 @@ export interface BrowserEventData {
  * and provides a clean API for the background script.
  */
 export class TimeTracker {
+  private readonly logger = createLogger('TimeTracker');
   private config: TimeTrackerConfig;
   private isInitialized = false;
   private isStarted = false;
@@ -596,7 +598,11 @@ export class TimeTracker {
    */
   private log(message: string, data?: unknown): void {
     if (this.config.enableDebugLogging) {
-      console.log(`[TimeTracker] ${message}`, data || '');
+      if (data !== undefined) {
+        this.logger.debug(message, data);
+      } else {
+        this.logger.debug(message);
+      }
     }
   }
 }
