@@ -1,17 +1,10 @@
 <script lang="ts" setup>
 // import HelloWorld from '@/components/HelloWorld.vue';
+import { createLogger } from '@/utils/logger';
 
-console.log('hello world');
-console.log('hello world');
-console.log('hello world');
-console.log('hello world');
-console.log('hello world');
-console.log('hello world');
-console.log('hello world');
-console.log('hello world');
-console.log('hello world');
-console.log('hello world');
-console.log('hello world');
+const logger = createLogger('PopupApp');
+
+logger.info('Popup app initialized');
 </script>
 
 <template>

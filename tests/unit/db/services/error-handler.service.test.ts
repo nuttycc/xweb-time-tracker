@@ -18,24 +18,32 @@ import {
   ErrorCategory,
   type ErrorHandlingOptions,
 } from '@/core/db/services/error-handler.service';
-import { TestNetworkError, createMockConsole } from './test-utils';
+import { TestNetworkError } from './test-utils';
+
+// Create shared mock logger functions using vi.hoisted
+const mockLoggerFunctions = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  trace: vi.fn(),
+}));
+
+// Mock the logger module
+vi.mock('@/utils/logger', () => ({
+  createLogger: vi.fn().mockReturnValue(mockLoggerFunctions),
+}));
 
 describe('ErrorHandlerService', () => {
   let errorHandler: ErrorHandlerService;
-  let mockConsole: ReturnType<typeof createMockConsole>;
 
   beforeEach(() => {
     errorHandler = new ErrorHandlerService();
-    mockConsole = createMockConsole();
-
-    // Mock console methods
-    vi.spyOn(console, 'error').mockImplementation(mockConsole.error);
-    vi.spyOn(console, 'warn').mockImplementation(mockConsole.warn);
-    vi.spyOn(console, 'info').mockImplementation(mockConsole.info);
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
     errorHandler.resetStatistics();
   });
 
@@ -169,9 +177,15 @@ describe('ErrorHandlerService', () => {
 
       expect(errorInfo.category).toBe(ErrorCategory.BUSINESS_LOGIC);
       expect(errorInfo.severity).toBe(ErrorSeverity.MEDIUM);
-      expect(mockConsole.warn).toHaveBeenCalledWith(
-        '[ERROR-MEDIUM]',
-        expect.stringContaining(errorInfo.id)
+      expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
+        'Error occurred: BusinessLogicError (business_logic)',
+        expect.objectContaining({
+          errorId: errorInfo.id,
+          category: 'business_logic',
+          severity: 'medium',
+          name: 'BusinessLogicError',
+          message: 'Test error'
+        })
       );
     });
 
@@ -181,9 +195,9 @@ describe('ErrorHandlerService', () => {
 
       await errorHandler.handleError(error, options);
 
-      expect(mockConsole.error).not.toHaveBeenCalled();
-      expect(mockConsole.warn).not.toHaveBeenCalled();
-      expect(mockConsole.info).not.toHaveBeenCalled();
+      expect(mockLoggerFunctions.error).not.toHaveBeenCalled();
+      expect(mockLoggerFunctions.warn).not.toHaveBeenCalled();
+      expect(mockLoggerFunctions.info).not.toHaveBeenCalled();
     });
 
     it('should attempt recovery for recoverable errors', async () => {
@@ -293,21 +307,36 @@ describe('ErrorHandlerService', () => {
       await errorHandler.handleError(lowError);
 
       // High errors should be logged as error
-      expect(mockConsole.error).toHaveBeenCalledWith(
-        '[ERROR-HIGH]',
-        expect.stringContaining('DatabaseConnectionError')
+      expect(mockLoggerFunctions.error).toHaveBeenCalledWith(
+        'Error occurred: DatabaseConnectionError (database)',
+        expect.objectContaining({
+          category: 'database',
+          severity: 'high',
+          name: 'DatabaseConnectionError',
+          message: 'Critical database error'
+        })
       );
 
       // Medium errors should be logged as warn
-      expect(mockConsole.warn).toHaveBeenCalledWith(
-        '[ERROR-MEDIUM]',
-        expect.stringContaining('Error')
+      expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
+        'Error occurred: Error (unknown)',
+        expect.objectContaining({
+          category: 'unknown',
+          severity: 'medium',
+          name: 'Error',
+          message: 'Medium severity error'
+        })
       );
 
       // Medium errors should be logged as warn (unknown errors are medium severity)
-      expect(mockConsole.warn).toHaveBeenCalledWith(
-        '[ERROR-MEDIUM]',
-        expect.stringContaining('UnknownError')
+      expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
+        'Error occurred: UnknownError (unknown)',
+        expect.objectContaining({
+          category: 'unknown',
+          severity: 'medium',
+          name: 'UnknownError',
+          message: 'Unknown error'
+        })
       );
     });
 
@@ -318,9 +347,18 @@ describe('ErrorHandlerService', () => {
 
       await errorHandler.handleError(error, options);
 
-      expect(mockConsole.warn).toHaveBeenCalledWith(
-        '[ERROR-MEDIUM]',
-        expect.stringContaining('"userId": "123"')
+      expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
+        'Error occurred: BusinessLogicError (business_logic)',
+        expect.objectContaining({
+          category: 'business_logic',
+          severity: 'medium',
+          name: 'BusinessLogicError',
+          message: 'Test error',
+          context: {
+            userId: '123',
+            operation: 'testOp'
+          }
+        })
       );
     });
 
@@ -330,9 +368,15 @@ describe('ErrorHandlerService', () => {
 
       await errorHandler.handleError(error, options);
 
-      expect(mockConsole.warn).toHaveBeenCalledWith(
-        '[ERROR-MEDIUM]',
-        expect.stringContaining('"stack":')
+      expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
+        'Error occurred: Error (unknown)',
+        expect.objectContaining({
+          category: 'unknown',
+          severity: 'medium',
+          name: 'Error',
+          message: 'Error with stack',
+          stack: expect.stringContaining('Error: Error with stack')
+        })
       );
     });
   });
