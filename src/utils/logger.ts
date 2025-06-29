@@ -68,7 +68,9 @@ const DEFAULT_CONFIG: LoggerConfig = {
 const STORAGE_KEY = 'webtime-tracker-log-level';
 
 /**
- * Initialize the logging system with configuration
+ * Initializes the logging system with the specified configuration.
+ *
+ * Applies a consistent prefix format to log messages, sets the default log level, and loads a persisted log level from storage if enabled.
  */
 function initializeLogging(config: LoggerConfig = DEFAULT_CONFIG): void {
   // Apply prefix template
@@ -89,7 +91,9 @@ function initializeLogging(config: LoggerConfig = DEFAULT_CONFIG): void {
 }
 
 /**
- * Load log level from persistent storage
+ * Loads the saved log level from persistent storage and applies it as the default log level if valid.
+ *
+ * If no valid persisted log level is found or storage is unavailable, the default log level remains unchanged.
  */
 function loadPersistedLogLevel(): void {
   try {
@@ -107,7 +111,9 @@ function loadPersistedLogLevel(): void {
 }
 
 /**
- * Save log level to persistent storage
+ * Persists the specified log level to localStorage if available.
+ *
+ * Silently does nothing if localStorage is unavailable or inaccessible.
  */
 function saveLogLevel(level: LogLevel): void {
   try {
@@ -120,24 +126,27 @@ function saveLogLevel(level: LogLevel): void {
 }
 
 /**
- * Validate if a string is a valid log level
+ * Determines whether a given string is a recognized log level.
+ *
+ * @param level - The string to validate as a log level
+ * @returns True if the string is a valid log level; otherwise, false
  */
 function isValidLogLevel(level: string): level is LogLevel {
   return LOG_LEVELS.includes(level as LogLevel);
 }
 
 /**
- * Create a named logger instance for a specific module
- * 
- * @param moduleName - Name of the module (e.g., 'TimeTracker', 'DatabaseService')
- * @returns Logger instance with module-specific prefix
- * 
+ * Creates a logger instance with a module-specific prefix for structured logging.
+ *
+ * The returned logger prepends each message with a timestamp, the provided module name, and the log level.
+ *
+ * @param moduleName - The name to identify the logger's module context (e.g., 'TimeTracker', 'DatabaseService')
+ * @returns A logger with standard logging methods that include the module prefix
+ *
  * @example
- * ```typescript
  * const logger = createLogger('TimeTracker');
  * logger.info('Tracker started successfully');
  * // Output: [12:34:56] [TimeTracker] [INFO] Tracker started successfully
- * ```
  */
 export function createLogger(moduleName: string): Logger {
   const moduleLogger = log.getLogger(moduleName);
@@ -165,10 +174,10 @@ export function createLogger(moduleName: string): Logger {
 }
 
 /**
- * Set global log level for all loggers
- * 
- * @param level - New log level to apply
- * @param persist - Whether to save the level to persistent storage
+ * Sets the global log level for all loggers.
+ *
+ * @param level - The log level to apply globally
+ * @param persist - If true, saves the log level to persistent storage
  */
 export function setLogLevel(level: LogLevel, persist: boolean = true): void {
   log.setDefaultLevel(level);
@@ -190,6 +199,13 @@ const LEVEL_MAP: Record<number, LogLevel> = {
   [log.levels.SILENT]: 'silent',
 };
 
+/**
+ * Retrieves the current global log level as a string.
+ *
+ * If the log level is not recognized, returns the default log level from the configuration.
+ *
+ * @returns The current global log level.
+ */
 export function getLogLevel(): LogLevel {
   const raw = log.getLevel();
   if (typeof raw === 'string' && isValidLogLevel(raw)) {
@@ -203,10 +219,12 @@ export function getLogLevel(): LogLevel {
 }
 
 /**
- * Enable or disable logging for a specific module
- * 
- * @param moduleName - Name of the module
- * @param level - Log level to set for this module, or 'silent' to disable
+ * Sets the log level for a specific module logger.
+ *
+ * Adjusts the verbosity of log output for the given module, or disables logging for that module if set to 'silent'.
+ *
+ * @param moduleName - The name of the module whose logger will be updated
+ * @param level - The log level to apply to this module
  */
 export function setModuleLogLevel(moduleName: string, level: LogLevel): void {
   const moduleLogger = log.getLogger(moduleName);
@@ -214,7 +232,9 @@ export function setModuleLogLevel(moduleName: string, level: LogLevel): void {
 }
 
 /**
- * Get available log levels
+ * Returns the list of all supported log levels in order of increasing severity.
+ *
+ * @returns An array of valid log level strings.
  */
 export function getAvailableLogLevels(): readonly LogLevel[] {
   return LOG_LEVELS;
