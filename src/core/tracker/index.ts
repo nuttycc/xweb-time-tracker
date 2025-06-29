@@ -598,11 +598,7 @@ export class TimeTracker {
    */
   private log(message: string, data?: unknown): void {
     if (this.config.enableDebugLogging) {
-      if (data !== undefined) {
-        this.logger.debug(message, data);
-      } else {
-        this.logger.debug(message);
-      }
+      this.logger.debug(message, data);
     }
   }
 }
