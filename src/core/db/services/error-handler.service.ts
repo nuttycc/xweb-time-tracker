@@ -271,21 +271,23 @@ export class ErrorHandlerService {
       ...(options.includeStack !== false && errorInfo.stack && { stack: errorInfo.stack }),
     };
 
-    // Log based on severity
-    switch (errorInfo.severity) {
-      case ErrorSeverity.LOW:
-        ErrorHandlerService.logger.info('[ERROR-LOW]', JSON.stringify(logData, null, 2));
-        break;
-      case ErrorSeverity.MEDIUM:
-        ErrorHandlerService.logger.warn('[ERROR-MEDIUM]', JSON.stringify(logData, null, 2));
-        break;
-      case ErrorSeverity.HIGH:
-        ErrorHandlerService.logger.error('[ERROR-HIGH]', JSON.stringify(logData, null, 2));
-        break;
-      case ErrorSeverity.CRITICAL:
-        ErrorHandlerService.logger.error('[ERROR-CRITICAL]', JSON.stringify(logData, null, 2));
-        // In a real application, you might send alerts here
-        break;
+    // Use log level mapping instead of switch statement
+    const levelMap = {
+      [ErrorSeverity.LOW]: 'info',
+      [ErrorSeverity.MEDIUM]: 'warn',
+      [ErrorSeverity.HIGH]: 'error',
+      [ErrorSeverity.CRITICAL]: 'error',
+    } as const;
+
+    const logLevel = levelMap[errorInfo.severity];
+    const logMessage = `Error occurred: ${errorInfo.name} (${errorInfo.category})`;
+    
+    // Pass string message and structured data separately for better console inspection
+    ErrorHandlerService.logger[logLevel](logMessage, logData);
+
+    // Handle critical errors with additional processing
+    if (errorInfo.severity === ErrorSeverity.CRITICAL) {
+      // In a real application, you might send alerts here
     }
   }
 

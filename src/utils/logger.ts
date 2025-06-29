@@ -136,47 +136,26 @@ function isValidLogLevel(level: string): boolean {
  */
 export function createLogger(moduleName: string): Logger {
   const moduleLogger = log.getLogger(moduleName);
-  
+
+  // Helper function to handle logging with optional data
+  const logWithData = (
+    level: keyof Logger,
+    message: string,
+    data?: unknown
+  ) => {
+    if (data !== undefined) {
+      moduleLogger[level](message, data);
+    } else {
+      moduleLogger[level](message);
+    }
+  };
+
   return {
-    debug: (message: string, data?: unknown) => {
-      if (data !== undefined) {
-        moduleLogger.debug(message, data);
-      } else {
-        moduleLogger.debug(message);
-      }
-    },
-    
-    info: (message: string, data?: unknown) => {
-      if (data !== undefined) {
-        moduleLogger.info(message, data);
-      } else {
-        moduleLogger.info(message);
-      }
-    },
-    
-    warn: (message: string, data?: unknown) => {
-      if (data !== undefined) {
-        moduleLogger.warn(message, data);
-      } else {
-        moduleLogger.warn(message);
-      }
-    },
-    
-    error: (message: string, data?: unknown) => {
-      if (data !== undefined) {
-        moduleLogger.error(message, data);
-      } else {
-        moduleLogger.error(message);
-      }
-    },
-    
-    trace: (message: string, data?: unknown) => {
-      if (data !== undefined) {
-        moduleLogger.trace(message, data);
-      } else {
-        moduleLogger.trace(message);
-      }
-    },
+    debug: (message, data) => logWithData('debug', message, data),
+    info: (message, data) => logWithData('info', message, data),
+    warn: (message, data) => logWithData('warn', message, data),
+    error: (message, data) => logWithData('error', message, data),
+    trace: (message, data) => logWithData('trace', message, data),
   };
 }
 
@@ -197,8 +176,25 @@ export function setLogLevel(level: LogLevel, persist: boolean = true): void {
 /**
  * Get current global log level
  */
+const LEVEL_MAP: Record<number, LogLevel> = {
+  [log.levels.TRACE]: 'trace',
+  [log.levels.DEBUG]: 'debug',
+  [log.levels.INFO]: 'info',
+  [log.levels.WARN]: 'warn',
+  [log.levels.ERROR]: 'error',
+  [log.levels.SILENT]: 'silent',
+};
+
 export function getLogLevel(): LogLevel {
-  return log.getLevel() as unknown as LogLevel;
+  const raw = log.getLevel();
+  if (typeof raw === 'string' && isValidLogLevel(raw)) {
+    return raw as LogLevel;
+  }
+  if (typeof raw === 'number' && raw in LEVEL_MAP) {
+    return LEVEL_MAP[raw];
+  }
+  // fallback: return default level
+  return DEFAULT_CONFIG.defaultLevel;
 }
 
 /**

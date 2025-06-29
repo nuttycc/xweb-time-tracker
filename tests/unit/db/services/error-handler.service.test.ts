@@ -20,23 +20,19 @@ import {
 } from '@/core/db/services/error-handler.service';
 import { TestNetworkError } from './test-utils';
 
-// Mock the logger module
-vi.mock('@/utils/logger', () => {
-  const mockLoggerFunctions = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-  };
-  return {
-    createLogger: vi.fn(() => mockLoggerFunctions),
-    mockLoggerFunctions, // Export for testing
-  };
-});
+// Create shared mock logger functions using vi.hoisted
+const mockLoggerFunctions = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+  trace: vi.fn(),
+}));
 
-// Import the mocked functions
-import { mockLoggerFunctions } from '@/utils/logger';
+// Mock the logger module
+vi.mock('@/utils/logger', () => ({
+  createLogger: vi.fn().mockReturnValue(mockLoggerFunctions),
+}));
 
 describe('ErrorHandlerService', () => {
   let errorHandler: ErrorHandlerService;
@@ -182,8 +178,14 @@ describe('ErrorHandlerService', () => {
       expect(errorInfo.category).toBe(ErrorCategory.BUSINESS_LOGIC);
       expect(errorInfo.severity).toBe(ErrorSeverity.MEDIUM);
       expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
-        '[ERROR-MEDIUM]',
-        expect.stringContaining(errorInfo.id)
+        'Error occurred: BusinessLogicError (business_logic)',
+        expect.objectContaining({
+          errorId: errorInfo.id,
+          category: 'business_logic',
+          severity: 'medium',
+          name: 'BusinessLogicError',
+          message: 'Test error'
+        })
       );
     });
 
@@ -306,20 +308,35 @@ describe('ErrorHandlerService', () => {
 
       // High errors should be logged as error
       expect(mockLoggerFunctions.error).toHaveBeenCalledWith(
-        '[ERROR-HIGH]',
-        expect.stringContaining('DatabaseConnectionError')
+        'Error occurred: DatabaseConnectionError (database)',
+        expect.objectContaining({
+          category: 'database',
+          severity: 'high',
+          name: 'DatabaseConnectionError',
+          message: 'Critical database error'
+        })
       );
 
       // Medium errors should be logged as warn
       expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
-        '[ERROR-MEDIUM]',
-        expect.stringContaining('Error')
+        'Error occurred: Error (unknown)',
+        expect.objectContaining({
+          category: 'unknown',
+          severity: 'medium',
+          name: 'Error',
+          message: 'Medium severity error'
+        })
       );
 
       // Medium errors should be logged as warn (unknown errors are medium severity)
       expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
-        '[ERROR-MEDIUM]',
-        expect.stringContaining('UnknownError')
+        'Error occurred: UnknownError (unknown)',
+        expect.objectContaining({
+          category: 'unknown',
+          severity: 'medium',
+          name: 'UnknownError',
+          message: 'Unknown error'
+        })
       );
     });
 
@@ -331,8 +348,17 @@ describe('ErrorHandlerService', () => {
       await errorHandler.handleError(error, options);
 
       expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
-        '[ERROR-MEDIUM]',
-        expect.stringContaining('"userId": "123"')
+        'Error occurred: BusinessLogicError (business_logic)',
+        expect.objectContaining({
+          category: 'business_logic',
+          severity: 'medium',
+          name: 'BusinessLogicError',
+          message: 'Test error',
+          context: {
+            userId: '123',
+            operation: 'testOp'
+          }
+        })
       );
     });
 
@@ -343,8 +369,14 @@ describe('ErrorHandlerService', () => {
       await errorHandler.handleError(error, options);
 
       expect(mockLoggerFunctions.warn).toHaveBeenCalledWith(
-        '[ERROR-MEDIUM]',
-        expect.stringContaining('"stack":')
+        'Error occurred: Error (unknown)',
+        expect.objectContaining({
+          category: 'unknown',
+          severity: 'medium',
+          name: 'Error',
+          message: 'Error with stack',
+          stack: expect.stringContaining('Error: Error with stack')
+        })
       );
     });
   });
