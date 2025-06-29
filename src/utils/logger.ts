@@ -32,9 +32,14 @@ export interface Logger {
 }
 
 /**
+ * Available log levels in order of verbosity
+ */
+export const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'silent'] as const;
+
+/**
  * Log levels supported by the system
  */
-export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
+export type LogLevel = typeof LOG_LEVELS[number];
 
 /**
  * Logger configuration options
@@ -117,8 +122,8 @@ function saveLogLevel(level: LogLevel): void {
 /**
  * Validate if a string is a valid log level
  */
-function isValidLogLevel(level: string): boolean {
-  return ['trace', 'debug', 'info', 'warn', 'error', 'silent'].includes(level);
+function isValidLogLevel(level: string): level is LogLevel {
+  return LOG_LEVELS.includes(level as LogLevel);
 }
 
 /**
@@ -211,8 +216,8 @@ export function setModuleLogLevel(moduleName: string, level: LogLevel): void {
 /**
  * Get available log levels
  */
-export function getAvailableLogLevels(): LogLevel[] {
-  return ['trace', 'debug', 'info', 'warn', 'error', 'silent'];
+export function getAvailableLogLevels(): readonly LogLevel[] {
+  return LOG_LEVELS;
 }
 
 // Initialize logging system on module load
