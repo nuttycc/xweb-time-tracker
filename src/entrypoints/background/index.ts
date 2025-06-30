@@ -102,8 +102,11 @@ function setupBrowserEventListeners(): void {
 
   // Tab update events
   browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    // Only handle URL changes and completion
-    if (changeInfo.url || changeInfo.status === 'complete') {
+    // Check if any trackable changes occurred
+    const hasUrlChange = changeInfo.url || changeInfo.status === 'complete';
+    const hasAudibleChange = changeInfo.audible !== undefined;
+    
+    if (hasUrlChange || hasAudibleChange) {
       const eventData: BrowserEventData = {
         type: 'tab-updated',
         tabId,
