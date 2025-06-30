@@ -419,11 +419,36 @@ export class TimeTracker {
    * Handle tab updates
    */
   private async handleTabUpdated(eventData: BrowserEventData): Promise<void> {
-    if (!eventData.tabId || !eventData.url) return;
+    if (!eventData.tabId || !eventData.changeInfo) return;
 
-    // Check if this is a URL change
     const currentState = this.focusStateManager.getTabState(eventData.tabId);
-    if (currentState && currentState.url !== eventData.url) {
+    
+    // Handle audible state changes first (independent of other changes)
+    if ('audible' in eventData.changeInfo && currentState) {
+      this.log('Updating audible state', { 
+        tabId: eventData.tabId, 
+        audible: eventData.changeInfo.audible,
+        previousState: currentState.isAudible
+      });
+      
+      this.focusStateManager.updateTabState(eventData.tabId, {
+        isAudible: eventData.changeInfo.audible,
+      });
+    }
+
+    // Handle URL changes (may occur independently or alongside audible changes)
+    if (eventData.url && currentState && currentState.url !== eventData.url) {
+      this.log('Handling URL change', {
+        tabId: eventData.tabId,
+        oldUrl: currentState.url,
+        newUrl: eventData.url
+      });
+
+      // If there was an active session, end it
+      if (currentState.activeTimeStart) {
+        await this.generateAndQueueActiveTimeEnd(currentState, eventData.timestamp, 'navigation');
+      }
+
       // URL changed - end current session and start new one
       await this.generateAndQueueOpenTimeEnd(currentState, eventData.timestamp);
 
@@ -446,7 +471,7 @@ export class TimeTracker {
     if (tabState) {
       // End any active sessions
       if (tabState.activeTimeStart) {
-        await this.generateAndQueueActiveTimeEnd(tabState, eventData.timestamp);
+        await this.generateAndQueueActiveTimeEnd(tabState, eventData.timestamp, 'tab_closed');
       }
       await this.generateAndQueueOpenTimeEnd(tabState, eventData.timestamp);
 
@@ -516,11 +541,12 @@ export class TimeTracker {
     if (result.success && result.event) {
       await this.eventQueue.enqueue(result.event);
 
-      // Update tab state
+      // Update tab state with current audible status
       this.focusStateManager.updateTabState(tab.id, {
         url: tab.url,
         visitId: result.event.visitId!,
         openTimeStart: timestamp,
+        isAudible: tab.audible || false, // Initialize with current audible state
       });
     }
   }
@@ -560,19 +586,20 @@ export class TimeTracker {
 
   private async generateAndQueueActiveTimeEnd(
     tabState: TabState,
-    timestamp: number
+    timestamp: number,
+    reason: 'timeout' | 'focus_lost' | 'tab_closed' | 'navigation' = 'focus_lost'
   ): Promise<void> {
     const context = {
       tabState,
       timestamp,
     };
 
-    const result = this.eventGenerator.generateActiveTimeEnd(context, 'focus_lost');
+    const result = this.eventGenerator.generateActiveTimeEnd(context, reason);
     if (result.success && result.event) {
       await this.eventQueue.enqueue(result.event);
 
       // Clear active time state
-      this.focusStateManager.updateTabState(tabState.windowId, {
+      this.focusStateManager.updateTabState(tabState.tabId, {
         activityId: null,
         activeTimeStart: null,
       });
