@@ -77,6 +77,9 @@ describe('AggregationScheduler (WXT Standard)', () => {
 
   describe('start method', () => {
     it('should create alarm with default period when no custom period is set', async () => {
+      // Mock production environment to avoid DEV mode override
+      vi.stubEnv('DEV', false);
+      
       const createSpy = vi.spyOn(fakeBrowser.alarms, 'create');
       const addListenerSpy = vi.spyOn(fakeBrowser.alarms.onAlarm, 'addListener');
 
@@ -86,9 +89,15 @@ describe('AggregationScheduler (WXT Standard)', () => {
         periodInMinutes: DEFAULT_AGGREGATION_INTERVAL_MINUTES,
       });
       expect(addListenerSpy).toHaveBeenCalled();
+      
+      // Clean up environment mock
+      vi.unstubAllEnvs();
     });
 
     it('should create alarm with custom period from storage', async () => {
+      // Mock production environment to avoid DEV mode override
+      vi.stubEnv('DEV', false);
+      
       const customPeriod = 30;
       const createSpy = vi.spyOn(fakeBrowser.alarms, 'create');
 
@@ -108,6 +117,9 @@ describe('AggregationScheduler (WXT Standard)', () => {
       expect(createSpy).toHaveBeenCalledWith(AGGREGATION_ALARM_NAME, {
         periodInMinutes: customPeriod,
       });
+      
+      // Clean up environment mock
+      vi.unstubAllEnvs();
     });
 
     it('should register alarm listener only once', async () => {

@@ -44,11 +44,22 @@ export class AggregationScheduler {
   public async start(): Promise<void> {
     this.logger.logWithEmoji(LogCategory.START, 'info', 'aggregation scheduler');
     
-    const periodInMinutes =
+    let periodInMinutes = 
       (await storage.getItem<number>(SCHEDULER_PERIOD_MINUTES_KEY)) ??
       DEFAULT_AGGREGATION_INTERVAL_MINUTES;
     
-    this.logger.logWithEmoji(LogCategory.SCHEDULE, 'info', 'creating alarm', { periodInMinutes });
+    // In development mode, use a shorter interval for faster testing
+    // Note: Chrome alarms API minimum is 1 minute
+    if (import.meta.env.DEV) {
+      periodInMinutes = Math.min(periodInMinutes, 1);
+      this.logger.logWithEmoji(LogCategory.SCHEDULE, 'debug', 'development mode: using 1-minute interval');
+    }
+    
+    this.logger.logWithEmoji(LogCategory.SCHEDULE, 'info', 'creating alarm', { 
+      periodInMinutes,
+      isDev: import.meta.env.DEV 
+    });
+    
     browser.alarms.create(AGGREGATION_ALARM_NAME, {
       periodInMinutes,
     });
@@ -97,6 +108,17 @@ export class AggregationScheduler {
   public async reset(): Promise<void> {
     await this.stop();
     await this.start();
+  }
+
+  /**
+   * Manually triggers the aggregation task immediately.
+   * Useful for development and debugging purposes.
+   *
+   * @returns Promise that resolves when the task completes
+   */
+  public async runNow(): Promise<void> {
+    this.logger.logWithEmoji(LogCategory.START, 'info', 'manual aggregation trigger');
+    await this.runTask();
   }
 
   /**

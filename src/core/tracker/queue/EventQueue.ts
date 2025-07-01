@@ -283,7 +283,7 @@ export class EventQueue {
     const domainEvents = events.map(qe => qe.event);
 
     const startTime = Date.now();
-    EventQueue.logger.info(`💾 Writing ${events.length} events to database...`);
+    EventQueue.logger.info(`💾 Writing ${events.length} events to database...`, events);
 
     try {
       // Use Dexie's bulkAdd for efficient batch writing

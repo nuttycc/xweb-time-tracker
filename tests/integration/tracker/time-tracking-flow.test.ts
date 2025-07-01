@@ -15,6 +15,14 @@ import {
   waitForIndexedDB,
   createTestData
 } from '../../utils/database-test-helpers';
+import {
+  simulateTabActivation,
+  simulateNavigation,
+  simulateUserInteraction,
+  waitForEvents,
+  waitForTabEvents,
+  waitForEventTypes
+} from '../../utils/mock-helpers';
 import type { WebTimeTrackerDB } from '../../../src/core/db/schemas';
 
 // Test configuration
@@ -117,7 +125,7 @@ describe('Time Tracking Flow Integration', () => {
       expect(startResult).toBe(true);
       expect(timeTracker.getStartedStatus()).toBe(true);
 
-      // Step 3: Simulate tab activation (user opens a new tab)
+      // Step 3: Simulate tab activation and navigation (user opens a new tab)
       mockTabs.get.mockResolvedValue({
         id: 1,
         url: 'https://example.com/page1',
@@ -135,6 +143,16 @@ describe('Time Tracking Flow Integration', () => {
 
       await timeTracker.handleBrowserEvent(tabActivatedEvent);
 
+      // Step 3b: Simulate web navigation to trigger open_time_start event
+      const webNavigationEvent: BrowserEventData = {
+        type: 'web-navigation-committed',
+        tabId: 1,
+        url: 'https://example.com/page1',
+        timestamp: Date.now(),
+      };
+
+      await timeTracker.handleBrowserEvent(webNavigationEvent);
+
       // Step 4: Simulate user interaction (should start active time)
       const interactionEvent: BrowserEventData = {
         type: 'user-interaction',
@@ -149,8 +167,8 @@ describe('Time Tracking Flow Integration', () => {
 
       await timeTracker.handleBrowserEvent(interactionEvent);
 
-      // Step 5: Wait for events to be processed
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Step 5: Wait for initial events to be processed
+      await waitForEventTypes(testDb, ['open_time_start', 'active_time_start'], 2);
 
       // Step 6: Simulate tab navigation (should end current session and start new one)
       mockTabs.get.mockResolvedValue({
@@ -160,16 +178,14 @@ describe('Time Tracking Flow Integration', () => {
         active: true,
       } as Browser.tabs.Tab);
 
-      const tabUpdatedEvent: BrowserEventData = {
-        type: 'tab-updated',
+      const navigationEvent: BrowserEventData = {
+        type: 'web-navigation-committed',
         tabId: 1,
-        windowId: 1,
         url: 'https://example.com/page2',
-        changeInfo: { url: 'https://example.com/page2' },
         timestamp: Date.now(),
       };
 
-      await timeTracker.handleBrowserEvent(tabUpdatedEvent);
+      await timeTracker.handleBrowserEvent(navigationEvent);
 
       // Step 7: Simulate tab closure
       const tabRemovedEvent: BrowserEventData = {
@@ -180,11 +196,11 @@ describe('Time Tracking Flow Integration', () => {
 
       await timeTracker.handleBrowserEvent(tabRemovedEvent);
 
-      // Step 8: Stop tracking and verify events were generated
+      // Step 8: Wait for all events to be processed and then stop tracking
+      const events = await waitForEvents(testDb, { expectedCount: 4 }); // Should have multiple events by now
       await timeTracker.stop();
 
       // Verify that events were created in the database
-      const events = await testDb.eventslog.orderBy('timestamp').reverse().limit(10).toArray();
       expect(events.length).toBeGreaterThan(0);
 
       // Should have open_time_start events at minimum
@@ -192,11 +208,108 @@ describe('Time Tracking Flow Integration', () => {
       expect(eventTypes).toContain('open_time_start');
     });
 
-    it('should handle multiple tabs and focus changes', async () => {
+    it('should start a session on first navigation', async () => {
       await timeTracker.initialize();
       await timeTracker.start();
 
-      // Tab 1: example.com
+      // Setup tab mock
+      mockTabs.get.mockResolvedValue({
+        id: 1,
+        url: 'https://example.com',
+        windowId: 1,
+        active: true,
+      } as Browser.tabs.Tab);
+
+      // Simulate user opening a tab and navigating
+      await simulateTabActivation(timeTracker, { tabId: 1 });
+      await simulateNavigation(timeTracker, { tabId: 1, url: 'https://example.com' });
+
+      // Wait for events to be processed and stop tracker
+      const events = await waitForEventTypes(testDb, ['open_time_start'], 1);
+      await timeTracker.stop();
+
+      // Verify session was started
+      expect(events).toHaveLength(1);
+      expect(events[0].eventType).toBe('open_time_start');
+      expect(events[0].tabId).toBe(1);
+      expect(events[0].url).toBe('https://example.com/');
+    });
+
+    it('should create active_time_start event on user interaction', async () => {
+      await timeTracker.initialize();
+      await timeTracker.start();
+
+      // Setup tab mock
+      mockTabs.get.mockResolvedValue({
+        id: 1,
+        url: 'https://example.com',
+        windowId: 1,
+        active: true,
+      } as Browser.tabs.Tab);
+
+      // Simulate session start and user interaction
+      await simulateTabActivation(timeTracker, { tabId: 1 });
+      await simulateNavigation(timeTracker, { tabId: 1, url: 'https://example.com' });
+      await simulateUserInteraction(timeTracker, { tabId: 1, type: 'keydown' });
+
+      // Wait for both open_time_start and active_time_start events
+      const events = await waitForEventTypes(testDb, ['open_time_start', 'active_time_start'], 2);
+      await timeTracker.stop();
+
+      // Verify both events were created
+      const openTimeEvents = events.filter(e => e.eventType === 'open_time_start');
+      const activeTimeEvents = events.filter(e => e.eventType === 'active_time_start');
+      
+      expect(openTimeEvents).toHaveLength(1);
+      expect(activeTimeEvents).toHaveLength(1);
+      expect(activeTimeEvents[0].tabId).toBe(1);
+    });
+
+    it('should create active_time_end event on focus loss', async () => {
+      await timeTracker.initialize();
+      await timeTracker.start();
+
+      // Setup tab mocks
+      mockTabs.get.mockImplementation((tabId: number) => {
+        if (tabId === 1) {
+          return Promise.resolve({
+            id: 1,
+            url: 'https://example.com',
+            windowId: 1,
+            active: tabId === 1,
+          } as Browser.tabs.Tab);
+        }
+        return Promise.resolve({
+          id: 2,
+          url: 'https://github.com',
+          windowId: 1,
+          active: tabId === 2,
+        } as Browser.tabs.Tab);
+      });
+
+      // Start session on tab 1 and interact
+      await simulateTabActivation(timeTracker, { tabId: 1 });
+      await simulateNavigation(timeTracker, { tabId: 1, url: 'https://example.com' });
+      await simulateUserInteraction(timeTracker, { tabId: 1, type: 'keydown' });
+
+      // Switch to tab 2 (should end active time on tab 1)
+      await simulateTabActivation(timeTracker, { tabId: 2 });
+
+      // Wait for active_time_end event
+      const events = await waitForEventTypes(testDb, ['active_time_end'], 1);
+      await timeTracker.stop();
+
+      // Verify active_time_end was created for tab 1
+      expect(events).toHaveLength(1);
+      expect(events[0].eventType).toBe('active_time_end');
+      expect(events[0].tabId).toBe(1);
+    });
+
+    it('should correctly switch sessions between multiple tabs', async () => {
+      await timeTracker.initialize();
+      await timeTracker.start();
+
+      // Setup tab mocks
       mockTabs.get.mockImplementation((tabId: number) => {
         if (tabId === 1) {
           return Promise.resolve({
@@ -205,66 +318,193 @@ describe('Time Tracking Flow Integration', () => {
             windowId: 1,
             active: true,
           } as Browser.tabs.Tab);
-        } else if (tabId === 2) {
+        }
           return Promise.resolve({
             id: 2,
             url: 'https://github.com',
             windowId: 1,
-            active: false,
+          active: true,
           } as Browser.tabs.Tab);
-        }
-        return Promise.resolve(null);
       });
 
-      // Activate tab 1
-      await timeTracker.handleBrowserEvent({
-        type: 'tab-activated',
-        tabId: 1,
-        windowId: 1,
-        timestamp: Date.now(),
-      });
+      // Full flow: Tab 1 -> Tab 2 with interactions
+      await simulateTabActivation(timeTracker, { tabId: 1 });
+      await simulateNavigation(timeTracker, { tabId: 1, url: 'https://example.com' });
+      await simulateUserInteraction(timeTracker, { tabId: 1, type: 'keydown' });
 
-      // User interaction on tab 1
-      await timeTracker.handleBrowserEvent({
-        type: 'user-interaction',
-        tabId: 1,
-        interaction: {
-          type: 'keydown',
-          timestamp: Date.now(),
-          tabId: 1,
-        },
-        timestamp: Date.now(),
-      });
+      await simulateTabActivation(timeTracker, { tabId: 2 });
+      await simulateNavigation(timeTracker, { tabId: 2, url: 'https://github.com' });
+      await simulateUserInteraction(timeTracker, { tabId: 2, type: 'scroll' });
 
-      // Switch to tab 2
-      await timeTracker.handleBrowserEvent({
-        type: 'tab-activated',
-        tabId: 2,
-        windowId: 1,
-        timestamp: Date.now(),
-      });
-
-      // User interaction on tab 2
-      await timeTracker.handleBrowserEvent({
-        type: 'user-interaction',
-        tabId: 2,
-        interaction: {
-          type: 'scroll',
-          timestamp: Date.now(),
-          tabId: 2,
-        },
-        timestamp: Date.now(),
-      });
-
+      // Wait for events from both tabs (should have at least 2 open_time_start events)
+      const events = await waitForTabEvents(testDb, [1, 2], 4, { timeout: 3000 });
       await timeTracker.stop();
 
       // Verify events for both tabs
-      const events = await testDb.eventslog.orderBy('timestamp').reverse().limit(20).toArray();
       const tab1Events = events.filter(e => e.tabId === 1);
       const tab2Events = events.filter(e => e.tabId === 2);
 
       expect(tab1Events.length).toBeGreaterThan(0);
       expect(tab2Events.length).toBeGreaterThan(0);
+
+      // Verify session structure
+      const openTimeEvents = events.filter(e => e.eventType === 'open_time_start');
+      expect(openTimeEvents).toHaveLength(2); // One for each tab
+    });
+  });
+
+  describe('Edge Cases and URL Filtering', () => {
+    it('should ignore invalid URLs and not create events', async () => {
+      await timeTracker.initialize();
+      await timeTracker.start();
+
+      // Setup tab mock with filtered URL
+      mockTabs.get.mockResolvedValue({
+        id: 1,
+        url: 'chrome://extensions',
+        windowId: 1,
+        active: true,
+      } as Browser.tabs.Tab);
+
+      // Simulate navigation to filtered URL
+      await simulateTabActivation(timeTracker, { tabId: 1 });
+      await simulateNavigation(timeTracker, { tabId: 1, url: 'chrome://extensions' });
+
+      // Small wait to ensure processing time
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await timeTracker.stop();
+
+      // Should not have created any open_time_start events
+      const events = await testDb.eventslog.toArray();
+      const openTimeEvents = events.filter(e => e.eventType === 'open_time_start');
+      expect(openTimeEvents).toHaveLength(0);
+    });
+
+    it('should handle invalid tab IDs gracefully', async () => {
+      await timeTracker.initialize();
+      await timeTracker.start();
+
+      // Mock to return null for invalid tab ID
+      mockTabs.get.mockResolvedValue(null);
+
+      // Try to process events with invalid tab ID - should not crash
+      await expect(simulateTabActivation(timeTracker, { tabId: -1 })).resolves.not.toThrow();
+      await expect(simulateNavigation(timeTracker, { tabId: 999, url: 'https://example.com' })).resolves.not.toThrow();
+
+      await timeTracker.stop();
+
+      // Should not have created any events
+      const events = await testDb.eventslog.toArray();
+      expect(events).toHaveLength(0);
+    });
+
+    it('should handle out-of-order events gracefully', async () => {
+      await timeTracker.initialize();
+      await timeTracker.start();
+
+      // Setup tab mock
+      mockTabs.get.mockResolvedValue({
+        id: 1,
+        url: 'https://example.com',
+        windowId: 1,
+        active: true,
+      } as Browser.tabs.Tab);
+
+      // Send user interaction BEFORE navigation (out of order)
+      await simulateUserInteraction(timeTracker, { tabId: 1, type: 'click' });
+      await simulateTabActivation(timeTracker, { tabId: 1 });
+      await simulateNavigation(timeTracker, { tabId: 1, url: 'https://example.com' });
+
+      // Should still create a session after navigation
+      const events = await waitForEventTypes(testDb, ['open_time_start'], 1);
+      await timeTracker.stop();
+
+      expect(events).toHaveLength(1);
+      expect(events[0].eventType).toBe('open_time_start');
+    });
+
+    it('should handle concurrent events from multiple tabs', async () => {
+      await timeTracker.initialize();
+      await timeTracker.start();
+
+      // Setup tab mocks
+      mockTabs.get.mockImplementation((tabId: number) => {
+        return Promise.resolve({
+          id: tabId,
+          url: `https://example${tabId}.com`,
+          windowId: 1,
+          active: true,
+        } as Browser.tabs.Tab);
+      });
+
+      // Simulate concurrent operations on multiple tabs
+      const concurrentPromises = [];
+      for (let tabId = 1; tabId <= 3; tabId++) {
+        concurrentPromises.push(
+          (async () => {
+            await simulateTabActivation(timeTracker, { tabId });
+            await simulateNavigation(timeTracker, { tabId, url: `https://example${tabId}.com` });
+            await simulateUserInteraction(timeTracker, { tabId, type: 'click' });
+          })()
+        );
+      }
+
+      await Promise.all(concurrentPromises);
+
+      // Should have events for all tabs
+      const events = await waitForTabEvents(testDb, [1, 2, 3], 6, { timeout: 3000 }); // 3 tabs × 2 events each
+      await timeTracker.stop();
+
+      // Verify all tabs have events
+      for (let tabId = 1; tabId <= 3; tabId++) {
+        const tabEvents = events.filter(e => e.tabId === tabId);
+        expect(tabEvents.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('should prevent race conditions in rapid user interactions', async () => {
+      await timeTracker.initialize();
+      await timeTracker.start();
+
+      // Setup tab mock
+      mockTabs.get.mockResolvedValue({
+        id: 1,
+        url: 'https://example.com',
+        windowId: 1,
+        active: true,
+      } as Browser.tabs.Tab);
+
+      // First establish a session
+      await simulateTabActivation(timeTracker, { tabId: 1 });
+      await simulateNavigation(timeTracker, { tabId: 1, url: 'https://example.com' });
+
+      // Generate many rapid interaction events concurrently (race condition scenario)
+      const rapidInteractions = [];
+      for (let i = 0; i < 50; i++) {
+        rapidInteractions.push(
+          simulateUserInteraction(timeTracker, { 
+            tabId: 1, 
+            type: 'mousemove', 
+            timestamp: Date.now() + i 
+          })
+        );
+      }
+
+      // Execute all interactions concurrently
+      await Promise.all(rapidInteractions);
+
+      // Wait for all events to be processed
+      const events = await waitForEvents(testDb, { expectedCount: 2, timeout: 3000 }); // Should only have 1 open_time_start + 1 active_time_start
+      await timeTracker.stop();
+
+      // Verify that only ONE active_time_start event was created despite 50 interactions
+      const activeTimeEvents = events.filter(e => e.eventType === 'active_time_start');
+      const openTimeEvents = events.filter(e => e.eventType === 'open_time_start');
+      
+      expect(openTimeEvents).toHaveLength(1);
+      expect(activeTimeEvents).toHaveLength(1); // This is the key assertion - should be exactly 1, not 50
+      
+      console.log(`Race condition test: ${activeTimeEvents.length} active_time_start events from 50 concurrent interactions`);
     });
   });
 
@@ -379,26 +619,78 @@ describe('Time Tracking Flow Integration', () => {
         active: true,
       } as Browser.tabs.Tab);
 
-      // Generate many rapid events
+      // First establish a session
+      await simulateTabActivation(timeTracker, { tabId: 1 });
+      await simulateNavigation(timeTracker, { tabId: 1, url: 'https://example.com' });
+
+      // Generate many rapid interaction events
       const eventPromises = [];
       for (let i = 0; i < 100; i++) {
-        eventPromises.push(timeTracker.handleBrowserEvent({
-          type: 'user-interaction',
+        eventPromises.push(
+          simulateUserInteraction(timeTracker, { 
           tabId: 1,
-          interaction: {
             type: 'mousemove',
-            timestamp: Date.now() + i,
-            tabId: 1,
-          },
-          timestamp: Date.now() + i,
-        }));
+            timestamp: Date.now() + i 
+          })
+        );
       }
 
       await Promise.all(eventPromises);
       await timeTracker.stop();
 
-      // Should complete without errors
-      expect(true).toBe(true);
+      // Should complete without errors and create events
+      const events = await testDb.eventslog.toArray();
+      expect(events.length).toBeGreaterThan(0);
+      
+      // Note: Currently system creates one active_time_start per interaction
+      // This test documents the current behavior rather than asserting expected deduplication
+      console.log(`Performance test created ${events.length} events from 100 interactions`);
+      
+      // Should have at least the initial open_time_start event
+      const openTimeEvents = events.filter(e => e.eventType === 'open_time_start');
+      expect(openTimeEvents.length).toBeGreaterThan(0);
+    });
+
+    it('should handle EventQueue overflow gracefully', async () => {
+      await timeTracker.initialize();
+      await timeTracker.start();
+
+      mockTabs.get.mockResolvedValue({
+        id: 1,
+        url: 'https://example.com',
+        windowId: 1,
+        active: true,
+      } as Browser.tabs.Tab);
+
+      // Create many rapid navigation events to stress the queue
+      const eventPromises = [];
+      for (let i = 1; i <= 20; i++) {
+        mockTabs.get.mockResolvedValue({
+          id: 1,
+          url: `https://example.com/page${i}`,
+          windowId: 1,
+          active: true,
+        } as Browser.tabs.Tab);
+
+        eventPromises.push(
+          simulateNavigation(timeTracker, { 
+            tabId: 1, 
+            url: `https://example.com/page${i}`,
+            timestamp: Date.now() + i * 10
+          })
+        );
+      }
+
+      // Should not crash even with many rapid navigations
+      await expect(Promise.all(eventPromises)).resolves.not.toThrow();
+      
+      // Wait for events to be processed and stop
+      await waitForEvents(testDb, { expectedCount: 10, timeout: 5000 });
+      await timeTracker.stop();
+
+      // Should have created events without crashing
+      const events = await testDb.eventslog.toArray();
+      expect(events.length).toBeGreaterThan(0);
     });
   });
 });
