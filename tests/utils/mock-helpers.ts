@@ -8,7 +8,7 @@ import { vi } from 'vitest';
 import type { StartupRecovery } from '../../src/core/tracker/recovery/StartupRecovery';
 import type { EventQueue } from '../../src/core/tracker/queue/EventQueue';
 import type { CheckpointScheduler } from '../../src/core/tracker/scheduler/CheckpointScheduler';
-import type { FocusStateManager } from '../../src/core/tracker/state/FocusStateManager';
+import type { TabStateManager } from '../../src/core/tracker/state/TabStateManager';
 import type { InteractionDetector } from '../../src/core/tracker/messaging/InteractionDetector';
 
 /**
@@ -60,13 +60,13 @@ export function createMockCheckpointScheduler(): Partial<CheckpointScheduler> {
 }
 
 /**
- * Returns a partial mock of FocusStateManager with stubbed methods for testing.
+ * Returns a partial mock of TabStateManager with stubbed methods for testing.
  *
  * The mock provides default behaviors for focus state management methods, returning `null` or default context values as appropriate.
  *
- * @returns A partial FocusStateManager mock with all methods stubbed for isolated unit tests.
+ * @returns A partial TabStateManager mock with all methods stubbed for isolated unit tests.
  */
-export function createMockFocusStateManager(): Partial<FocusStateManager> {
+export function createMockTabStateManager(): Partial<TabStateManager> {
   return {
     setFocusedTab: vi.fn(),
     getTabState: vi.fn().mockReturnValue(null),

@@ -63,10 +63,10 @@ describe('StartupRecovery (Type-Safe)', () => {
       const result = await startupRecovery.executeRecovery();
 
       // Verify
-      expect(result.orphanSessionsFound).toBe(0);
-      expect(result.recoveryEventsGenerated).toBe(0);
-      expect(result.currentTabsInitialized).toBe(0);
-      expect(result.errors).toEqual([]);
+      expect(result.stats.orphanSessionsFound).toBe(0);
+      expect(result.stats.recoveryEventsGenerated).toBe(0);
+      expect(result.stats.currentTabsInitialized).toBe(0);
+      expect(result.stats.errors).toEqual([]);
     });
 
     it('should recover orphan open_time_start sessions', async () => {
@@ -94,8 +94,8 @@ describe('StartupRecovery (Type-Safe)', () => {
       const result = await startupRecovery.executeRecovery();
 
       // Verify
-      expect(result.orphanSessionsFound).toBe(1);
-      expect(result.recoveryEventsGenerated).toBe(1);
+      expect(result.stats.orphanSessionsFound).toBe(1);
+      expect(result.stats.recoveryEventsGenerated).toBe(1);
       expect(mockEventGenerator.generateOpenTimeEnd).toHaveBeenCalledWith(
         expect.objectContaining({
           tabState: expect.objectContaining({
@@ -131,8 +131,8 @@ describe('StartupRecovery (Type-Safe)', () => {
       const result = await startupRecovery.executeRecovery();
 
       // Verify
-      expect(result.orphanSessionsFound).toBe(1);
-      expect(result.recoveryEventsGenerated).toBe(1);
+      expect(result.stats.orphanSessionsFound).toBe(1);
+      expect(result.stats.recoveryEventsGenerated).toBe(1);
       expect(mockEventGenerator.generateActiveTimeEnd).toHaveBeenCalledWith(
         expect.objectContaining({
           tabState: expect.objectContaining({
@@ -176,8 +176,8 @@ describe('StartupRecovery (Type-Safe)', () => {
       const result = await startupRecovery.executeRecovery();
 
       // Verify - should not generate recovery events for sessions that already have end events
-      expect(result.orphanSessionsFound).toBe(0);
-      expect(result.recoveryEventsGenerated).toBe(0);
+      expect(result.stats.orphanSessionsFound).toBe(0);
+      expect(result.stats.recoveryEventsGenerated).toBe(0);
       expect(mockEventGenerator.generateOpenTimeEnd).not.toHaveBeenCalled();
     });
 

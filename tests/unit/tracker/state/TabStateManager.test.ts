@@ -1,7 +1,7 @@
 /**
- * FocusStateManager Unit Tests
+ * TabStateManager Unit Tests
  *
- * Comprehensive unit tests for the FocusStateManager class.
+ * Comprehensive unit tests for the TabStateManager class.
  * Tests the single-focus principle, tab state transitions, edge cases like rapid tab switching,
  * and state cleanup. Uses vitest mocking to simulate browser tab events and verify
  * state management correctness.
@@ -11,33 +11,33 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { FocusStateManager } from '../../../../src/core/tracker/state/FocusStateManager';
+import { TabStateManager } from '../../../../src/core/tracker/state/TabStateManager';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- FocusChangeEvent is used in test type annotations and mock function signatures
-import type { FocusChangeEvent } from '../../../../src/core/tracker/state/FocusStateManager';
+import type { FocusChangeEvent } from '../../../../src/core/tracker/state/TabStateManager';
 import type { TabState } from '../../../../src/core/tracker/types';
 
-describe('FocusStateManager', () => {
-  let focusStateManager: FocusStateManager;
+describe('TabStateManager', () => {
+  let tabStateManager: TabStateManager;
   let mockFocusChangeListener: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    focusStateManager = new FocusStateManager();
+    tabStateManager = new TabStateManager();
     mockFocusChangeListener = vi.fn();
   });
 
   describe('Initialization', () => {
     it('should initialize with no focused tab', () => {
-      expect(focusStateManager.getFocusedTab()).toBeUndefined();
-      expect(focusStateManager.getFocusContext().focusedTabId).toBeNull();
-      expect(focusStateManager.getFocusContext().focusedWindowId).toBeNull();
+      expect(tabStateManager.getFocusedTab()).toBeUndefined();
+      expect(tabStateManager.getFocusContext().focusedTabId).toBeNull();
+      expect(tabStateManager.getFocusContext().focusedWindowId).toBeNull();
     });
 
     it('should have empty tab states map', () => {
-      expect(focusStateManager.getAllTabStates().size).toBe(0);
+      expect(tabStateManager.getAllTabStates().size).toBe(0);
     });
 
     it('should validate state consistency on initialization', () => {
-      expect(focusStateManager.validateStateConsistency()).toBe(true);
+      expect(tabStateManager.validateStateConsistency()).toBe(true);
     });
   });
 
@@ -56,9 +56,9 @@ describe('FocusStateManager', () => {
       const tabId = 1;
       const windowId = 100;
 
-      focusStateManager.createTabState(tabId, mockTabState, windowId);
+      tabStateManager.createTabState(tabId, mockTabState, windowId);
 
-      const tabState = focusStateManager.getTabState(tabId);
+      const tabState = tabStateManager.getTabState(tabId);
       expect(tabState).toBeDefined();
       expect(tabState?.url).toBe(mockTabState.url);
       expect(tabState?.visitId).toBe(mockTabState.visitId);
@@ -70,23 +70,23 @@ describe('FocusStateManager', () => {
       const tabId = 1;
       const windowId = 100;
 
-      focusStateManager.createTabState(tabId, mockTabState, windowId);
+      tabStateManager.createTabState(tabId, mockTabState, windowId);
 
       const updates = {
         isAudible: true,
         lastInteractionTimestamp: Date.now() + 1000,
       };
 
-      focusStateManager.updateTabState(tabId, updates);
+      tabStateManager.updateTabState(tabId, updates);
 
-      const tabState = focusStateManager.getTabState(tabId);
+      const tabState = tabStateManager.getTabState(tabId);
       expect(tabState?.isAudible).toBe(true);
       expect(tabState?.lastInteractionTimestamp).toBe(updates.lastInteractionTimestamp);
     });
 
     it('should throw error when updating non-existent tab state', () => {
       expect(() => {
-        focusStateManager.updateTabState(999, { isAudible: true });
+        tabStateManager.updateTabState(999, { isAudible: true });
       }).toThrow('Tab state not found for tabId: 999');
     });
 
@@ -94,15 +94,15 @@ describe('FocusStateManager', () => {
       const tabId = 1;
       const windowId = 100;
 
-      focusStateManager.createTabState(tabId, mockTabState, windowId);
-      focusStateManager.setFocusedTab(tabId, windowId);
+      tabStateManager.createTabState(tabId, mockTabState, windowId);
+      tabStateManager.setFocusedTab(tabId, windowId);
 
-      expect(focusStateManager.isFocusTab(tabId)).toBe(true);
+      expect(tabStateManager.isFocusTab(tabId)).toBe(true);
 
-      focusStateManager.clearTabState(tabId);
+      tabStateManager.clearTabState(tabId);
 
-      expect(focusStateManager.getTabState(tabId)).toBeUndefined();
-      expect(focusStateManager.getFocusContext().focusedTabId).toBeNull();
+      expect(tabStateManager.getTabState(tabId)).toBeUndefined();
+      expect(tabStateManager.getFocusContext().focusedTabId).toBeNull();
     });
 
     it('should validate tab state with zod schema', () => {
@@ -111,7 +111,7 @@ describe('FocusStateManager', () => {
 
       // This should not throw as the schema validation passes
       expect(() => {
-        focusStateManager.createTabState(tabId, mockTabState, windowId);
+        tabStateManager.createTabState(tabId, mockTabState, windowId);
       }).not.toThrow();
     });
   });
@@ -140,46 +140,46 @@ describe('FocusStateManager', () => {
     };
 
     beforeEach(() => {
-      focusStateManager.createTabState(tabId1, mockTabState1, windowId);
-      focusStateManager.createTabState(tabId2, mockTabState2, windowId);
+      tabStateManager.createTabState(tabId1, mockTabState1, windowId);
+      tabStateManager.createTabState(tabId2, mockTabState2, windowId);
     });
 
     it('should set focused tab correctly', () => {
-      focusStateManager.setFocusedTab(tabId1, windowId);
+      tabStateManager.setFocusedTab(tabId1, windowId);
 
-      expect(focusStateManager.isFocusTab(tabId1)).toBe(true);
-      expect(focusStateManager.isFocusTab(tabId2)).toBe(false);
-      expect(focusStateManager.getFocusedTab()?.url).toBe(mockTabState1.url);
+      expect(tabStateManager.isFocusTab(tabId1)).toBe(true);
+      expect(tabStateManager.isFocusTab(tabId2)).toBe(false);
+      expect(tabStateManager.getFocusedTab()?.url).toBe(mockTabState1.url);
     });
 
     it('should enforce single focus principle when switching tabs', () => {
       // Set first tab as focused
-      focusStateManager.setFocusedTab(tabId1, windowId);
-      expect(focusStateManager.isFocusTab(tabId1)).toBe(true);
-      expect(focusStateManager.getTabState(tabId1)?.isFocused).toBe(true);
+      tabStateManager.setFocusedTab(tabId1, windowId);
+      expect(tabStateManager.isFocusTab(tabId1)).toBe(true);
+      expect(tabStateManager.getTabState(tabId1)?.isFocused).toBe(true);
 
       // Switch focus to second tab
-      focusStateManager.setFocusedTab(tabId2, windowId);
-      expect(focusStateManager.isFocusTab(tabId1)).toBe(false);
-      expect(focusStateManager.isFocusTab(tabId2)).toBe(true);
-      expect(focusStateManager.getTabState(tabId1)?.isFocused).toBe(false);
-      expect(focusStateManager.getTabState(tabId2)?.isFocused).toBe(true);
+      tabStateManager.setFocusedTab(tabId2, windowId);
+      expect(tabStateManager.isFocusTab(tabId1)).toBe(false);
+      expect(tabStateManager.isFocusTab(tabId2)).toBe(true);
+      expect(tabStateManager.getTabState(tabId1)?.isFocused).toBe(false);
+      expect(tabStateManager.getTabState(tabId2)?.isFocused).toBe(true);
     });
 
     it('should clear focus when no tab is focused', () => {
-      focusStateManager.setFocusedTab(tabId1, windowId);
-      expect(focusStateManager.isFocusTab(tabId1)).toBe(true);
+      tabStateManager.setFocusedTab(tabId1, windowId);
+      expect(tabStateManager.isFocusTab(tabId1)).toBe(true);
 
-      focusStateManager.clearFocus();
-      expect(focusStateManager.getFocusContext().focusedTabId).toBeNull();
-      expect(focusStateManager.getFocusedTab()).toBeUndefined();
-      expect(focusStateManager.getTabState(tabId1)?.isFocused).toBe(false);
+      tabStateManager.clearFocus();
+      expect(tabStateManager.getFocusContext().focusedTabId).toBeNull();
+      expect(tabStateManager.getFocusedTab()).toBeUndefined();
+      expect(tabStateManager.getTabState(tabId1)?.isFocused).toBe(false);
     });
 
     it('should trigger focus change events', () => {
-      focusStateManager.onFocusChange(mockFocusChangeListener);
+      tabStateManager.onFocusChange(mockFocusChangeListener);
 
-      focusStateManager.setFocusedTab(tabId1, windowId);
+      tabStateManager.setFocusedTab(tabId1, windowId);
 
       expect(mockFocusChangeListener).toHaveBeenCalledWith({
         previousTabId: null,
@@ -189,7 +189,7 @@ describe('FocusStateManager', () => {
       });
 
       // Switch to another tab
-      focusStateManager.setFocusedTab(tabId2, windowId);
+      tabStateManager.setFocusedTab(tabId2, windowId);
 
       expect(mockFocusChangeListener).toHaveBeenCalledWith({
         previousTabId: tabId1,
@@ -200,16 +200,16 @@ describe('FocusStateManager', () => {
     });
 
     it('should handle rapid tab switching correctly', () => {
-      focusStateManager.onFocusChange(mockFocusChangeListener);
+      tabStateManager.onFocusChange(mockFocusChangeListener);
 
       // Rapid switching
-      focusStateManager.setFocusedTab(tabId1, windowId);
-      focusStateManager.setFocusedTab(tabId2, windowId);
-      focusStateManager.setFocusedTab(tabId1, windowId);
+      tabStateManager.setFocusedTab(tabId1, windowId);
+      tabStateManager.setFocusedTab(tabId2, windowId);
+      tabStateManager.setFocusedTab(tabId1, windowId);
 
       // Should maintain single focus principle
-      expect(focusStateManager.isFocusTab(tabId1)).toBe(true);
-      expect(focusStateManager.isFocusTab(tabId2)).toBe(false);
+      expect(tabStateManager.isFocusTab(tabId1)).toBe(true);
+      expect(tabStateManager.isFocusTab(tabId2)).toBe(false);
 
       // Should have triggered 3 focus change events
       expect(mockFocusChangeListener).toHaveBeenCalledTimes(3);
@@ -230,16 +230,16 @@ describe('FocusStateManager', () => {
     };
 
     beforeEach(() => {
-      focusStateManager.createTabState(tabId, mockTabState, windowId);
+      tabStateManager.createTabState(tabId, mockTabState, windowId);
     });
 
     it('should start active time tracking', () => {
       const activityId = '123e4567-e89b-12d3-a456-426614174001';
       const timestamp = Date.now();
 
-      focusStateManager.startActiveTime(tabId, activityId, timestamp);
+      tabStateManager.startActiveTime(tabId, activityId, timestamp);
 
-      const tabState = focusStateManager.getTabState(tabId);
+      const tabState = tabStateManager.getTabState(tabId);
       expect(tabState?.activityId).toBe(activityId);
       expect(tabState?.activeTimeStart).toBe(timestamp);
       expect(tabState?.lastInteractionTimestamp).toBe(timestamp);
@@ -247,11 +247,11 @@ describe('FocusStateManager', () => {
 
     it('should stop active time tracking', () => {
       const activityId = '123e4567-e89b-12d3-a456-426614174001';
-      focusStateManager.startActiveTime(tabId, activityId);
+      tabStateManager.startActiveTime(tabId, activityId);
 
-      focusStateManager.stopActiveTime(tabId);
+      tabStateManager.stopActiveTime(tabId);
 
-      const tabState = focusStateManager.getTabState(tabId);
+      const tabState = tabStateManager.getTabState(tabId);
       expect(tabState?.activityId).toBeNull();
       expect(tabState?.activeTimeStart).toBeNull();
     });
@@ -259,29 +259,29 @@ describe('FocusStateManager', () => {
     it('should update last interaction timestamp', () => {
       const timestamp = Date.now() + 5000;
 
-      focusStateManager.updateLastInteraction(tabId, timestamp);
+      tabStateManager.updateLastInteraction(tabId, timestamp);
 
-      const tabState = focusStateManager.getTabState(tabId);
+      const tabState = tabStateManager.getTabState(tabId);
       expect(tabState?.lastInteractionTimestamp).toBe(timestamp);
     });
 
     it('should get active time tabs', () => {
       const tabId2 = 2;
-      focusStateManager.createTabState(tabId2, mockTabState, windowId);
+      tabStateManager.createTabState(tabId2, mockTabState, windowId);
 
       // Start active time for first tab only
-      focusStateManager.startActiveTime(tabId, '123e4567-e89b-12d3-a456-426614174001');
+      tabStateManager.startActiveTime(tabId, '123e4567-e89b-12d3-a456-426614174001');
 
-      const activeTimeTabs = focusStateManager.getActiveTimeTabs();
+      const activeTimeTabs = tabStateManager.getActiveTimeTabs();
       expect(activeTimeTabs).toEqual([tabId]);
       expect(activeTimeTabs).not.toContain(tabId2);
     });
 
     it('should get open time tabs', () => {
       const tabId2 = 2;
-      focusStateManager.createTabState(tabId2, mockTabState, windowId);
+      tabStateManager.createTabState(tabId2, mockTabState, windowId);
 
-      const openTimeTabs = focusStateManager.getOpenTimeTabs();
+      const openTimeTabs = tabStateManager.getOpenTimeTabs();
       expect(openTimeTabs).toContain(tabId);
       expect(openTimeTabs).toContain(tabId2);
       expect(openTimeTabs).toHaveLength(2);
@@ -293,20 +293,20 @@ describe('FocusStateManager', () => {
       const listener1 = vi.fn();
       const listener2 = vi.fn();
 
-      focusStateManager.onFocusChange(listener1);
-      focusStateManager.onFocusChange(listener2);
+      tabStateManager.onFocusChange(listener1);
+      tabStateManager.onFocusChange(listener2);
 
-      focusStateManager.setFocusedTab(1, 100);
+      tabStateManager.setFocusedTab(1, 100);
 
       expect(listener1).toHaveBeenCalled();
       expect(listener2).toHaveBeenCalled();
 
       // Remove one listener
-      focusStateManager.offFocusChange(listener1);
+      tabStateManager.offFocusChange(listener1);
       listener1.mockClear();
       listener2.mockClear();
 
-      focusStateManager.setFocusedTab(2, 100);
+      tabStateManager.setFocusedTab(2, 100);
 
       expect(listener1).not.toHaveBeenCalled();
       expect(listener2).toHaveBeenCalled();
@@ -320,10 +320,10 @@ describe('FocusStateManager', () => {
 
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      focusStateManager.onFocusChange(errorListener);
-      focusStateManager.onFocusChange(normalListener);
+      tabStateManager.onFocusChange(errorListener);
+      tabStateManager.onFocusChange(normalListener);
 
-      focusStateManager.setFocusedTab(1, 100);
+      tabStateManager.setFocusedTab(1, 100);
 
       expect(consoleSpy).toHaveBeenCalledWith('Error in focus change listener:', expect.any(Error));
       expect(normalListener).toHaveBeenCalled();
@@ -346,10 +346,10 @@ describe('FocusStateManager', () => {
         activeTimeStart: null,
       };
 
-      focusStateManager.createTabState(tabId, mockTabState, windowId);
-      focusStateManager.setFocusedTab(tabId, windowId);
+      tabStateManager.createTabState(tabId, mockTabState, windowId);
+      tabStateManager.setFocusedTab(tabId, windowId);
 
-      expect(focusStateManager.validateStateConsistency()).toBe(true);
+      expect(tabStateManager.validateStateConsistency()).toBe(true);
     });
 
     it('should clear all state', () => {
@@ -365,15 +365,15 @@ describe('FocusStateManager', () => {
         activeTimeStart: null,
       };
 
-      focusStateManager.createTabState(tabId, mockTabState, windowId);
-      focusStateManager.setFocusedTab(tabId, windowId);
-      focusStateManager.onFocusChange(mockFocusChangeListener);
+      tabStateManager.createTabState(tabId, mockTabState, windowId);
+      tabStateManager.setFocusedTab(tabId, windowId);
+      tabStateManager.onFocusChange(mockFocusChangeListener);
 
-      focusStateManager.clearAllState();
+      tabStateManager.clearAllState();
 
-      expect(focusStateManager.getAllTabStates().size).toBe(0);
-      expect(focusStateManager.getFocusContext().focusedTabId).toBeNull();
-      expect(focusStateManager.getFocusContext().focusedWindowId).toBeNull();
+      expect(tabStateManager.getAllTabStates().size).toBe(0);
+      expect(tabStateManager.getFocusContext().focusedTabId).toBeNull();
+      expect(tabStateManager.getFocusContext().focusedWindowId).toBeNull();
     });
 
     it('should provide debug information', () => {
@@ -390,12 +390,12 @@ describe('FocusStateManager', () => {
         activeTimeStart: null,
       };
 
-      focusStateManager.createTabState(tabId1, mockTabState, windowId);
-      focusStateManager.createTabState(tabId2, mockTabState, windowId);
-      focusStateManager.setFocusedTab(tabId1, windowId);
-      focusStateManager.startActiveTime(tabId1, '123e4567-e89b-12d3-a456-426614174001');
+      tabStateManager.createTabState(tabId1, mockTabState, windowId);
+      tabStateManager.createTabState(tabId2, mockTabState, windowId);
+      tabStateManager.setFocusedTab(tabId1, windowId);
+      tabStateManager.startActiveTime(tabId1, '123e4567-e89b-12d3-a456-426614174001');
 
-      const debugInfo = focusStateManager.getDebugInfo();
+      const debugInfo = tabStateManager.getDebugInfo();
 
       expect(debugInfo.tabCount).toBe(2);
       expect(debugInfo.focusedTabId).toBe(tabId1);

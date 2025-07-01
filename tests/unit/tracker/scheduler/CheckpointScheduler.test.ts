@@ -13,15 +13,15 @@ import {
   CheckpointScheduler,
   createCheckpointScheduler,
 } from '@/core/tracker/scheduler/CheckpointScheduler';
-import { FocusStateManager } from '@/core/tracker/state/FocusStateManager';
+import { TabStateManager } from '@/core/tracker/state/TabStateManager';
 import { EventGenerator } from '@/core/tracker/events/EventGenerator';
 import { EventQueue } from '@/core/tracker/queue/EventQueue';
 import { TabState, DomainEvent } from '@/core/tracker/types';
 
 // Mock dependencies
-const mockFocusStateManager = {
+const mockTabStateManager = {
   getAllTabStates: vi.fn(),
-} as unknown as FocusStateManager;
+} as unknown as TabStateManager;
 
 const mockEventGenerator = {
   generateCheckpoint: vi.fn(),
@@ -69,7 +69,7 @@ describe('CheckpointScheduler', () => {
     fakeBrowser.reset();
     vi.clearAllMocks();
 
-    scheduler = new CheckpointScheduler(mockFocusStateManager, mockEventGenerator, mockEventQueue, {
+    scheduler = new CheckpointScheduler(mockTabStateManager, mockEventGenerator, mockEventQueue, {
       enableDebugLogging: true,
     });
   });
@@ -116,7 +116,7 @@ describe('CheckpointScheduler', () => {
     it('should handle initialization errors gracefully', async () => {
       // Create a new scheduler for this test to avoid affecting others
       const testScheduler = new CheckpointScheduler(
-        mockFocusStateManager,
+        mockTabStateManager,
         mockEventGenerator,
         mockEventQueue,
         { enableDebugLogging: true }
@@ -142,7 +142,7 @@ describe('CheckpointScheduler', () => {
 
     it('should handle alarm events correctly', async () => {
       // Mock empty tab states
-      vi.mocked(mockFocusStateManager.getAllTabStates).mockReturnValue(new Map());
+      vi.mocked(mockTabStateManager.getAllTabStates).mockReturnValue(new Map());
 
       // Trigger alarm manually and wait for it to complete
       await fakeBrowser.alarms.onAlarm.trigger({
@@ -188,7 +188,7 @@ describe('CheckpointScheduler', () => {
         activeTimeStart: Date.now() - 3 * 60 * 60 * 1000, // 3 hours ago (exceeds 2h threshold)
       });
 
-      vi.mocked(mockFocusStateManager.getAllTabStates).mockReturnValue(
+      vi.mocked(mockTabStateManager.getAllTabStates).mockReturnValue(
         new Map([[123, longActiveSession]])
       );
 
@@ -212,7 +212,7 @@ describe('CheckpointScheduler', () => {
         openTimeStart: Date.now() - 5 * 60 * 60 * 1000, // 5 hours ago (exceeds 4h threshold)
       });
 
-      vi.mocked(mockFocusStateManager.getAllTabStates).mockReturnValue(
+      vi.mocked(mockTabStateManager.getAllTabStates).mockReturnValue(
         new Map([[123, longOpenSession]])
       );
 
@@ -234,7 +234,7 @@ describe('CheckpointScheduler', () => {
         openTimeStart: Date.now() - 5 * 60 * 60 * 1000, // 5 hours (exceeds open threshold)
       });
 
-      vi.mocked(mockFocusStateManager.getAllTabStates).mockReturnValue(
+      vi.mocked(mockTabStateManager.getAllTabStates).mockReturnValue(
         new Map([[123, bothThresholdsExceeded]])
       );
 
@@ -254,7 +254,7 @@ describe('CheckpointScheduler', () => {
         openTimeStart: Date.now() - 1 * 60 * 60 * 1000, // 1 hour
       });
 
-      vi.mocked(mockFocusStateManager.getAllTabStates).mockReturnValue(
+      vi.mocked(mockTabStateManager.getAllTabStates).mockReturnValue(
         new Map([[123, shortSession]])
       );
 
@@ -289,7 +289,7 @@ describe('CheckpointScheduler', () => {
         ],
       ]);
 
-      vi.mocked(mockFocusStateManager.getAllTabStates).mockReturnValue(sessions);
+      vi.mocked(mockTabStateManager.getAllTabStates).mockReturnValue(sessions);
       vi.mocked(mockEventGenerator.generateCheckpoint).mockReturnValue({
         success: true,
         event: createTestEvent(),
@@ -317,7 +317,7 @@ describe('CheckpointScheduler', () => {
         activeTimeStart: Date.now() - 3 * 60 * 60 * 1000,
       });
 
-      vi.mocked(mockFocusStateManager.getAllTabStates).mockReturnValue(new Map([[123, session]]));
+      vi.mocked(mockTabStateManager.getAllTabStates).mockReturnValue(new Map([[123, session]]));
 
       vi.mocked(mockEventGenerator.generateCheckpoint).mockReturnValue({
         success: false,
@@ -335,7 +335,7 @@ describe('CheckpointScheduler', () => {
         activeTimeStart: Date.now() - 3 * 60 * 60 * 1000,
       });
 
-      vi.mocked(mockFocusStateManager.getAllTabStates).mockReturnValue(new Map([[123, session]]));
+      vi.mocked(mockTabStateManager.getAllTabStates).mockReturnValue(new Map([[123, session]]));
 
       vi.mocked(mockEventGenerator.generateCheckpoint).mockReturnValue({
         success: true,
@@ -349,7 +349,7 @@ describe('CheckpointScheduler', () => {
     });
 
     it('should handle focus state manager errors', async () => {
-      vi.mocked(mockFocusStateManager.getAllTabStates).mockImplementation(() => {
+      vi.mocked(mockTabStateManager.getAllTabStates).mockImplementation(() => {
         throw new Error('State manager error');
       });
 
@@ -367,7 +367,7 @@ describe('CheckpointScheduler', () => {
         activeTimeStart: Date.now() - 3 * 60 * 60 * 1000,
       });
 
-      vi.mocked(mockFocusStateManager.getAllTabStates).mockReturnValue(new Map([[123, session]]));
+      vi.mocked(mockTabStateManager.getAllTabStates).mockReturnValue(new Map([[123, session]]));
 
       vi.mocked(mockEventGenerator.generateCheckpoint).mockReturnValue({
         success: true,
@@ -387,7 +387,7 @@ describe('CheckpointScheduler', () => {
     });
 
     it('should handle empty sessions', async () => {
-      vi.mocked(mockFocusStateManager.getAllTabStates).mockReturnValue(new Map());
+      vi.mocked(mockTabStateManager.getAllTabStates).mockReturnValue(new Map());
 
       const evaluations = await scheduler.triggerCheck();
 
@@ -403,7 +403,7 @@ describe('CheckpointScheduler', () => {
   describe('Factory Functions', () => {
     it('should create scheduler with default config', () => {
       const newScheduler = createCheckpointScheduler(
-        mockFocusStateManager,
+        mockTabStateManager,
         mockEventGenerator,
         mockEventQueue
       );
@@ -417,7 +417,7 @@ describe('CheckpointScheduler', () => {
       );
 
       const debugScheduler = createDebugCheckpointScheduler(
-        mockFocusStateManager,
+        mockTabStateManager,
         mockEventGenerator,
         mockEventQueue
       );

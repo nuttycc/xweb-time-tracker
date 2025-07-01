@@ -18,6 +18,7 @@ import type { AggregatedStatsRecord } from '../models/aggregatedstats.model';
 import type { WebTimeTrackerDB } from '../schemas';
 import { getUtcDateString } from '../schemas/aggregatedstats.schema';
 import type { ConnectionService } from '../connection/service';
+import { createLogger } from '@/utils/logger';
 
 /**
  * Database health information interface
@@ -63,6 +64,7 @@ export class DatabaseService {
   private eventsLogRepo: EventsLogRepository;
   private aggregatedStatsRepo: AggregatedStatsRepository;
   private healthChecker?: HealthChecker;
+  private static readonly logger = createLogger('DB');
 
   constructor(db: WebTimeTrackerDB, healthChecker?: HealthChecker) {
     this.eventsLogRepo = new EventsLogRepository(db);
@@ -85,6 +87,7 @@ export class DatabaseService {
     options: RepositoryOptions = {}
   ): Promise<number> {
     // Add isProcessed: 0 for new events
+    DatabaseService.logger.info('💾 Added single event to database', { eventType: event.eventType, tabId: event.tabId });
     const eventWithProcessed = { ...event, isProcessed: 0 as const };
     return this.eventsLogRepo.createEvent(eventWithProcessed, options);
   }
@@ -97,7 +100,9 @@ export class DatabaseService {
    * @throws {RepositoryError} If database query fails
    */
   async getUnprocessedEvents(options: EventsLogQueryOptions = {}): Promise<EventsLogRecord[]> {
-    return this.eventsLogRepo.getUnprocessedEvents(options);
+    const events = await this.eventsLogRepo.getUnprocessedEvents(options);
+    DatabaseService.logger.debug(`🔍 Found ${events.length} unprocessed events`);
+    return events;
   }
 
   /**
@@ -112,6 +117,7 @@ export class DatabaseService {
     eventIds: number[],
     options: RepositoryOptions = {}
   ): Promise<number> {
+    DatabaseService.logger.info(`✅ Marked ${eventIds.length} events as processed`);
     return this.eventsLogRepo.markEventsAsProcessed(eventIds, options);
   }
 
@@ -124,6 +130,7 @@ export class DatabaseService {
    * @throws {RepositoryError} If database operation fails
    */
   async deleteEventsByIds(eventIds: number[], options: RepositoryOptions = {}): Promise<number> {
+    DatabaseService.logger.info(`🗑️ Deleted ${eventIds.length} events`);
     return this.eventsLogRepo.deleteEventsByIds(eventIds, options);
   }
 
@@ -138,6 +145,7 @@ export class DatabaseService {
    * @throws {RepositoryError} If database operation fails
    */
   async upsertStat(data: TimeAggregationData, options: RepositoryOptions = {}): Promise<string> {
+    DatabaseService.logger.info('💾 Upserted statistics', { hostname: data.hostname, date: data.date });
     return this.aggregatedStatsRepo.upsertTimeAggregation(data, options);
   }
 
@@ -155,6 +163,7 @@ export class DatabaseService {
     endDate: string,
     options: AggregatedStatsQueryOptions = {}
   ): Promise<AggregatedStatsRecord[]> {
+    DatabaseService.logger.debug('🔍 Getting aggregated statistics by date range', { startDate, endDate });
     return this.aggregatedStatsRepo.getStatsByDateRange(startDate, endDate, options);
   }
 
