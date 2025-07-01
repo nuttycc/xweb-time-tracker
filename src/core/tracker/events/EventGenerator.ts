@@ -132,6 +132,18 @@ export class EventGenerator {
     resolution?: ResolutionType
   ): EventGenerationResult {
     try {
+
+      if(tabId === undefined || tabId < 0) {
+        EventGenerator.logger.debug('🤔 Invalid tabId', { tabId });
+        return {
+          success: false,
+          error: 'Invalid tabId',
+          metadata: {
+            skipReason: 'Invalid tabId',
+          },
+        };
+      }
+
       // Validate and process URL
       const urlResult = this.urlProcessor.processUrl(url);
       if (!urlResult.isValid) {

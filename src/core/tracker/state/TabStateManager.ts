@@ -168,12 +168,15 @@ export class TabStateManager {
    * @param tabId - Tab ID
    * @param initialState - Initial tab state data
    * @param windowId - Window ID containing the tab
+   * @param options - Creation options
    */
   createTabState(
     tabId: number,
     initialState: Omit<TabState, 'isFocused' | 'tabId' | 'windowId'>,
-    windowId: number
+    windowId: number,
+    options: TabStateUpdateOptions = {}
   ): void {
+    const { validate = true } = options;
     const tabState: TabState = {
       ...initialState,
       isFocused: this.focusContext.focusedTabId === tabId,
@@ -181,8 +184,10 @@ export class TabStateManager {
       windowId,
     };
 
-    // Validate the new state
-    TabStateSchema.parse(tabState);
+    // Validate the new state if requested
+    if (validate) {
+      TabStateSchema.parse(tabState);
+    }
 
     this.tabStates.set(tabId, tabState);
   }

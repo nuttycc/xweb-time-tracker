@@ -62,7 +62,6 @@ export interface HealthCheckResult {
  */
 export interface ConnectionManagerOptions {
   autoOpen?: boolean;
-  healthCheckInterval?: number; // milliseconds
   maxRetryAttempts?: number;
   retryDelay?: number; // milliseconds
 }
@@ -77,7 +76,6 @@ export class DatabaseConnectionManager {
   private db: WebTimeTrackerDB;
   private state: ConnectionState = ConnectionState.CLOSED;
   private lastError: Error | null = null;
-  private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
   private readonly options: Required<ConnectionManagerOptions>;
 
   constructor(
@@ -86,7 +84,6 @@ export class DatabaseConnectionManager {
   ) {
     this.options = {
       autoOpen: true,
-      healthCheckInterval: 30000, // 30 seconds
       maxRetryAttempts: 3,
       retryDelay: 1000, // 1 second
       ...options,
@@ -106,7 +103,6 @@ export class DatabaseConnectionManager {
       if (this.state !== ConnectionState.OPEN) {
         this.state = ConnectionState.OPEN;
         this.lastError = null;
-        this.startHealthCheck();
       }
     });
 
@@ -125,7 +121,6 @@ export class DatabaseConnectionManager {
     // Handle database close event
     this.db.on('close', () => {
       this.state = ConnectionState.CLOSED;
-      this.stopHealthCheck();
     });
   }
 
@@ -184,7 +179,6 @@ export class DatabaseConnectionManager {
     // Note: ready event might not fire again for existing subscribers
     this.state = ConnectionState.OPEN;
     this.lastError = null;
-    this.startHealthCheck();
   }
 
   /**
@@ -233,7 +227,6 @@ export class DatabaseConnectionManager {
    * Close database connection
    */
   close(): void {
-    this.stopHealthCheck();
     this.db.close();
     this.state = ConnectionState.CLOSED;
   }
@@ -287,37 +280,7 @@ export class DatabaseConnectionManager {
     return result;
   }
 
-  /**
-   * Start periodic health checks
-   */
-  private startHealthCheck(): void {
-    if (this.healthCheckTimer) {
-      return; // Already running
-    }
 
-    this.healthCheckTimer = setInterval(async () => {
-      const health = await this.performHealthCheck();
-
-      if (!health.isHealthy && this.state === ConnectionState.FAILED) {
-        console.warn('Database health check failed, attempting recovery...');
-        try {
-          await this.open();
-        } catch (error) {
-          console.error('Database recovery failed:', error);
-        }
-      }
-    }, this.options.healthCheckInterval);
-  }
-
-  /**
-   * Stop periodic health checks
-   */
-  private stopHealthCheck(): void {
-    if (this.healthCheckTimer) {
-      clearInterval(this.healthCheckTimer);
-      this.healthCheckTimer = null;
-    }
-  }
 
   /**
    * Get current connection state
@@ -355,7 +318,6 @@ export class DatabaseConnectionManager {
    * Cleanup resources
    */
   destroy(): void {
-    this.stopHealthCheck();
     this.close();
   }
 }

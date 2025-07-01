@@ -18,6 +18,17 @@ import {
 } from '../../core/tracker';
 import { isProtectedUrl } from '../../core/tracker/url/URLProcessor';
 import { createLogger } from '@/utils/logger';
+import { 
+  AggregationEngine, 
+  AggregationScheduler, 
+  DataPruner, 
+  AggregationService 
+} from '../../core/aggregator';
+import { 
+  EventsLogRepository, 
+  AggregatedStatsRepository 
+} from '../../core/db/repositories';
+import { connectionManager } from '../../core/db/connection/manager';
 
 // Define messaging protocol for communication with content scripts
 interface TrackerProtocolMap {
@@ -70,6 +81,48 @@ export default defineBackground(async () => {
     }
 
     logger.info('Time tracker started successfully');
+
+    // Initialize and start aggregation system
+    try {
+      const db = await connectionManager.getDatabase();
+      
+      // Initialize aggregation system components
+      const eventsLogRepository = new EventsLogRepository(db);
+      const aggregatedStatsRepository = new AggregatedStatsRepository(db);
+      const aggregationEngine = new AggregationEngine(eventsLogRepository, aggregatedStatsRepository);
+      const dataPruner = new DataPruner(eventsLogRepository);
+      const aggregationScheduler = new AggregationScheduler(aggregationEngine, dataPruner);
+      const aggregationService = new AggregationService(aggregationScheduler);
+
+      // Start the aggregation service
+      await aggregationService.start();
+      logger.info('Aggregation service started successfully');
+
+      // Expose debugging utilities in development mode
+      if (import.meta.env.DEV) {
+        // Make aggregation scheduler available for manual triggering in dev console
+        interface WebtimeDebugUtils {
+          triggerAggregation: () => Promise<void>;
+          getAggregationStatus: () => {
+            engineStats: string;
+            schedulerRunning: boolean;
+            isDevelopmentMode: boolean;
+          };
+        }
+        
+        (globalThis as typeof globalThis & { __webtimeDebug?: WebtimeDebugUtils }).__webtimeDebug = {
+          triggerAggregation: () => aggregationScheduler.runNow(),
+          getAggregationStatus: () => ({
+            engineStats: 'Use aggregationEngine methods for detailed stats',
+            schedulerRunning: true,
+            isDevelopmentMode: true
+          })
+        };
+        logger.info('Development debug utilities available at globalThis.__webtimeDebug');
+      }
+    } catch (error) {
+      logger.error('Failed to initialize aggregation service:', error);
+    }
 
     // Set up browser event listeners
     setupBrowserEventListeners();
