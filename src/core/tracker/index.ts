@@ -152,6 +152,9 @@ export class TimeTracker {
   private interactionDetector: InteractionDetector;
   private databaseService: DatabaseService;
 
+  // Race condition protection for active session creation
+  private activeSessionPromises = new Map<number, Promise<void>>();
+
   // Event handlers mapping for type-safe event processing
   private readonly eventHandlers = new Map<BrowserEventType, (eventData: BrowserEventData) => Promise<void>>([
     ['tab-activated', this.handleTabActivated.bind(this)],
@@ -401,74 +404,66 @@ export class TimeTracker {
    * Handle tab activation
    */
   private async handleTabActivated(eventData: BrowserEventData): Promise<void> {
-    if (!eventData.tabId) return;
-
     TimeTracker.logger.debug(`🔧 Handling tab activated`, { tabId: eventData.tabId, windowId: eventData.windowId });
 
-    // Ensure tab state exists before processing
-    await this.ensureTabStateExists(eventData.tabId);
-
-    // Get previous focus state before updating
+    // Get previous focus state before updating (always needed for focus loss handling)
     const previousFocusContext = this.tabStateManager.getFocusContext();
     const previousTabId = previousFocusContext.focusedTabId;
 
-    // Update focus state
-    this.tabStateManager.setFocusedTab(eventData.tabId, eventData.windowId || 0);
-
-    // Generate events based on focus change
-    if (previousTabId !== null && eventData.tabId >= 0) {
-      // End previous tab's active time if it was active
+    // Always end previous tab's active time if it was active (focus loss handling)
+    if (previousTabId !== null) {
       const prevTabState = this.tabStateManager.getTabState(previousTabId);
       if (prevTabState?.activeTimeStart) {
         await this.generateAndQueueActiveTimeEnd(prevTabState, eventData.timestamp);
       }
     }
+
+    // Only process new focus if we have a valid tabId
+    if (eventData.tabId !== undefined && eventData.tabId >= 0) {
+      // Ensure tab state exists before processing
+      await this.getOrCreateTabState(eventData.tabId);
+
+      // Update focus state
+      this.tabStateManager.setFocusedTab(eventData.tabId, eventData.windowId || 0);
+    } else {
+      // Clear focus when tabId is invalid (e.g., -1 indicates no focused tab)
+      this.tabStateManager.clearFocus();
+    }
   }
 
   /**
-   * Handle tab updates
+   * Handle tab updates (non-navigation changes only)
    */
   private async handleTabUpdated(eventData: BrowserEventData): Promise<void> {
-    if (!eventData.tabId || !eventData.changeInfo) return;
+    if (eventData.tabId === undefined || eventData.tabId < 0 || !eventData.changeInfo) return;
 
-    TimeTracker.logger.debug(`🔧 Handling tab updated`, { tabId: eventData.tabId, url: eventData.changeInfo.url });
+    TimeTracker.logger.debug(`🔧 Handling tab updated`, { tabId: eventData.tabId, changeInfo: eventData.changeInfo });
 
     // Ensure tab state exists before processing
-    await this.ensureTabStateExists(eventData.tabId);
+    await this.getOrCreateTabState(eventData.tabId);
 
     const currentState = this.tabStateManager.getTabState(eventData.tabId);
     
-    // Handle audible state changes first (independent of other changes)
+    // Handle audible state changes (independent of navigation)
     if ('audible' in eventData.changeInfo && currentState) {
       this.tabStateManager.updateTabState(eventData.tabId, {
         isAudible: eventData.changeInfo.audible,
       });
+      TimeTracker.logger.debug(`🔊 Updated audible state`, { 
+        tabId: eventData.tabId, 
+        isAudible: eventData.changeInfo.audible 
+      });
     }
 
-    // Handle URL changes (may occur independently or alongside audible changes)
-    if (eventData.url && currentState && currentState.url !== eventData.url) {
-      // If there was an active session, end it
-      if (currentState.activeTimeStart) {
-        await this.generateAndQueueActiveTimeEnd(currentState, eventData.timestamp, 'navigation');
-      }
-
-      // URL changed - end current session and start new one
-      await this.generateAndQueueOpenTimeEnd(currentState, eventData.timestamp);
-
-      try {
-        const tab = await browser.tabs.get(eventData.tabId);
-        await this.generateAndQueueOpenTimeStart(tab, eventData.timestamp);
-      } catch (error) {
-        TimeTracker.logger.error('❌ Failed to get tab info for update', { tabId: eventData.tabId, error: error instanceof Error ? error.message : String(error) });
-      }
-    }
+    // Note: URL changes are now handled exclusively by handleWebNavigationCommitted
+    // to prevent duplicate open_time_start events
   }
 
   /**
    * Handle tab removal
    */
   private async handleTabRemoved(eventData: BrowserEventData): Promise<void> {
-    if (!eventData.tabId) return;
+    if (eventData.tabId === undefined || eventData.tabId < 0) return;
 
     TimeTracker.logger.debug(`🔧 Handling tab removed`, { tabId: eventData.tabId });
 
@@ -495,32 +490,69 @@ export class TimeTracker {
   private async handleWebNavigationCommitted(eventData: BrowserEventData): Promise<void> {
     TimeTracker.logger.debug(`🔧 Handling web navigation committed`, { tabId: eventData.tabId, url: eventData.url });
 
-    // Handle SPA navigation
-    if (eventData.tabId && eventData.url) {
-      // Ensure tab state exists before processing
-      await this.ensureTabStateExists(eventData.tabId);
-      await this.handleTabUpdated(eventData);
+    // Handle URL navigation (both regular and SPA navigation)
+    if (eventData.tabId === undefined || eventData.tabId < 0 || !eventData.url) return;
+
+    try {
+      const currentState = this.tabStateManager.getTabState(eventData.tabId);
+      
+      // Only process if URL actually changed
+      if (currentState && currentState.url !== eventData.url) {
+        // Step 1: End active session if it exists
+        if (currentState.activeTimeStart) {
+          await this.generateAndQueueActiveTimeEnd(currentState, eventData.timestamp, 'navigation');
+        }
+
+        // Step 2: End current open time session
+        await this.generateAndQueueOpenTimeEnd(currentState, eventData.timestamp);
+
+        // Step 3: Start new open time session
+        const tab = await browser.tabs.get(eventData.tabId);
+        await this.startNewOpenTimeSession(tab, eventData.timestamp);
+      } else if (!currentState || !currentState.visitId) {
+        // First time encountering this tab OR tab exists but has no active session
+        const tab = await browser.tabs.get(eventData.tabId);
+        await this.startNewOpenTimeSession(tab, eventData.timestamp);
+      }
+    } catch (error) {
+      TimeTracker.logger.error('❌ Failed to handle web navigation', { 
+        tabId: eventData.tabId, 
+        url: eventData.url,
+        error: error instanceof Error ? error.message : String(error) 
+      });
     }
   }
 
   private async handleUserInteraction(eventData: BrowserEventData): Promise<void> {
-    if (!eventData.interaction || !eventData.tabId) return;
+    if (!eventData.interaction || eventData.tabId === undefined || eventData.tabId < 0) return;
 
     TimeTracker.logger.debug(`🔧 Handling user interaction`, { tabId: eventData.tabId, type: eventData.interaction.type });
 
     // Ensure tab state exists before processing
-    await this.ensureTabStateExists(eventData.tabId);
+    await this.getOrCreateTabState(eventData.tabId);
 
-    const tabState = this.tabStateManager.getTabState(eventData.tabId);
-    if (tabState && !tabState.activeTimeStart) {
-      // Start active time tracking
-      await this.generateAndQueueActiveTimeStart(tabState, eventData.timestamp);
+    const tabId = eventData.tabId;
+    const tabState = this.tabStateManager.getTabState(tabId);
+    
+    // Check if we need to start active time tracking
+    // Use async operation lock to prevent race conditions from concurrent interactions
+    if (tabState && !tabState.activeTimeStart && !this.activeSessionPromises.has(tabId)) {
+      // Create promise for starting active session and set up the async lock
+      const activeSessionPromise = this.generateAndQueueActiveTimeStart(tabState, eventData.timestamp)
+        .finally(() => {
+          // Always clean up the lock when operation completes (success or failure)
+          this.activeSessionPromises.delete(tabId);
+        });
+
+      // Set the async lock immediately to prevent concurrent operations
+      this.activeSessionPromises.set(tabId, activeSessionPromise);
+      
+      // Note: We don't await the promise here to avoid blocking the interaction processing
+      // The lock mechanism ensures only one active session creation happens per tab
     }
 
-    // Update last interaction timestamp
-    this.tabStateManager.updateTabState(eventData.tabId, {
-      lastInteractionTimestamp: eventData.timestamp,
-    });
+    // Update last interaction timestamp (this should always happen)
+    this.tabStateManager.updateLastInteraction(eventData.tabId, eventData.timestamp);
   }
 
   private async handleRuntimeSuspend(): Promise<void> {
@@ -529,34 +561,69 @@ export class TimeTracker {
   }
 
   // Helper methods for event generation and queuing
-  private async generateAndQueueOpenTimeStart(
+  private async startNewOpenTimeSession(
     tab: Browser.tabs.Tab,
     timestamp: number
   ): Promise<void> {
-    if (!tab.id || !tab.url) return;
+    if (tab.id === undefined || tab.id < 0 || !tab.url) return;
 
-    const result = this.eventGenerator.generateOpenTimeStart(
-      tab.id,
-      tab.url,
-      timestamp,
-      tab.windowId || 0
-    );
+    try {
+      // Step 1: Generate open_time_start event
+      const result = this.eventGenerator.generateOpenTimeStart(
+        tab.id,
+        tab.url,
+        timestamp,
+        tab.windowId || 0
+      );
 
-    if (result.success && result.event) {
-      await this.eventQueue.enqueue(result.event);
+      if (!result.success || !result.event) {
+        if (result.metadata?.urlFiltered) {
+          TimeTracker.logger.debug('🤔 URL filtered, session not started', {
+            tabId: tab.id,
+            url: tab.url,
+            reason: result.metadata.skipReason,
+          });
+        } else {
+          TimeTracker.logger.error('❌ Failed to generate open_time_start event', {
+            tabId: tab.id,
+            error: result.error,
+          });
+        }
+        return;
+      }
 
-      // Update tab state with current audible status
-      this.tabStateManager.updateTabState(tab.id, {
+      // Step 2: Create or update tab state with event data
+      const newTabState = {
         url: tab.url,
         visitId: result.event.visitId!,
+        activityId: null,
+        isAudible: tab.audible || false,
+        lastInteractionTimestamp: timestamp,
         openTimeStart: timestamp,
-        isAudible: tab.audible || false, // Initialize with current audible state
-      });
-    } else if (result.metadata?.urlFiltered) {
-      TimeTracker.logger.debug('🤔 URL filtered', {
+        activeTimeStart: null,
+      };
+
+      // Check if tab state already exists
+      const existingState = this.tabStateManager.getTabState(tab.id);
+      if (existingState) {
+        this.tabStateManager.updateTabState(tab.id, newTabState);
+      } else {
+        this.tabStateManager.createTabState(tab.id, newTabState, tab.windowId || 0);
+      }
+
+      // Step 3: Enqueue the event for persistence
+      await this.eventQueue.enqueue(result.event);
+
+      TimeTracker.logger.debug('▶️ Started new open time session', {
         tabId: tab.id,
         url: tab.url,
-        reason: result.metadata.skipReason,
+        visitId: result.event.visitId,
+      });
+    } catch (error) {
+      TimeTracker.logger.error('❌ Failed to start new open time session', {
+        tabId: tab.id,
+        url: tab.url,
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -631,14 +698,14 @@ export class TimeTracker {
   }
 
   /**
-   * Ensure tab state exists for the given tab ID
-   * Creates tab state if it doesn't exist to prevent "Tab state not found" errors
+   * Get or create tab state for the given tab ID (memory-only operation)
    */
-  private async ensureTabStateExists(tabId: number): Promise<void> {
+  private async getOrCreateTabState(tabId: number): Promise<void> {
     if (tabId < 0) {
       // Ignore invalid tab IDs, like browser.tabs.TAB_ID_NONE (-1)
       return;
     }
+
     // Check if tab state already exists
     const existingState = this.tabStateManager.getTabState(tabId);
     if (existingState) {
@@ -650,18 +717,19 @@ export class TimeTracker {
       const tab = await browser.tabs.get(tabId);
       // After fetching the tab, perform a robust check on the result.
       if (!tab || tab.id === undefined || tab.id < 0 || !tab.url) {
-        TimeTracker.logger.debug('🤔 Cannot create missing tab state: invalid tab data');
+        TimeTracker.logger.debug('🤔 Cannot create tab state: invalid tab data');
         return;
       }
 
-      await this.createTabStateForTab(tab);
+      // Create memory-only tab state (no events)
+      this.createTabStateForTab(tab);
 
-      TimeTracker.logger.debug('🔧 Created missing tab state', {
+      TimeTracker.logger.debug('🔧 Created tab state (memory-only)', {
         tabId,
         url: tab.url,
       });
     } catch (error) {
-      TimeTracker.logger.error('❌ Failed to ensure tab state exists', {
+      TimeTracker.logger.error('❌ Failed to get or create tab state', {
         tabId,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -669,9 +737,9 @@ export class TimeTracker {
   }
 
   /**
-   * Create tab state for a specific tab
+   * Create tab state for a specific tab (memory-only, no events)
    */
-  private async createTabStateForTab(tab: Browser.tabs.Tab): Promise<void> {
+  private createTabStateForTab(tab: Browser.tabs.Tab): void {
     // Robustly check for a valid tab ID and URL before proceeding.
     // tab.id can be 0, so !tab.id is not a safe check.
     if (tab.id === undefined || tab.id < 0 || !tab.url) {
@@ -682,34 +750,10 @@ export class TimeTracker {
     try {
       const timestamp = Date.now();
 
-      // Generate open_time_start event for the tab
-      const result = this.eventGenerator.generateOpenTimeStart(
-        tab.id,
-        tab.url,
-        timestamp,
-        tab.windowId || 0
-      );
-
-      if (!result.success || !result.event?.visitId) {
-        if (result.metadata?.urlFiltered) {
-          TimeTracker.logger.debug('🤔 Skipped tab state creation for filtered URL', {
-            tabId: tab.id,
-            url: tab.url,
-            reason: result.metadata.skipReason,
-          });
-        } else {
-          TimeTracker.logger.error('❌ Failed to generate open_time_start for tab state creation', {
-            tabId: tab.id,
-            error: result.error,
-          });
-        }
-        return;
-      }
-
-      // Create tab state
+      // Create basic tab state (no visitId yet - will be set by session starter)
       const initialTabState = {
         url: tab.url,
-        visitId: result.event.visitId,
+        visitId: '', // Will be set when session is actually started
         activityId: null,
         isAudible: tab.audible || false,
         lastInteractionTimestamp: timestamp,
@@ -717,10 +761,12 @@ export class TimeTracker {
         activeTimeStart: null,
       };
 
-      this.tabStateManager.createTabState(tab.id, initialTabState, tab.windowId || 0);
+      this.tabStateManager.createTabState(tab.id, initialTabState, tab.windowId || 0, { validate: false });
 
-      // Queue the open_time_start event
-      await this.eventQueue.enqueue(result.event);
+      TimeTracker.logger.debug('🔧 Created tab state (memory-only)', {
+        tabId: tab.id,
+        url: tab.url,
+      });
     } catch (error) {
       TimeTracker.logger.error('❌ Failed to create tab state for tab', {
         tabId: tab.id,
