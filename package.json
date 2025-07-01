@@ -64,6 +64,11 @@
     "vue-tsc": "^2.2.10",
     "wxt": "^0.20.7"
   },
+  "pnpm": {
+    "overrides": {
+      "vite": "npm:rolldown-vite@latest"
+    }
+  },
   "lint-staged": {
     "**/*.{js,mjs,cjs,jsx,ts,tsx,vue}": [
       "eslint --fix"
