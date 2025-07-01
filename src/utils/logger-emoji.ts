@@ -80,11 +80,8 @@ export function createEmojiLogger(moduleName: string): EmojiLogger {
     phrase: string,
     data?: unknown
   ): void => {
-    const message = data !== undefined 
-      ? `${category} ${phrase} — ${JSON.stringify(data)}`
-      : `${category} ${phrase}`;
-    
-    baseLogger[level](message, undefined);
+    const message = `${category} ${phrase}`;
+    baseLogger[level](message, data);
   };
 
   return {
@@ -110,11 +107,8 @@ export function logWithEmoji(
   data?: unknown
 ): void {
   const logger = createLogger(moduleName);
-  const message = data !== undefined 
-    ? `${category} ${phrase} — ${JSON.stringify(data)}`
-    : `${category} ${phrase}`;
-  
-  logger[level](message, undefined);
+  const message = `${category} ${phrase}`;
+  logger[level](message, data);
 }
 
 /**
