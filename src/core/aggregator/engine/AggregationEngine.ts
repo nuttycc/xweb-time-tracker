@@ -46,7 +46,7 @@ export class AggregationEngine {
         return { success: true, processedEvents: 0 };
       }
 
-      this.logger.logWithEmoji(LogCategory.HANDLE, 'info', 'processing events', { count: unprocessedEvents.length });
+      this.logger.logWithEmoji(LogCategory.HANDLE, 'info', `processing ${unprocessedEvents.length} events`, unprocessedEvents);
       await this.processEvents(unprocessedEvents);
 
       this.logger.logWithEmoji(LogCategory.SUCCESS, 'info', 'aggregation completed', { processedEvents: unprocessedEvents.length });
