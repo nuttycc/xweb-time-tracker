@@ -13,11 +13,11 @@
 
 import { z } from 'zod/v4';
 import { browser } from '#imports';
-import { type Browser } from 'wxt/browser';
 import { EventGenerator } from '../events/EventGenerator';
 import { DatabaseService } from '../../db/services/database.service';
 import { EventsLogRecord } from '../../db/models/eventslog.model';
-import { TabState } from '../types';
+import { TabState, DomainEvent } from '../types';
+import { createLogger } from '../../../utils/logger';
 
 /**
  * Schema for orphan session data
@@ -110,6 +110,7 @@ export class StartupRecovery {
   private readonly eventGenerator: EventGenerator;
   private readonly databaseService: DatabaseService;
   private stats: RecoveryStats;
+  private static readonly logger = createLogger('StartupRecovery');
 
   constructor(
     eventGenerator: EventGenerator,
@@ -131,26 +132,41 @@ export class StartupRecovery {
   /**
    * Execute the complete startup recovery process
    *
-   * @returns Recovery statistics
+   * Phase 1: Recover orphan sessions in the DB (crash recovery)
+   * Phase 2: Generate open_time_start events and tab session state for all currently open tabs, but do NOT write to DB directly.
+   *
+   * @returns {Promise<{ stats: RecoveryStats, tabStates: Array<{ tabId: number, tabState: TabState }>, events: DomainEvent[] }>} 
+   *   stats: Recovery statistics (DB orphan session recovery)
+   *   tabStates: Initial in-memory session state for each tab
+   *   events: open_time_start events for each tab (to be queued by TimeTracker)
    */
-  async executeRecovery(): Promise<RecoveryStats> {
-    this.log('Starting startup recovery process');
+  async executeRecovery(): Promise<{
+    stats: RecoveryStats,
+    tabStates: Array<{ tabId: number, tabState: TabState }>,
+    events: DomainEvent[]
+  }> {
+    StartupRecovery.logger.info('♻️ Starting startup recovery process');
 
     try {
-      // Phase 1: Recover orphan sessions
+      // Phase 1: Recover orphan sessions in DB
       await this.recoverOrphanSessions();
 
-      // Phase 2: Initialize current browser state
-      await this.initializeCurrentState();
+      // Phase 2: Generate open_time_start events and tabStates for current tabs
+      const { tabStates, events } = await this.initializeCurrentState();
 
       this.stats.recoveryCompletionTime = Date.now();
-      this.log('Startup recovery completed successfully', this.stats);
+      StartupRecovery.logger.info('✅ Startup recovery completed', { 
+        orphanSessionsFound: this.stats.orphanSessionsFound,
+        recoveryEventsGenerated: this.stats.recoveryEventsGenerated,
+        currentTabsInitialized: this.stats.currentTabsInitialized,
+        duration: `${this.stats.recoveryCompletionTime - this.stats.recoveryStartTime}ms`
+      });
 
-      return this.stats;
+      return { stats: this.stats, tabStates, events };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.stats.errors.push(errorMessage);
-      this.log('Startup recovery failed', { error: errorMessage });
+      StartupRecovery.logger.error('❌ Startup recovery failed', { error: errorMessage });
       throw error;
     }
   }
@@ -159,7 +175,7 @@ export class StartupRecovery {
    * Phase 1: Identify and recover orphan sessions
    */
   private async recoverOrphanSessions(): Promise<void> {
-    this.log('Phase 1: Recovering orphan sessions');
+    StartupRecovery.logger.info('🔍 Phase 1: Searching for orphan sessions');
 
     try {
       // Find orphan sessions in the database
@@ -167,11 +183,11 @@ export class StartupRecovery {
       this.stats.orphanSessionsFound = orphanSessions.length;
 
       if (orphanSessions.length === 0) {
-        this.log('No orphan sessions found');
+        StartupRecovery.logger.info('✅ No orphan sessions found');
         return;
       }
 
-      this.log(`Found ${orphanSessions.length} orphan sessions`);
+      StartupRecovery.logger.info(`🔍 Found ${orphanSessions.length} orphan sessions to recover`);
 
       // Generate recovery events for each orphan session
       for (const session of orphanSessions) {
@@ -179,7 +195,7 @@ export class StartupRecovery {
         this.stats.recoveryEventsGenerated++;
       }
 
-      this.log(`Generated ${this.stats.recoveryEventsGenerated} recovery events`);
+      StartupRecovery.logger.info(`✅ Generated ${this.stats.recoveryEventsGenerated} recovery events`);
     } catch (error) {
       const errorMessage = `Phase 1 failed: ${error instanceof Error ? error.message : String(error)}`;
       this.stats.errors.push(errorMessage);
@@ -188,28 +204,78 @@ export class StartupRecovery {
   }
 
   /**
-   * Phase 2: Clear old state and initialize current browser state
+   * Phase 2: Generate open_time_start events and tab session state for all currently open tabs.
+   *
+   * This does NOT write to DB. Instead, it returns the events and tabStates for in-memory initialization.
+   *
+   * @returns {Promise<{ tabStates: Array<{ tabId: number, tabState: TabState }>, events: DomainEvent[] }>}
+   *   tabStates: Initial in-memory session state for each tab
+   *   events: open_time_start events for each tab
    */
-  private async initializeCurrentState(): Promise<void> {
-    this.log('Phase 2: Initializing current browser state');
+  private async initializeCurrentState(): Promise<{
+    tabStates: Array<{ tabId: number, tabState: TabState }>,
+    events: DomainEvent[]
+  }> {
+    StartupRecovery.logger.info('▶️ Phase 2: Generating session state for current browser tabs');
+
+    const tabStates: Array<{ tabId: number, tabState: TabState }> = [];
+    const events: DomainEvent[] = [];
 
     try {
       // Clear old local storage state
       await this.clearOldLocalState();
 
       // Get all currently open tabs
-      const currentTabs = await browser.tabs.query({});
-      this.log(`Found ${currentTabs.length} currently open tabs`);
+      const currentTabs = (await browser.tabs.query({})).filter(tab => tab.id !== undefined && tab.id >= 0);
+      StartupRecovery.logger.info(`🔍 Found ${currentTabs.length} currently open tabs`);
 
-      // Initialize sessions for current tabs
       for (const tab of currentTabs) {
         if (tab.url && tab.id !== undefined) {
-          await this.initializeTabSession(tab);
-          this.stats.currentTabsInitialized++;
+          // Generate open_time_start event for the tab
+          const result = this.eventGenerator.generateOpenTimeStart(
+            tab.id,
+            tab.url,
+            Date.now(),
+            tab.windowId || 0
+          );
+
+          if (!result.success || !result.event?.visitId) {
+            if (result.metadata?.urlFiltered) {
+              StartupRecovery.logger.debug('🤔 Skipped tab for filtered URL', {
+                tabId: tab.id,
+                url: tab.url,
+                reason: result.metadata.skipReason,
+              });
+            } else {
+              StartupRecovery.logger.error('❌ Failed to generate open_time_start for tab', {
+                tabId: tab.id,
+                error: result.error,
+              });
+            }
+            continue;
+          }
+
+          // Build initial tab state (in-memory)
+          const initialTabState = {
+            url: tab.url,
+            visitId: result.event.visitId,
+            activityId: null,
+            isAudible: tab.audible || false,
+            lastInteractionTimestamp: Date.now(),
+            openTimeStart: Date.now(),
+            activeTimeStart: null,
+            isFocused: false,
+            tabId: tab.id,
+            windowId: tab.windowId || 0,
+          };
+
+          tabStates.push({ tabId: tab.id, tabState: initialTabState });
+          events.push(result.event);
         }
       }
-
-      this.log(`Initialized ${this.stats.currentTabsInitialized} tab sessions`);
+      StartupRecovery.logger.info(`▶️ Generated ${events.length} open_time_start events for current tabs`);
+      this.stats.currentTabsInitialized = tabStates.length;
+      return { tabStates, events };
     } catch (error) {
       const errorMessage = `Phase 2 failed: ${error instanceof Error ? error.message : String(error)}`;
       this.stats.errors.push(errorMessage);
@@ -225,25 +291,25 @@ export class StartupRecovery {
     const orphanSessions: OrphanSession[] = [];
 
     // Query for open_time_start events without corresponding end events
-    this.log(`Querying for open_time_start events from ${cutoffTime} to ${Date.now()}`);
+    StartupRecovery.logger.debug(`Querying for open_time_start events from ${(new Date(cutoffTime)).toLocaleString()} to ${(new Date(Date.now())).toLocaleString()}`);
     const openTimeStartEvents = await this.getEventsByTypeAndTimeRange(
       'open_time_start',
       cutoffTime,
       Date.now()
     );
-    this.log(`Found ${openTimeStartEvents.length} open_time_start events in time range`);
+    StartupRecovery.logger.debug(`Found ${openTimeStartEvents.length} open_time_start events in time range`);
 
     for (const startEvent of openTimeStartEvents) {
-      this.log(
+      StartupRecovery.logger.trace(
         `Checking start event: visitId=${startEvent.visitId}, timestamp=${startEvent.timestamp}`
       );
       const hasEndEvent = await this.hasCorrespondingEndEvent(startEvent);
-      this.log(`Has corresponding end event: ${hasEndEvent}`);
+      StartupRecovery.logger.trace(`Has corresponding end event: ${hasEndEvent}`);
       if (!hasEndEvent) {
         const orphanSession = this.createOrphanSessionFromEvent(startEvent);
         if (orphanSession) {
           orphanSessions.push(orphanSession);
-          this.log(`Added orphan session: ${orphanSession.id}`);
+          StartupRecovery.logger.debug(`Added orphan session: ${orphanSession.id}`);
         }
       }
     }
@@ -290,19 +356,19 @@ export class StartupRecovery {
     const sessionId =
       startEvent.eventType === 'open_time_start' ? startEvent.visitId : startEvent.activityId;
 
-    this.log(`Checking for end event: sessionId=${sessionId}, endEventType=${endEventType}`);
+    StartupRecovery.logger.trace(`Checking for end event: sessionId=${sessionId}, endEventType=${endEventType}`);
 
     if (!sessionId) {
-      this.log('No sessionId found, returning false');
+      StartupRecovery.logger.trace('No sessionId found, returning false');
       return false;
     }
 
     // Query for end events with the same session ID
     const endEvents = await this.getEventsBySessionId(sessionId, endEventType);
-    this.log(`Found ${endEvents.length} end events for sessionId=${sessionId}`);
+    StartupRecovery.logger.trace(`Found ${endEvents.length} end events for sessionId=${sessionId}`);
 
     if (endEvents.length > 0) {
-      this.log(
+      StartupRecovery.logger.trace(
         'End events found:',
         endEvents.map(e => ({ eventType: e.eventType, timestamp: e.timestamp }))
       );
@@ -349,7 +415,7 @@ export class StartupRecovery {
         tabId: event.tabId || undefined,
       });
     } catch (error) {
-      this.log('Failed to create orphan session from event', { event, error });
+      StartupRecovery.logger.warn('Failed to create orphan session from event', { event, error });
       return null;
     }
   }
@@ -361,7 +427,10 @@ export class StartupRecovery {
     const sessionId = session.visitId || session.activityId;
 
     if (!sessionId) {
-      this.log('Cannot generate recovery event: missing session ID', session);
+      StartupRecovery.logger.warn('⚠️ Cannot generate recovery event: missing session ID', { 
+        eventType: session.eventType, 
+        url: session.url 
+      });
       return;
     }
 
@@ -393,7 +462,7 @@ export class StartupRecovery {
     }
 
     if (!result.success) {
-      this.log('Failed to generate recovery event', {
+      StartupRecovery.logger.error('❌ Failed to generate recovery event', {
         session,
         error: result.error,
       });
@@ -404,20 +473,23 @@ export class StartupRecovery {
     if (result.event) {
       try {
         await this.databaseService.addEvent(result.event);
-        this.log(`Generated and saved recovery event for ${session.eventType}`, {
+        StartupRecovery.logger.info(`⏹️ Generated recovery event: ${result.event.eventType}`, {
           sessionId,
           url: session.url,
-          eventGenerated: result.event.eventType,
+          originalEventType: session.eventType,
         });
       } catch (error) {
-        this.log('Failed to save recovery event to database', {
+        StartupRecovery.logger.error('❌ Failed to save recovery event to database', {
           session,
           event: result.event,
           error,
         });
       }
     } else {
-      this.log('No event generated for recovery', { session });
+      StartupRecovery.logger.warn('⚠️ No event generated for recovery', { 
+        eventType: session.eventType, 
+        url: session.url 
+      });
     }
   }
 
@@ -433,44 +505,10 @@ export class StartupRecovery {
       const storageKeys = ['webtime-focus-state', 'webtime-session-data'];
       await browser.storage.local.remove(storageKeys);
 
-      this.log('Cleared old local storage state');
+      StartupRecovery.logger.debug('🧹 Cleared old local storage state');
     } catch (error) {
-      this.log('Failed to clear local storage', { error });
+      StartupRecovery.logger.warn('⚠️ Failed to clear local storage', { error: error instanceof Error ? error.message : String(error) });
       // Don't throw here as this is not critical
-    }
-  }
-
-  /**
-   * Initialize a session for a currently open tab
-   */
-  private async initializeTabSession(tab: Browser.tabs.Tab): Promise<void> {
-    if (!tab.url || !tab.id) {
-      return;
-    }
-
-    try {
-      // Generate open_time_start event for the tab
-      const result = this.eventGenerator.generateOpenTimeStart(
-        tab.id,
-        tab.url,
-        Date.now(),
-        tab.windowId || 0
-      );
-
-      if (!result.success) {
-        this.log(`Failed to generate open_time_start for tab ${tab.id}`, {
-          error: result.error,
-          url: tab.url,
-        });
-        return;
-      }
-
-      this.log(`Initialized session for tab ${tab.id}`, {
-        url: tab.url,
-        visitId: result.event?.visitId,
-      });
-    } catch (error) {
-      this.log(`Failed to initialize session for tab ${tab.id}`, { error, url: tab.url });
     }
   }
 
@@ -479,14 +517,5 @@ export class StartupRecovery {
    */
   getStats(): RecoveryStats {
     return { ...this.stats };
-  }
-
-  /**
-   * Log debug messages if enabled
-   */
-  private log(message: string, data?: unknown): void {
-    if (this.config.enableDebugLogging) {
-      console.log(`[StartupRecovery] ${message}`, data || '');
-    }
   }
 }

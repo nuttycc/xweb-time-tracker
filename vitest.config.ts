@@ -1,9 +1,14 @@
 import { defineConfig } from 'vitest/config';
 import { WxtVitest } from 'wxt/testing';
 import { resolve } from 'path';
+import pkg from './package.json';
 
 export default defineConfig({
   plugins: [WxtVitest()],
+  define: {
+    __APP_NAME__: JSON.stringify(pkg.name),
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   test: {
     // 基础配置 - 让WxtVitest自动处理环境配置
     globals: true,

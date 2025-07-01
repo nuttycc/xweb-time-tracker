@@ -14,6 +14,7 @@ import { z } from 'zod/v4';
 import { DomainEvent, QueuedEvent, QueuedEventSchema } from '../types';
 // import { DatabaseService } from '../../db/services/database.service';
 import { WebTimeTrackerDB } from '../../db/schemas';
+import { createLogger } from '@/utils/logger';
 
 // ============================================================================
 // Configuration and Constants
@@ -78,6 +79,7 @@ export interface QueueStats {
  * - Graceful shutdown with data persistence
  */
 export class EventQueue {
+  private static readonly logger = createLogger('EventQueue');
   private readonly config: QueueConfig;
   private readonly queue: QueuedEvent[] = [];
   private readonly db: WebTimeTrackerDB;
@@ -123,6 +125,8 @@ export class EventQueue {
     this.queue.push(queuedEvent);
     this.stats.queueSize = this.queue.length;
 
+    EventQueue.logger.debug(`📥 Enqueued event: ${event.eventType}`, { queueSize: this.queue.length, tabId: event.tabId });
+
     // Check if we need to flush
     if (this.shouldFlush()) {
       await this.flush();
@@ -161,6 +165,10 @@ export class EventQueue {
     if (this.queue.length === 0) {
       return 0;
     }
+
+    const queueSize = this.queue.length;
+    const reason = this.queue.length >= this.config.maxQueueSize ? 'maxQueueSize' : 'scheduled';
+    EventQueue.logger.info(`📤 Flushing queue: ${queueSize} events`, { reason });
 
     // Clear any pending flush timer
     this.clearFlushTimer();
@@ -206,7 +214,7 @@ export class EventQueue {
     try {
       await Promise.race([this.flush(), timeoutPromise]);
     } catch (error) {
-      console.error('EventQueue shutdown error:', error);
+      EventQueue.logger.error('❌ EventQueue shutdown error', { error: error instanceof Error ? error.message : String(error) });
       // Continue with shutdown even if flush fails
     }
   }
@@ -241,12 +249,14 @@ export class EventQueue {
       return;
     }
 
+    EventQueue.logger.debug(`⏰ Scheduled flush in ${this.config.maxWaitTime}ms`, { queueSize: this.queue.length });
+
     this.flushTimer = setTimeout(async () => {
       this.flushTimer = null;
       try {
         await this.flush();
       } catch (error) {
-        console.error('Scheduled flush failed:', error);
+        EventQueue.logger.error('❌ Scheduled flush failed', { error: error instanceof Error ? error.message : String(error) });
       }
     }, this.config.maxWaitTime);
   }
@@ -272,6 +282,9 @@ export class EventQueue {
     // Extract domain events for database write
     const domainEvents = events.map(qe => qe.event);
 
+    const startTime = Date.now();
+    EventQueue.logger.info(`💾 Writing ${events.length} events to database...`);
+
     try {
       // Use Dexie's bulkAdd for efficient batch writing
       await this.db.eventslog.bulkAdd(
@@ -287,10 +300,13 @@ export class EventQueue {
         }))
       );
 
+      const duration = Date.now() - startTime;
+      EventQueue.logger.info(`✅ Bulk write success: ${events.length} events`, { duration: `${duration}ms` });
+
       this.stats.totalProcessed += events.length;
       return events.length;
     } catch (error) {
-      console.error('Batch write failed:', error);
+      EventQueue.logger.error('❌ Bulk write failed', { error: error instanceof Error ? error.message : String(error), eventsCount: events.length });
       throw error;
     }
   }
@@ -300,6 +316,8 @@ export class EventQueue {
    */
   private requeueFailedEvents(events: QueuedEvent[]): void {
     const now = Date.now();
+    let requeuedCount = 0;
+    let failedCount = 0;
 
     for (const queuedEvent of events) {
       if (queuedEvent.retryCount < this.config.maxRetries) {
@@ -307,11 +325,20 @@ export class EventQueue {
         queuedEvent.retryCount++;
         queuedEvent.queuedAt = now + this.config.retryDelay * queuedEvent.retryCount;
         this.queue.unshift(queuedEvent); // Add to front for priority
+        requeuedCount++;
       } else {
         // Max retries exceeded
         this.stats.totalFailed++;
-        console.error('Event failed after max retries:', queuedEvent.event);
+        EventQueue.logger.error('❌ Event failed after max retries', { eventType: queuedEvent.event.eventType, tabId: queuedEvent.event.tabId });
+        failedCount++;
       }
+    }
+
+    if (requeuedCount > 0) {
+      EventQueue.logger.warn(`⚠️ Re-queuing ${requeuedCount} failed events for retry`);
+    }
+    if (failedCount > 0) {
+      EventQueue.logger.error(`❌ ${failedCount} events permanently failed after max retries`);
     }
 
     this.stats.queueSize = this.queue.length;
@@ -373,3 +400,4 @@ export function createLowLatencyEventQueue(db: WebTimeTrackerDB): EventQueue {
     retryDelay: 200,
   });
 }
+

@@ -5,8 +5,6 @@
  * for time tracking purposes. Implements threshold-based detection and event throttling
  * to optimize performance and reduce noise.
  *
- * @author WebTime Tracker Team
- * @version 1.0.0
  */
 
 import { defineContentScript } from '#imports';
@@ -30,10 +28,8 @@ interface TrackerProtocolMap {
   'focus-changed': (data: { isFocused: boolean; tabId: number }) => Promise<void>;
 }
 
-// Initialize messaging
 const { sendMessage, onMessage } = defineExtensionMessaging<TrackerProtocolMap>();
 
-// Initialize logger
 const logger = createLogger('Content');
 
 export default defineContentScript({

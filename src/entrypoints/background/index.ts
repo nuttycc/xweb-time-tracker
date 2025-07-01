@@ -16,6 +16,7 @@ import {
   type BrowserEventData,
   type InteractionMessage,
 } from '../../core/tracker';
+import { isProtectedUrl } from '../../core/tracker/url/URLProcessor';
 import { createLogger } from '@/utils/logger';
 
 // Define messaging protocol for communication with content scripts
@@ -83,6 +84,30 @@ export default defineBackground(async () => {
 });
 
 /**
+ * Checks if a URL should be tracked and logs the filtering decision
+ * 
+ * @param url - The URL to check
+ * @param context - Context information for logging
+ * @returns True if the URL should be tracked, false if it should be filtered
+ */
+function shouldTrackUrl(url: string | undefined, context: { tabId?: number; source: string }): url is string {
+  if (!url) {
+    return false;
+  }
+
+  if (isProtectedUrl(url)) {
+    logger.debug('Filtering protected URL at browser event level', {
+      url,
+      tabId: context.tabId,
+      source: context.source,
+    });
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Sets up browser event listeners to capture tab, window, navigation, and runtime events, forwarding them to the time tracker.
  *
  * Registers handlers for tab activation, updates (including URL and audible state changes), removal, window focus changes, main frame navigation commits, and runtime suspension. Notifies content scripts when a page load completes and ensures the time tracker is stopped gracefully during runtime suspension.
@@ -90,14 +115,23 @@ export default defineBackground(async () => {
 function setupBrowserEventListeners(): void {
   // Tab activation events
   browser.tabs.onActivated.addListener(async activeInfo => {
-    const eventData: BrowserEventData = {
-      type: 'tab-activated',
-      tabId: activeInfo.tabId,
-      windowId: activeInfo.windowId,
-      timestamp: Date.now(),
-    };
+    // Get tab info to check URL before processing
+    try {
 
-    await timeTracker.handleBrowserEvent(eventData);
+      const tab = await browser.tabs.get(activeInfo.tabId);
+
+      const eventData: BrowserEventData = {
+        type: 'tab-activated',
+        tabId: activeInfo.tabId,
+        windowId: activeInfo.windowId,
+        url: tab.url,
+        timestamp: Date.now(),
+      };
+
+      await timeTracker.handleBrowserEvent(eventData);
+    } catch (error) {
+      logger.error('Failed to get tab info for activation', { tabId: activeInfo.tabId, error });
+    }
   });
 
   // Tab update events
@@ -107,11 +141,18 @@ function setupBrowserEventListeners(): void {
     const hasAudibleChange = changeInfo.audible !== undefined;
     
     if (hasUrlChange || hasAudibleChange) {
+      const currentUrl = changeInfo.url || tab.url;
+      
+      // Filter protected URLs at entry point
+      if (!shouldTrackUrl(currentUrl, { tabId, source: 'tab-update' })) {
+        return;
+      }
+
       const eventData: BrowserEventData = {
         type: 'tab-updated',
         tabId,
         windowId: tab.windowId,
-        url: changeInfo.url || tab.url,
+        url: currentUrl,
         changeInfo,
         timestamp: Date.now(),
       };
@@ -119,7 +160,7 @@ function setupBrowserEventListeners(): void {
       await timeTracker.handleBrowserEvent(eventData);
 
       // Notify content script if page is complete
-      if (changeInfo.status === 'complete' && tab.url) {
+      if (changeInfo.status === 'complete' && currentUrl) {
         try {
           await sendMessage(
             'page-status-update',
@@ -163,6 +204,11 @@ function setupBrowserEventListeners(): void {
   browser.webNavigation.onCommitted.addListener(async details => {
     // Only handle main frame navigation
     if (details.frameId === 0) {
+      // Filter protected URLs at entry point
+      if (!shouldTrackUrl(details.url, { tabId: details.tabId, source: 'web-navigation' })) {
+        return;
+      }
+
       const eventData: BrowserEventData = {
         type: 'web-navigation-committed',
         tabId: details.tabId,

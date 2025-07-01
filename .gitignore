@@ -1,3 +1,5 @@
+.env
+
 # Logs
 logs
 *.log
@@ -8,6 +10,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+dist
+dist-ssr
+*.local
 .output
 stats.html
 stats-*.json
@@ -24,3 +29,23 @@ web-ext.config.ts
 *.njsproj
 *.sln
 *.sw?
+
+# Package manager
+pnpm-lock.yaml
+
+# Build outputs
+.wxt/
+.output/
+
+# Testing
+coverage/
+test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+/test-results/
+/playwright-report/

@@ -7,7 +7,7 @@
  * Features:
  * - Environment-based log level control (dev: debug+, prod: warn+)
  * - Module-based logger creation with prefixed output
- * - Persistent configuration support
+ * - Persistent configuration using WXT storage
  * - Cross-browser compatibility
  * - TypeScript support
  * 
@@ -16,9 +16,7 @@
 
 import log from 'loglevel';
 import prefix from 'loglevel-plugin-prefix';
-
-// Initialize the prefix plugin
-prefix.reg(log);
+import { storage } from '#imports';
 
 /**
  * Logger interface compatible with existing console usage patterns
@@ -47,8 +45,6 @@ export type LogLevel = typeof LOG_LEVELS[number];
 export interface LoggerConfig {
   /** Default log level for all loggers */
   defaultLevel: LogLevel;
-  /** Enable persistent storage of log level settings */
-  persistLevel: boolean;
   /** Custom format template for log messages */
   template?: string;
 }
@@ -58,21 +54,29 @@ export interface LoggerConfig {
  */
 const DEFAULT_CONFIG: LoggerConfig = {
   defaultLevel: import.meta.env.MODE === 'production' ? 'warn' : 'debug',
-  persistLevel: true,
-  template: '[%t] [%n] [%l]',
+  template: `[${__APP_NAME__}] [%n] [%l]`,
 };
 
 /**
- * Storage key for persistent log level configuration
+ * WXT storage item for persisting log level configuration
  */
-const STORAGE_KEY = 'webtime-tracker-log-level';
+const logLevelStorage = storage.defineItem<LogLevel>(
+  `local:log-level`,
+  {
+    fallback: DEFAULT_CONFIG.defaultLevel,
+  },
+);
+
+// Initialize the prefix plugin
+prefix.reg(log);
 
 /**
  * Initializes the logging system with the specified configuration.
  *
- * Applies a consistent prefix format to log messages, sets the default log level, and loads a persisted log level from storage if enabled.
+ * Applies a consistent prefix format to log messages, sets the default log level, 
+ * and loads the persisted log level from WXT storage.
  */
-function initializeLogging(config: LoggerConfig = DEFAULT_CONFIG): void {
+async function initializeLogging(config: LoggerConfig = DEFAULT_CONFIG): Promise<void> {
   // Apply prefix template
   prefix.apply(log, {
     template: config.template || DEFAULT_CONFIG.template,
@@ -82,47 +86,27 @@ function initializeLogging(config: LoggerConfig = DEFAULT_CONFIG): void {
   });
 
   // Set default log level
-  log.setDefaultLevel(config.defaultLevel);
+  log.setLevel(config.defaultLevel, false);
 
-  // Load persisted level if enabled
-  if (config.persistLevel) {
-    loadPersistedLogLevel();
+  // Load persisted level from WXT storage
+  await loadPersistedLogLevel();
+}
+
+/**
+ * Loads the saved log level from WXT storage and applies it as the default log level.
+ */
+async function loadPersistedLogLevel(): Promise<void> {
+  const savedLevel = await logLevelStorage.getValue();
+  if (savedLevel && isValidLogLevel(savedLevel)) {
+    log.setLevel(savedLevel, false);
   }
 }
 
 /**
- * Loads the saved log level from persistent storage and applies it as the default log level if valid.
- *
- * If no valid persisted log level is found or storage is unavailable, the default log level remains unchanged.
+ * Persists the specified log level to WXT storage.
  */
-function loadPersistedLogLevel(): void {
-  try {
-    // Try to load from localStorage (available in popup/options contexts)
-    if (typeof localStorage !== 'undefined') {
-      const savedLevel = localStorage.getItem(STORAGE_KEY);
-      if (savedLevel && isValidLogLevel(savedLevel)) {
-        log.setDefaultLevel(savedLevel as LogLevel);
-      }
-    }
-  } catch {
-    // Silently fail if localStorage is not available (e.g., in content scripts)
-    // The default level will be used instead
-  }
-}
-
-/**
- * Persists the specified log level to localStorage if available.
- *
- * Silently does nothing if localStorage is unavailable or inaccessible.
- */
-function saveLogLevel(level: LogLevel): void {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, level);
-    }
-  } catch {
-    // Silently fail if localStorage is not available
-  }
+async function saveLogLevel(level: LogLevel): Promise<void> {
+  await logLevelStorage.setValue(level);
 }
 
 /**
@@ -177,13 +161,13 @@ export function createLogger(moduleName: string): Logger {
  * Sets the global log level for all loggers.
  *
  * @param level - The log level to apply globally
- * @param persist - If true, saves the log level to persistent storage
+ * @param persist - If true, saves the log level to WXT storage
  */
-export function setLogLevel(level: LogLevel, persist: boolean = true): void {
-  log.setDefaultLevel(level);
+export async function setLogLevel(level: LogLevel, persist: boolean = true): Promise<void> {
+  log.setLevel(level, false);
   
   if (persist) {
-    saveLogLevel(level);
+    await saveLogLevel(level);
   }
 }
 
@@ -219,6 +203,16 @@ export function getLogLevel(): LogLevel {
 }
 
 /**
+ * Retrieves the persisted log level from WXT storage.
+ * 
+ * @returns Promise that resolves to the stored log level or null if not set
+ */
+export async function getPersistedLogLevel(): Promise<LogLevel | null> {
+  const value = await logLevelStorage.getValue();
+  return value || null;
+}
+
+/**
  * Sets the log level for a specific module logger.
  *
  * Adjusts the verbosity of log output for the given module, or disables logging for that module if set to 'silent'.
@@ -228,7 +222,7 @@ export function getLogLevel(): LogLevel {
  */
 export function setModuleLogLevel(moduleName: string, level: LogLevel): void {
   const moduleLogger = log.getLogger(moduleName);
-  moduleLogger.setLevel(level);
+  moduleLogger.setLevel(level, false);
 }
 
 /**
@@ -240,11 +234,20 @@ export function getAvailableLogLevels(): readonly LogLevel[] {
   return LOG_LEVELS;
 }
 
-// Initialize logging system on module load
+/**
+ * Watches for changes to the log level in storage and applies them automatically.
+ * 
+ * @returns Function to stop watching for changes
+ */
+export function watchLogLevel(): () => void {
+  return logLevelStorage.watch((newLevel) => {
+    if (newLevel && isValidLogLevel(newLevel)) {
+      log.setLevel(newLevel, false);
+    }
+  });
+}
+
 initializeLogging();
 
-// Export the root logger for backward compatibility
 export const rootLogger = createLogger('ROOT');
-
-// Export default logger instance
 export default rootLogger;

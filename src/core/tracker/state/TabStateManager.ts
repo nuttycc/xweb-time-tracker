@@ -1,5 +1,5 @@
 /**
- * Focus State Manager
+ * Tab State Manager
  *
  * Implements the core state management class that maintains the "single focus" principle.
  * This class tracks the state of all browser tabs using a Map<tabId, TabState> structure.
@@ -35,12 +35,12 @@ export interface FocusChangeEvent {
 }
 
 /**
- * Focus State Manager Class
+ * Tab State Manager Class
  *
  * Manages the single-focus principle for time tracking by maintaining
  * real-time state of all browser tabs and ensuring accurate focus tracking.
  */
-export class FocusStateManager {
+export class TabStateManager {
   /** Map of tab ID to tab state */
   private tabStates: Map<number, TabState> = new Map();
 

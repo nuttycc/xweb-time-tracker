@@ -239,6 +239,29 @@ export class URLProcessor {
     // no need to rebuild a separate set
   }
 
+  /**
+   * Checks if a protocol should be ignored for tracking
+   *
+   * @param protocol - URL protocol
+   * @returns True if protocol should be ignored
+   */
+  shouldIgnoreProtocol(protocol: string): boolean {
+    const ignoredProtocols = [
+      'chrome:',
+      'chrome-extension:',
+      'moz-extension:',
+      'safari-extension:',
+      'edge-extension:',
+      'file:',
+      'data:',
+      'blob:',
+      'about:',
+      'javascript:',
+    ];
+
+    return ignoredProtocols.includes(protocol.toLowerCase());
+  }
+
   // ============================================================================
   // Private Methods
   // ============================================================================
@@ -266,29 +289,6 @@ export class URLProcessor {
   private shouldIgnoreQueryParam(paramName: string): boolean {
     // Use whitelist approach: ignore parameters that are not explicitly allowed
     return !isAllowedQueryParam(paramName, this.options.additionalAllowedParams || []);
-  }
-
-  /**
-   * Checks if a protocol should be ignored for tracking
-   *
-   * @param protocol - URL protocol
-   * @returns True if protocol should be ignored
-   */
-  private shouldIgnoreProtocol(protocol: string): boolean {
-    const ignoredProtocols = [
-      'chrome:',
-      'chrome-extension:',
-      'moz-extension:',
-      'safari-extension:',
-      'edge-extension:',
-      'file:',
-      'data:',
-      'blob:',
-      'about:',
-      'javascript:',
-    ];
-
-    return ignoredProtocols.includes(protocol.toLowerCase());
   }
 }
 
@@ -367,3 +367,42 @@ export const URLProcessorValidation = {
     }
   },
 };
+
+/**
+ * Checks if a URL is a protected browser URL that should not be tracked
+ * 
+ * This function only checks for browser-internal protocols and protected hostnames
+ * that should be filtered out at the entry point level. It does NOT perform
+ * URL normalization or other processing - just basic protection filtering.
+ * 
+ * @param url - The URL to check
+ * @returns True if the URL is protected and should not be tracked
+ */
+export function isProtectedUrl(url: string | undefined): boolean {
+  if (!url) {
+    return true; // No URL means protected
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    
+    // Create a temporary processor to reuse the existing filtering methods
+    const processor = createDefaultURLProcessor();
+    
+    // Check protocol - reuse existing shouldIgnoreProtocol logic
+    if (processor.shouldIgnoreProtocol(parsedUrl.protocol)) {
+      return true;
+    }
+    
+    // Check hostname - reuse existing shouldIgnoreHostname logic  
+    const hostname = parsedUrl.hostname.toLowerCase().replace(/^www\./, '');
+    if (processor.shouldIgnoreHostname(hostname)) {
+      return true;
+    }
+    
+    return false;
+  } catch {
+    // Invalid URL format is considered protected
+    return true;
+  }
+}

@@ -4,7 +4,7 @@
  * Creates a checkpoint scheduling system using chrome.alarms API. This scheduler
  * periodically checks all active sessions (both Open Time and Active Time) and
  * generates checkpoint events when thresholds are exceeded. It integrates with
- * the FocusStateManager to identify long-running sessions and uses the EventGenerator
+ * the TabStateManager to identify long-running sessions and uses the EventGenerator
  * to create checkpoint events. The scheduler handles alarm persistence across
  * service worker restarts.
  *
@@ -14,7 +14,7 @@
 
 // import { z } from 'zod/v4';
 import { browser } from '#imports';
-import { FocusStateManager } from '../state/FocusStateManager';
+import { TabStateManager } from '../state/TabStateManager';
 import { EventGenerator } from '../events/EventGenerator';
 import { EventQueue } from '../queue/EventQueue';
 import { TabState, CheckpointData } from '../types';
@@ -100,26 +100,26 @@ export interface SchedulerStats {
  * Features:
  * - Periodic session evaluation using chrome.alarms
  * - Automatic checkpoint generation for long-running sessions
- * - Integration with FocusStateManager and EventGenerator
+ * - Integration with TabStateManager and EventGenerator
  * - Persistent scheduling across service worker restarts
  * - Comprehensive logging and statistics
  */
 export class CheckpointScheduler {
   private readonly config: CheckpointSchedulerConfig;
-  private readonly focusStateManager: FocusStateManager;
+  private readonly tabStateManager: TabStateManager;
   private readonly eventGenerator: EventGenerator;
   private readonly eventQueue: EventQueue;
   private isInitialized = false;
   private stats: SchedulerStats;
 
   constructor(
-    focusStateManager: FocusStateManager,
+    tabStateManager: TabStateManager,
     eventGenerator: EventGenerator,
     eventQueue: EventQueue,
     config: Partial<CheckpointSchedulerConfig> = {}
   ) {
     this.config = { ...DEFAULT_SCHEDULER_CONFIG, ...config };
-    this.focusStateManager = focusStateManager;
+    this.tabStateManager = tabStateManager;
     this.eventGenerator = eventGenerator;
     this.eventQueue = eventQueue;
     this.stats = {
@@ -245,7 +245,7 @@ export class CheckpointScheduler {
 
     try {
       // Get all active tab states
-      const allTabStates = this.focusStateManager.getAllTabStates();
+      const allTabStates = this.tabStateManager.getAllTabStates();
       this.stats.activeSessions = allTabStates.size;
 
       if (allTabStates.size === 0) {
@@ -382,12 +382,12 @@ export class CheckpointScheduler {
  * @returns A new CheckpointScheduler instance.
  */
 export function createCheckpointScheduler(
-  focusStateManager: FocusStateManager,
+  tabStateManager: TabStateManager,
   eventGenerator: EventGenerator,
   eventQueue: EventQueue,
   config?: Partial<CheckpointSchedulerConfig>
 ): CheckpointScheduler {
-  return new CheckpointScheduler(focusStateManager, eventGenerator, eventQueue, config);
+  return new CheckpointScheduler(tabStateManager, eventGenerator, eventQueue, config);
 }
 
 /**
@@ -398,11 +398,11 @@ export function createCheckpointScheduler(
  * @returns A CheckpointScheduler configured to log debug messages.
  */
 export function createDebugCheckpointScheduler(
-  focusStateManager: FocusStateManager,
+  tabStateManager: TabStateManager,
   eventGenerator: EventGenerator,
   eventQueue: EventQueue
 ): CheckpointScheduler {
-  return new CheckpointScheduler(focusStateManager, eventGenerator, eventQueue, {
+  return new CheckpointScheduler(tabStateManager, eventGenerator, eventQueue, {
     enableDebugLogging: true,
   });
 }
