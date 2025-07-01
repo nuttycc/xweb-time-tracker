@@ -130,7 +130,7 @@ export interface BrowserEventData {
  * and provides a clean API for the background script.
  */
 export class TimeTracker {
-  private readonly logger = createLogger('TimeTracker');
+  private static readonly logger = createLogger('TimeTracker');
   private config: TimeTrackerConfig;
   private isInitialized = false;
   private isStarted = false;
@@ -211,14 +211,14 @@ export class TimeTracker {
     const startTime = Date.now();
 
     try {
-      this.log('Initializing time tracker...');
+      TimeTracker.logger.info('Initializing time tracker...');
 
       // Perform startup recovery if enabled
       let recoveryStats;
       if (this.config.enableStartupRecovery) {
-        this.log('Performing startup recovery...');
+        TimeTracker.logger.info('Performing startup recovery...');
         recoveryStats = await this.startupRecovery.executeRecovery();
-        this.log('Startup recovery completed', recoveryStats);
+        TimeTracker.logger.info('Startup recovery completed', recoveryStats);
       }
 
       // Initialize interaction detector
@@ -227,7 +227,7 @@ export class TimeTracker {
       this.isInitialized = true;
       const initializationTime = Date.now() - startTime;
 
-      this.log(`Time tracker initialized successfully in ${initializationTime}ms`);
+      TimeTracker.logger.info(`Time tracker initialized successfully in ${initializationTime}ms`);
 
       return {
         success: true,
@@ -239,7 +239,7 @@ export class TimeTracker {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      this.log('Time tracker initialization failed', { error: errorMessage });
+      TimeTracker.logger.error('Time tracker initialization failed', { error: errorMessage });
 
       return {
         success: false,
@@ -255,30 +255,30 @@ export class TimeTracker {
    */
   async start(): Promise<boolean> {
     if (!this.isInitialized) {
-      this.log('Cannot start: time tracker not initialized');
+      TimeTracker.logger.warn('Cannot start: time tracker not initialized');
       return false;
     }
 
     if (this.isStarted) {
-      this.log('Time tracker is already started');
+      TimeTracker.logger.info('Time tracker is already started');
       return true;
     }
 
     try {
-      this.log('Starting time tracker...');
+      TimeTracker.logger.info('Starting time tracker...');
 
       // Start checkpoint scheduler if enabled
       if (this.config.enableCheckpoints) {
         await this.checkpointScheduler.initialize();
-        this.log('Checkpoint scheduler started');
+        TimeTracker.logger.info('Checkpoint scheduler started');
       }
 
       this.isStarted = true;
-      this.log('Time tracker started successfully');
+      TimeTracker.logger.info('Time tracker started successfully');
 
       return true;
     } catch (error) {
-      this.log('Failed to start time tracker', { error });
+      TimeTracker.logger.error('Failed to start time tracker', { error });
       return false;
     }
   }
@@ -290,12 +290,12 @@ export class TimeTracker {
    */
   async stop(): Promise<boolean> {
     if (!this.isStarted) {
-      this.log('Time tracker is not started');
+      TimeTracker.logger.info('Time tracker is not started');
       return true;
     }
 
     try {
-      this.log('Stopping time tracker...');
+      TimeTracker.logger.info('Stopping time tracker...');
 
       // Flush any pending events
       await this.eventQueue.flush();
@@ -303,15 +303,15 @@ export class TimeTracker {
       // Stop checkpoint scheduler
       if (this.config.enableCheckpoints) {
         await this.checkpointScheduler.stop();
-        this.log('Checkpoint scheduler stopped');
+        TimeTracker.logger.info('Checkpoint scheduler stopped');
       }
 
       this.isStarted = false;
-      this.log('Time tracker stopped successfully');
+      TimeTracker.logger.info('Time tracker stopped successfully');
 
       return true;
     } catch (error) {
-      this.log('Failed to stop time tracker', { error });
+      TimeTracker.logger.error('Failed to stop time tracker', { error });
       return false;
     }
   }
@@ -327,7 +327,7 @@ export class TimeTracker {
     }
 
     try {
-      this.log('Handling browser event', { type: eventData.type, tabId: eventData.tabId });
+      TimeTracker.logger.debug('Handling browser event', { type: eventData.type, tabId: eventData.tabId });
 
       switch (eventData.type) {
         case 'tab-activated':
@@ -359,10 +359,10 @@ export class TimeTracker {
           break;
 
         default:
-          this.log('Unknown browser event type', { type: eventData.type });
+          TimeTracker.logger.warn('Unknown browser event type', { type: eventData.type });
       }
     } catch (error) {
-      this.log('Error handling browser event', {
+      TimeTracker.logger.error('Error handling browser event', {
         type: eventData.type,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -411,7 +411,7 @@ export class TimeTracker {
         await this.generateAndQueueOpenTimeStart(tab, eventData.timestamp);
       }
     } catch (error) {
-      this.log('Failed to get tab info for activation', { tabId: eventData.tabId, error });
+      TimeTracker.logger.error('Failed to get tab info for activation', { tabId: eventData.tabId, error });
     }
   }
 
@@ -425,7 +425,7 @@ export class TimeTracker {
     
     // Handle audible state changes first (independent of other changes)
     if ('audible' in eventData.changeInfo && currentState) {
-      this.log('Updating audible state', { 
+      TimeTracker.logger.debug('Updating audible state', { 
         tabId: eventData.tabId, 
         audible: eventData.changeInfo.audible,
         previousState: currentState.isAudible
@@ -438,7 +438,7 @@ export class TimeTracker {
 
     // Handle URL changes (may occur independently or alongside audible changes)
     if (eventData.url && currentState && currentState.url !== eventData.url) {
-      this.log('Handling URL change', {
+      TimeTracker.logger.debug('Handling URL change', {
         tabId: eventData.tabId,
         oldUrl: currentState.url,
         newUrl: eventData.url
@@ -456,7 +456,7 @@ export class TimeTracker {
         const tab = await browser.tabs.get(eventData.tabId);
         await this.generateAndQueueOpenTimeStart(tab, eventData.timestamp);
       } catch (error) {
-        this.log('Failed to get tab info for update', { tabId: eventData.tabId, error });
+        TimeTracker.logger.error('Failed to get tab info for update', { tabId: eventData.tabId, error });
       }
     }
   }
@@ -485,7 +485,7 @@ export class TimeTracker {
    */
   private async handleWindowFocusChanged(eventData: BrowserEventData): Promise<void> {
     // Implementation depends on specific focus change logic
-    this.log('Window focus changed', { windowId: eventData.windowId });
+    TimeTracker.logger.debug('Window focus changed', { windowId: eventData.windowId });
   }
 
   /**
@@ -520,7 +520,7 @@ export class TimeTracker {
    * Handle runtime suspend
    */
   private async handleRuntimeSuspend(): Promise<void> {
-    this.log('Runtime suspending - flushing events');
+    TimeTracker.logger.info('Runtime suspending - flushing events');
     await this.eventQueue.flush();
   }
 
@@ -618,15 +618,6 @@ export class TimeTracker {
    */
   getStartedStatus(): boolean {
     return this.isStarted;
-  }
-
-  /**
-   * Log debug messages if enabled
-   */
-  private log(message: string, data?: unknown): void {
-    if (this.config.enableDebugLogging) {
-      this.logger.debug(message, data);
-    }
   }
 }
 
