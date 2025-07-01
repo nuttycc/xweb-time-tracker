@@ -11,6 +11,9 @@ import { storage } from '#imports';
 import type { AggregationEngine } from '@/core/aggregator/engine/AggregationEngine';
 import type { DataPruner } from '@/core/aggregator/pruner/DataPruner';
 import type { AggregationResult } from '@/core/aggregator/utils/types';
+import type { EmojiLogger } from '@/utils/logger-emoji';
+import { LogCategory } from '@/utils/logger-emoji';
+import { createMockEmojiLogger, expectEmojiLog } from '../../../helpers/emoji-logger-mock';
 import {
   AGGREGATION_ALARM_NAME,
   SCHEDULER_PERIOD_MINUTES_KEY,
@@ -29,17 +32,12 @@ const createMockDataPruner = () => ({
   run: vi.fn().mockResolvedValue(undefined),
 });
 
-const createMockLogger = () => ({
-  log: vi.fn(),
-  error: vi.fn(),
-});
-
 describe('AggregationScheduler (WXT Standard)', () => {
   let AggregationScheduler: typeof import('@/core/aggregator/scheduler/AggregationScheduler').AggregationScheduler;
   let scheduler: InstanceType<typeof AggregationScheduler>;
   let mockAggregationEngine: ReturnType<typeof createMockAggregationEngine>;
   let mockDataPruner: ReturnType<typeof createMockDataPruner>;
-  let mockLogger: ReturnType<typeof createMockLogger>;
+  let mockLogger: EmojiLogger;
 
   beforeEach(async () => {
     // Reset WXT fake browser state
@@ -51,7 +49,7 @@ describe('AggregationScheduler (WXT Standard)', () => {
 
     mockAggregationEngine = createMockAggregationEngine();
     mockDataPruner = createMockDataPruner();
-    mockLogger = createMockLogger();
+    mockLogger = createMockEmojiLogger();
 
     scheduler = new AggregationScheduler(
       mockAggregationEngine as unknown as AggregationEngine,
@@ -68,7 +66,7 @@ describe('AggregationScheduler (WXT Standard)', () => {
       expect(scheduler).toBeInstanceOf(AggregationScheduler);
     });
 
-    it('should use console as default logger when none provided', () => {
+    it('should use default emoji logger when none provided', () => {
       const schedulerWithoutLogger = new AggregationScheduler(
         mockAggregationEngine as unknown as AggregationEngine,
         mockDataPruner as unknown as DataPruner
@@ -208,7 +206,7 @@ describe('AggregationScheduler (WXT Standard)', () => {
       // Wait for async operations
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      expect(mockLogger.error).toHaveBeenCalledWith('Error during scheduled aggregation:', error);
+      expectEmojiLog(mockLogger, LogCategory.ERROR, 'error', 'error during scheduled aggregation');
     });
 
     it('should log task duration', async () => {
@@ -220,9 +218,14 @@ describe('AggregationScheduler (WXT Standard)', () => {
       // Wait for async operations
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      expect(mockLogger.log).toHaveBeenCalledWith('Starting scheduled aggregation...');
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        expect.stringMatching(/Aggregation task finished in \d+ms\./)
+      // Verify key log calls during task execution
+      expect(mockLogger.logWithEmoji).toHaveBeenCalledWith(
+        LogCategory.START, 'info', 'scheduled aggregation task'
+      );
+      expect(mockLogger.logWithEmoji).toHaveBeenCalledWith(
+        LogCategory.END, 'info', 'aggregation task finished', expect.objectContaining({
+          duration: expect.stringMatching(/\d+ms/)
+        })
       );
     });
   });
