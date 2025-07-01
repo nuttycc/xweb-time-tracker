@@ -23,7 +23,4 @@ export type AggregatedData = Record<
   }
 >;
 
-export interface Logger {
-  log(message: string): void;
-  error(message: string, error?: unknown): void;
-}
+

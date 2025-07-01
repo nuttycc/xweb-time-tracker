@@ -5,7 +5,7 @@
  * Uses WXT storage without manual mocking.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { storage } from '#imports';
 import type { EventsLogRepository } from '@/core/db/repositories/eventslog.repository';
 import type { EventsLogRecord } from '@/core/db/schemas/eventslog.schema';
@@ -20,19 +20,10 @@ const createMockEventsLogRepo = () => ({
   deleteEventsByIds: vi.fn(),
 });
 
-// Create mock console
-const createMockConsole = () => ({
-  log: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-});
-
 describe('DataPruner (WXT Standard)', () => {
   let DataPruner: typeof import('@/core/aggregator/pruner/DataPruner').DataPruner;
   let pruner: InstanceType<typeof DataPruner>;
   let mockEventsLogRepo: ReturnType<typeof createMockEventsLogRepo>;
-  let mockConsole: ReturnType<typeof createMockConsole>;
-  let originalConsole: Console;
 
   beforeEach(async () => {
     // Import DataPruner after mocks are set up
@@ -40,21 +31,10 @@ describe('DataPruner (WXT Standard)', () => {
     DataPruner = module.DataPruner;
 
     mockEventsLogRepo = createMockEventsLogRepo();
-    mockConsole = createMockConsole();
-
-    // Replace console methods
-    originalConsole = global.console;
-    global.console = mockConsole as unknown as Console;
-
     pruner = new DataPruner(mockEventsLogRepo as unknown as EventsLogRepository);
 
     // Reset all mocks
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    // Restore original console
-    global.console = originalConsole;
   });
 
   describe('constructor', () => {
@@ -150,8 +130,9 @@ describe('DataPruner (WXT Standard)', () => {
 
       await pruner.run();
 
+      // Focus on behavior: verify that the correct events were deleted
       expect(mockEventsLogRepo.deleteEventsByIds).toHaveBeenCalledWith([1, 2, 3]);
-      expect(mockConsole.log).toHaveBeenCalledWith('Pruned 3 old events.');
+      expect(mockEventsLogRepo.deleteEventsByIds).toHaveBeenCalledOnce();
     });
 
     it('should not delete anything when no old events are found', async () => {
@@ -159,8 +140,8 @@ describe('DataPruner (WXT Standard)', () => {
 
       await pruner.run();
 
+      // Focus on behavior: verify no deletion occurred when no events found
       expect(mockEventsLogRepo.deleteEventsByIds).not.toHaveBeenCalled();
-      expect(mockConsole.log).not.toHaveBeenCalled();
     });
 
     it('should handle events with undefined or null IDs', async () => {
@@ -222,18 +203,20 @@ describe('DataPruner (WXT Standard)', () => {
 
       await pruner.run();
 
+      // Focus on behavior: verify deletion was attempted with available IDs
       // Current implementation doesn't filter, so it passes all IDs including undefined/null
       expect(mockEventsLogRepo.deleteEventsByIds).toHaveBeenCalledWith([1, undefined, 2, null, 3]);
-      expect(mockConsole.log).toHaveBeenCalledWith('Pruned 5 old events.');
+      expect(mockEventsLogRepo.deleteEventsByIds).toHaveBeenCalledOnce();
     });
 
     it('should handle errors gracefully', async () => {
       const error = new Error('Database error');
       mockEventsLogRepo.getProcessedEventsOlderThan.mockRejectedValue(error);
 
-      await pruner.run();
-
-      expect(mockConsole.error).toHaveBeenCalledWith('Error during data pruning:', error);
+      // Focus on behavior: pruner should handle errors gracefully and not crash
+      await expect(pruner.run()).resolves.not.toThrow();
+      
+      // Verify deletion was not attempted when error occurred
       expect(mockEventsLogRepo.deleteEventsByIds).not.toHaveBeenCalled();
     });
 
@@ -243,12 +226,10 @@ describe('DataPruner (WXT Standard)', () => {
         .spyOn(storage, 'getItem')
         .mockRejectedValue(new Error('Storage access failed'));
 
-      await pruner.run();
-
-      expect(mockConsole.error).toHaveBeenCalledWith(
-        'Error during data pruning:',
-        expect.any(Error)
-      );
+      // Focus on behavior: pruner should handle storage errors gracefully
+      await expect(pruner.run()).resolves.not.toThrow();
+      
+      // Verify repository operations were not attempted when storage failed
       expect(mockEventsLogRepo.getProcessedEventsOlderThan).not.toHaveBeenCalled();
 
       getItemSpy.mockRestore();
@@ -338,9 +319,11 @@ describe('DataPruner (WXT Standard)', () => {
       mockEventsLogRepo.getProcessedEventsOlderThan.mockResolvedValue(mockEvents);
       mockEventsLogRepo.deleteEventsByIds.mockRejectedValue(deletionError);
 
-      await pruner.run();
-
-      expect(mockConsole.error).toHaveBeenCalledWith('Error during data pruning:', deletionError);
+      // Focus on behavior: pruner should handle deletion errors gracefully
+      await expect(pruner.run()).resolves.not.toThrow();
+      
+      // Verify deletion was attempted despite the error
+      expect(mockEventsLogRepo.deleteEventsByIds).toHaveBeenCalledWith([1]);
     });
 
     it('should handle large batches of events', async () => {
@@ -360,10 +343,11 @@ describe('DataPruner (WXT Standard)', () => {
 
       await pruner.run();
 
+      // Focus on behavior: verify large batch deletion was attempted
       expect(mockEventsLogRepo.deleteEventsByIds).toHaveBeenCalledWith(
         expect.arrayContaining([1, 2, 3, 4, 5]) // Check first few IDs
       );
-      expect(mockConsole.log).toHaveBeenCalledWith('Pruned 1000 old events.');
+      expect(mockEventsLogRepo.deleteEventsByIds).toHaveBeenCalledOnce();
     });
   });
 

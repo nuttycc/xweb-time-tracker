@@ -1,5 +1,5 @@
 import type { AggregationScheduler } from '../scheduler';
-import { createLogger } from '@/utils/logger';
+import { createEmojiLogger, LogCategory } from '@/utils/logger-emoji';
 
 /**
  * Main service for the aggregation module.
@@ -7,7 +7,7 @@ import { createLogger } from '@/utils/logger';
  * Initializes and manages the aggregation engine, scheduler, and pruner.
  */
 export class AggregationService {
-  private static readonly logger = createLogger('AggregationService');
+  private static readonly logger = createEmojiLogger('AggregationService');
 
   /**
    * @param aggregationScheduler - The scheduler to manage.
@@ -20,9 +20,9 @@ export class AggregationService {
   public async start(): Promise<void> {
     try {
       await this.aggregationScheduler.start();
-      AggregationService.logger.info('Aggregation service started successfully.');
+      AggregationService.logger.logWithEmoji(LogCategory.SUCCESS, 'info', 'aggregation service started successfully');
     } catch (error) {
-      AggregationService.logger.error('Failed to start aggregation service:', error);
+      AggregationService.logger.logWithEmoji(LogCategory.ERROR, 'error', 'failed to start aggregation service', { error });
       throw error;
     }
   }
@@ -33,9 +33,9 @@ export class AggregationService {
   public async stop(): Promise<void> {
     try {
       await this.aggregationScheduler.stop();
-      AggregationService.logger.info('Aggregation service stopped successfully.');
+      AggregationService.logger.logWithEmoji(LogCategory.SUCCESS, 'info', 'aggregation service stopped successfully');
     } catch (error) {
-      AggregationService.logger.error('Failed to stop aggregation service:', error);
+      AggregationService.logger.logWithEmoji(LogCategory.ERROR, 'error', 'failed to stop aggregation service', { error });
       throw error;
     }
   }

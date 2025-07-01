@@ -3,6 +3,7 @@ import type { EventsLogRepository } from '../../db/repositories/eventslog.reposi
 import type { AggregatedStatsRepository } from '../../db/repositories/aggregatedstats.repository';
 import type { AggregationResult, VisitGroup, AggregatedData } from '../utils/types';
 import { getUtcDateString } from '../../db/schemas/aggregatedstats.schema';
+import { createEmojiLogger, LogCategory, type EmojiLogger } from '@/utils/logger-emoji';
 import * as psl from 'psl';
 
 /**
@@ -12,6 +13,8 @@ import * as psl from 'psl';
  * aggregated statistical data.
  */
 export class AggregationEngine {
+  private readonly logger: EmojiLogger;
+
   /**
    * @param eventsLogRepo - Repository for accessing event log data.
    * @param aggregatedStatsRepo - Repository for storing aggregated statistics.
@@ -19,7 +22,9 @@ export class AggregationEngine {
   constructor(
     private readonly eventsLogRepo: EventsLogRepository,
     private readonly aggregatedStatsRepo: AggregatedStatsRepository
-  ) {}
+  ) {
+    this.logger = createEmojiLogger('AggregationEngine');
+  }
 
   /**
    * Runs the entire aggregation process.
@@ -29,20 +34,31 @@ export class AggregationEngine {
    * @returns A promise that resolves to an AggregationResult.
    */
   public async run(): Promise<AggregationResult> {
+    this.logger.logWithEmoji(LogCategory.START, 'info', 'aggregation process');
+    
     try {
+      this.logger.logWithEmoji(LogCategory.DB, 'debug', 'fetching unprocessed events');
       const unprocessedEvents = await this.eventsLogRepo.getUnprocessedEvents();
+      
       if (unprocessedEvents.length === 0) {
+        this.logger.logWithEmoji(LogCategory.SKIP, 'info', 'no unprocessed events found');
+        this.logger.logWithEmoji(LogCategory.END, 'info', 'aggregation process', { processedEvents: 0 });
         return { success: true, processedEvents: 0 };
       }
 
+      this.logger.logWithEmoji(LogCategory.HANDLE, 'info', 'processing events', { count: unprocessedEvents.length });
       await this.processEvents(unprocessedEvents);
 
+      this.logger.logWithEmoji(LogCategory.SUCCESS, 'info', 'aggregation completed', { processedEvents: unprocessedEvents.length });
+      this.logger.logWithEmoji(LogCategory.END, 'info', 'aggregation process', { processedEvents: unprocessedEvents.length });
       return { success: true, processedEvents: unprocessedEvents.length };
     } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      this.logger.logWithEmoji(LogCategory.ERROR, 'error', 'aggregation failed', { error });
       return {
         success: false,
         processedEvents: 0,
-        error: e instanceof Error ? e.message : String(e),
+        error,
       };
     }
   }
@@ -56,14 +72,17 @@ export class AggregationEngine {
    * @param events - An array of event log records to process.
    */
   private async processEvents(events: EventsLogRecord[]): Promise<void> {
+    this.logger.logWithEmoji(LogCategory.HANDLE, 'debug', 'grouping events by visit', { eventCount: events.length });
     const visits = this.groupEventsByVisit(events);
     const aggregatedData: AggregatedData = {};
 
+    this.logger.logWithEmoji(LogCategory.HANDLE, 'debug', 'calculating time for visits', { visitCount: visits.size });
     for (const visit of visits.values()) {
       this.calculateTime(visit, aggregatedData);
     }
 
     const eventIds = events.map(e => e.id!);
+    this.logger.logWithEmoji(LogCategory.DB, 'debug', 'finalizing aggregation', { aggregatedEntries: Object.keys(aggregatedData).length });
     await this.finalizeAggregation(aggregatedData, eventIds);
   }
 
@@ -199,6 +218,7 @@ export class AggregationEngine {
     aggregatedData: AggregatedData,
     eventIds: number[]
   ): Promise<void> {
+    this.logger.logWithEmoji(LogCategory.DB, 'debug', 'upserting aggregated stats', { entries: Object.keys(aggregatedData).length });
     const upsertPromises = Object.values(aggregatedData).map(data =>
       this.aggregatedStatsRepo.upsertTimeAggregation({
         date: data.date,
@@ -211,11 +231,14 @@ export class AggregationEngine {
     );
 
     await Promise.all(upsertPromises);
+    
+    this.logger.logWithEmoji(LogCategory.DB, 'debug', 'marking events as processed', { eventIds: eventIds.length });
     await this.eventsLogRepo.markEventsAsProcessed(eventIds);
   }
 
   private parseUrl(url: string): { hostname: string; parentDomain: string } {
     if (!url || !url.startsWith('http')) {
+      this.logger.logWithEmoji(LogCategory.ERROR, 'error', 'invalid URL for parsing', { url });
       throw new Error(`Invalid URL for parsing: ${url}`);
     }
     try {
@@ -226,7 +249,7 @@ export class AggregationEngine {
       }
       return { hostname, parentDomain: domain };
     } catch (error) {
-      console.error(`Failed to parse URL: ${url}`, error);
+      this.logger.logWithEmoji(LogCategory.ERROR, 'error', 'URL parsing failed', { url, error });
       throw new Error(
         `URL parsing failed: ${error instanceof Error ? error.message : String(error)}`
       );
