@@ -32,6 +32,10 @@ export const DEFAULT_QUEUE_CONFIG = {
   maxRetries: 3,
   /** Delay between retry attempts (ms) */
   retryDelay: 1000,
+  /** Maximum number of event fingerprints to cache for deduplication */
+  maxDeduplicationCacheSize: 1000,
+  /** Time window (ms) for considering events as duplicates */
+  deduplicationTimeWindow: 60000, // 1 minute
 } as const;
 
 /**
@@ -42,9 +46,38 @@ export const QueueConfigSchema = z.object({
   maxWaitTime: z.number().int().min(1000).max(60000),
   maxRetries: z.number().int().min(0).max(10),
   retryDelay: z.number().int().min(100).max(10000),
+  maxDeduplicationCacheSize: z.number().int().min(100).max(10000),
+  deduplicationTimeWindow: z.number().int().min(1000).max(300000), // 1s to 5min
 });
 
 export type QueueConfig = z.infer<typeof QueueConfigSchema>;
+
+/**
+ * Event fingerprint for deduplication
+ */
+export interface EventFingerprint {
+  /** Unique identifier for the event fingerprint */
+  id: string;
+  /** Event type (open_time_start, open_time_end, etc.) */
+  eventType: string;
+  /** Tab ID */
+  tabId: number;
+  /** Visit ID (for open time events) */
+  visitId?: string;
+  /** Activity ID (for active time events) */
+  activityId?: string;
+  /** Timestamp when fingerprint was created */
+  timestamp: number;
+}
+
+/**
+ * LRU Cache node for deduplication
+ */
+interface CacheNode {
+  fingerprint: EventFingerprint;
+  prev: CacheNode | null;
+  next: CacheNode | null;
+}
 
 /**
  * Queue statistics for monitoring
@@ -62,6 +95,10 @@ export interface QueueStats {
   averageBatchSize: number;
   /** Last flush timestamp */
   lastFlushTime: number | null;
+  /** Number of duplicate events detected and filtered */
+  duplicatesFiltered: number;
+  /** Current size of deduplication cache */
+  deduplicationCacheSize: number;
 }
 
 // ============================================================================
@@ -87,6 +124,11 @@ export class EventQueue {
   private isShuttingDown = false;
   private stats: QueueStats;
 
+  // Deduplication cache (LRU implementation)
+  private readonly fingerprintCache = new Map<string, CacheNode>();
+  private cacheHead: CacheNode | null = null;
+  private cacheTail: CacheNode | null = null;
+
   constructor(db: WebTimeTrackerDB, config: Partial<QueueConfig> = {}) {
     this.config = QueueConfigSchema.parse({ ...DEFAULT_QUEUE_CONFIG, ...config });
     this.db = db;
@@ -97,7 +139,133 @@ export class EventQueue {
       batchWrites: 0,
       averageBatchSize: 0,
       lastFlushTime: null,
+      duplicatesFiltered: 0,
+      deduplicationCacheSize: 0,
     };
+  }
+
+  /**
+   * Generate a unique fingerprint for an event
+   */
+  private generateEventFingerprint(event: DomainEvent): EventFingerprint {
+    const id = `${event.eventType}:${event.tabId}:${event.visitId || 'null'}:${event.activityId || 'null'}`;
+
+    return {
+      id,
+      eventType: event.eventType,
+      tabId: event.tabId,
+      visitId: event.visitId || undefined,
+      activityId: event.activityId || undefined,
+      timestamp: Date.now(),
+    };
+  }
+
+  /**
+   * Check if an event is a duplicate based on fingerprint and time window
+   */
+  private isDuplicateEvent(fingerprint: EventFingerprint): boolean {
+    const existingNode = this.fingerprintCache.get(fingerprint.id);
+
+    if (!existingNode) {
+      return false;
+    }
+
+    // Check if the existing event is within the time window
+    const timeDiff = fingerprint.timestamp - existingNode.fingerprint.timestamp;
+    if (timeDiff <= this.config.deduplicationTimeWindow) {
+      // Move to front (most recently used)
+      this.moveToFront(existingNode);
+      return true;
+    }
+
+    // Event is outside time window, remove old fingerprint
+    this.removeFromCache(existingNode);
+    return false;
+  }
+
+  /**
+   * Add fingerprint to LRU cache
+   */
+  private addToCache(fingerprint: EventFingerprint): void {
+    // Check if cache is at capacity
+    if (this.fingerprintCache.size >= this.config.maxDeduplicationCacheSize) {
+      this.evictLeastRecentlyUsed();
+    }
+
+    const newNode: CacheNode = {
+      fingerprint,
+      prev: null,
+      next: this.cacheHead,
+    };
+
+    if (this.cacheHead) {
+      this.cacheHead.prev = newNode;
+    }
+    this.cacheHead = newNode;
+
+    if (!this.cacheTail) {
+      this.cacheTail = newNode;
+    }
+
+    this.fingerprintCache.set(fingerprint.id, newNode);
+    this.stats.deduplicationCacheSize = this.fingerprintCache.size;
+  }
+
+  /**
+   * Move a cache node to the front (most recently used)
+   */
+  private moveToFront(node: CacheNode): void {
+    if (node === this.cacheHead) {
+      return; // Already at front
+    }
+
+    // Remove from current position
+    if (node.prev) {
+      node.prev.next = node.next;
+    }
+    if (node.next) {
+      node.next.prev = node.prev;
+    }
+    if (node === this.cacheTail) {
+      this.cacheTail = node.prev;
+    }
+
+    // Move to front
+    node.prev = null;
+    node.next = this.cacheHead;
+    if (this.cacheHead) {
+      this.cacheHead.prev = node;
+    }
+    this.cacheHead = node;
+  }
+
+  /**
+   * Remove a node from the cache
+   */
+  private removeFromCache(node: CacheNode): void {
+    if (node.prev) {
+      node.prev.next = node.next;
+    } else {
+      this.cacheHead = node.next;
+    }
+
+    if (node.next) {
+      node.next.prev = node.prev;
+    } else {
+      this.cacheTail = node.prev;
+    }
+
+    this.fingerprintCache.delete(node.fingerprint.id);
+    this.stats.deduplicationCacheSize = this.fingerprintCache.size;
+  }
+
+  /**
+   * Evict the least recently used item from cache
+   */
+  private evictLeastRecentlyUsed(): void {
+    if (this.cacheTail) {
+      this.removeFromCache(this.cacheTail);
+    }
   }
 
   /**
@@ -113,6 +281,24 @@ export class EventQueue {
 
     // Validate event
     const validatedEvent = this.validateEvent(event);
+
+    // Generate fingerprint for deduplication
+    const fingerprint = this.generateEventFingerprint(validatedEvent);
+
+    // Check for duplicates
+    if (this.isDuplicateEvent(fingerprint)) {
+      this.stats.duplicatesFiltered++;
+      EventQueue.logger.debug(`🚫 Filtered duplicate event: ${event.eventType}`, {
+        tabId: event.tabId,
+        visitId: event.visitId,
+        activityId: event.activityId,
+        duplicatesFiltered: this.stats.duplicatesFiltered
+      });
+      return; // Skip duplicate event
+    }
+
+    // Add fingerprint to cache
+    this.addToCache(fingerprint);
 
     // Create queued event
     const queuedEvent: QueuedEvent = {
@@ -157,6 +343,43 @@ export class EventQueue {
   }
 
   /**
+   * Get deduplication statistics
+   */
+  getDeduplicationStats(): {
+    duplicatesFiltered: number;
+    cacheSize: number;
+    cacheCapacity: number;
+    timeWindow: number;
+    filterRate: number;
+  } {
+    // Total events = processed + currently queued + filtered duplicates
+    const totalEvents = this.stats.totalProcessed + this.queue.length + this.stats.duplicatesFiltered;
+    const filterRate = totalEvents > 0 ? (this.stats.duplicatesFiltered / totalEvents) * 100 : 0;
+
+    return {
+      duplicatesFiltered: this.stats.duplicatesFiltered,
+      cacheSize: this.stats.deduplicationCacheSize,
+      cacheCapacity: this.config.maxDeduplicationCacheSize,
+      timeWindow: this.config.deduplicationTimeWindow,
+      filterRate: Math.round(filterRate * 100) / 100, // Round to 2 decimal places
+    };
+  }
+
+  /**
+   * Log deduplication statistics
+   */
+  logDeduplicationStats(): void {
+    const stats = this.getDeduplicationStats();
+    EventQueue.logger.info(`📊 Deduplication Statistics`, {
+      duplicatesFiltered: stats.duplicatesFiltered,
+      cacheSize: stats.cacheSize,
+      cacheCapacity: stats.cacheCapacity,
+      timeWindowMs: stats.timeWindow,
+      filterRatePercent: stats.filterRate,
+    });
+  }
+
+  /**
    * Force flush all pending events
    *
    * @returns Number of events successfully written
@@ -182,6 +405,11 @@ export class EventQueue {
       this.stats.lastFlushTime = Date.now();
       this.stats.batchWrites++;
       this.updateAverageBatchSize(successCount);
+
+      // Log deduplication stats every 10 batch writes
+      if (this.stats.batchWrites % 10 === 0) {
+        this.logDeduplicationStats();
+      }
 
       return successCount;
     } catch (error) {

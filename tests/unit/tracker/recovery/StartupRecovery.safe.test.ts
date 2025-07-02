@@ -55,7 +55,8 @@ describe('StartupRecovery (Type-Safe)', () => {
       );
       mockGetEventsByTypeAndTimeRange
         .mockResolvedValueOnce([]) // open_time_start events
-        .mockResolvedValueOnce([]); // active_time_start events
+        .mockResolvedValueOnce([]) // active_time_start events
+        .mockResolvedValueOnce([]); // checkpoint events
 
       mockTabs.query.mockResolvedValue([]);
 
@@ -81,7 +82,8 @@ describe('StartupRecovery (Type-Safe)', () => {
       );
       mockGetEventsByTypeAndTimeRange
         .mockResolvedValueOnce([orphanEvent]) // open_time_start events
-        .mockResolvedValueOnce([]); // active_time_start events
+        .mockResolvedValueOnce([]) // active_time_start events
+        .mockResolvedValueOnce([]); // checkpoint events
 
       // Mock that no end event exists (making it an orphan)
       const mockGetEventsByVisitId = vi.mocked(mockDatabaseService.getEventsByVisitId!);
@@ -120,7 +122,8 @@ describe('StartupRecovery (Type-Safe)', () => {
       );
       mockGetEventsByTypeAndTimeRange
         .mockResolvedValueOnce([]) // open_time_start events
-        .mockResolvedValueOnce([orphanEvent]); // active_time_start events
+        .mockResolvedValueOnce([orphanEvent]) // active_time_start events
+        .mockResolvedValueOnce([]); // checkpoint events
 
       const mockGetEventsByActivityId = vi.mocked(mockDatabaseService.getEventsByActivityId!);
       mockGetEventsByActivityId.mockResolvedValue([]);
@@ -165,7 +168,8 @@ describe('StartupRecovery (Type-Safe)', () => {
       );
       mockGetEventsByTypeAndTimeRange
         .mockResolvedValueOnce([startEvent]) // open_time_start events
-        .mockResolvedValueOnce([]); // active_time_start events
+        .mockResolvedValueOnce([]) // active_time_start events
+        .mockResolvedValueOnce([]); // checkpoint events
 
       const mockGetEventsByVisitId = vi.mocked(mockDatabaseService.getEventsByVisitId!);
       mockGetEventsByVisitId.mockResolvedValue([endEvent]);
@@ -192,6 +196,131 @@ describe('StartupRecovery (Type-Safe)', () => {
       await expect(startupRecovery.executeRecovery()).rejects.toThrow(
         'Phase 1 failed: Database connection failed'
       );
+    });
+  });
+
+  describe('Checkpoint Event Recovery (Enhanced)', () => {
+    it('should recover orphan open_time checkpoint events', async () => {
+      // Setup: Mock orphan open_time checkpoint event
+      const orphanCheckpoint = createTestEventsLogRecord({
+        eventType: 'checkpoint',
+        visitId: 'visit-1',
+        activityId: null, // Open time checkpoint
+      });
+
+      const mockGetEventsByTypeAndTimeRange = vi.mocked(
+        mockDatabaseService.getEventsByTypeAndTimeRange!
+      );
+      mockGetEventsByTypeAndTimeRange
+        .mockResolvedValueOnce([]) // open_time_start events
+        .mockResolvedValueOnce([]) // active_time_start events
+        .mockResolvedValueOnce([orphanCheckpoint]); // checkpoint events
+
+      // Mock that no continuation exists (making it an orphan)
+      const mockGetEventsByVisitId = vi.mocked(mockDatabaseService.getEventsByVisitId!);
+      mockGetEventsByVisitId.mockResolvedValue([]);
+
+      // Mock no current tabs
+      mockTabs.query.mockResolvedValue([]);
+
+      // Execute
+      const result = await startupRecovery.executeRecovery();
+
+      // Verify
+      expect(result.stats.orphanSessionsFound).toBe(1);
+      expect(result.stats.recoveryEventsGenerated).toBe(1);
+      expect(mockEventGenerator.generateOpenTimeEnd).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tabState: expect.objectContaining({
+            url: 'https://example.com',
+            visitId: 'visit-1',
+          }),
+          resolution: 'crash_recovery',
+        })
+      );
+    });
+
+    it('should recover orphan active_time checkpoint events', async () => {
+      // Setup: Mock orphan active_time checkpoint event
+      const orphanCheckpoint = createTestEventsLogRecord({
+        eventType: 'checkpoint',
+        visitId: 'visit-1',
+        activityId: 'activity-1', // Active time checkpoint
+      });
+
+      const mockGetEventsByTypeAndTimeRange = vi.mocked(
+        mockDatabaseService.getEventsByTypeAndTimeRange!
+      );
+      mockGetEventsByTypeAndTimeRange
+        .mockResolvedValueOnce([]) // open_time_start events
+        .mockResolvedValueOnce([]) // active_time_start events
+        .mockResolvedValueOnce([orphanCheckpoint]); // checkpoint events
+
+      // Mock that no continuation exists (making it an orphan)
+      const mockGetEventsByActivityId = vi.mocked(mockDatabaseService.getEventsByActivityId!);
+      mockGetEventsByActivityId.mockResolvedValue([]);
+
+      // Mock no current tabs
+      mockTabs.query.mockResolvedValue([]);
+
+      // Execute
+      const result = await startupRecovery.executeRecovery();
+
+      // Verify
+      expect(result.stats.orphanSessionsFound).toBe(1);
+      expect(result.stats.recoveryEventsGenerated).toBe(1);
+      expect(mockEventGenerator.generateActiveTimeEnd).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tabState: expect.objectContaining({
+            url: 'https://example.com',
+            visitId: 'visit-1',
+            activityId: 'activity-1',
+          }),
+          resolution: 'crash_recovery',
+        }),
+        'tab_closed'
+      );
+    });
+
+    it('should not recover checkpoint events with continuation', async () => {
+      // Setup: Mock checkpoint event with continuation
+      const checkpointWithContinuation = createTestEventsLogRecord({
+        eventType: 'checkpoint',
+        visitId: 'visit-1',
+        activityId: null, // Open time checkpoint
+        timestamp: 1000,
+      });
+
+      // Mock continuation event (subsequent event exists)
+      const continuationEvent = createTestEventsLogRecord({
+        eventType: 'open_time_end',
+        visitId: 'visit-1',
+        activityId: null,
+        timestamp: 2000, // Later timestamp
+      });
+
+      const mockGetEventsByTypeAndTimeRange = vi.mocked(
+        mockDatabaseService.getEventsByTypeAndTimeRange!
+      );
+      mockGetEventsByTypeAndTimeRange
+        .mockResolvedValueOnce([]) // open_time_start events
+        .mockResolvedValueOnce([]) // active_time_start events
+        .mockResolvedValueOnce([checkpointWithContinuation]); // checkpoint events
+
+      // Mock that continuation exists (not an orphan)
+      const mockGetEventsByVisitId = vi.mocked(mockDatabaseService.getEventsByVisitId!);
+      mockGetEventsByVisitId.mockResolvedValue([continuationEvent]);
+
+      // Mock no current tabs
+      mockTabs.query.mockResolvedValue([]);
+
+      // Execute
+      const result = await startupRecovery.executeRecovery();
+
+      // Verify - should not recover because continuation exists
+      expect(result.stats.orphanSessionsFound).toBe(0);
+      expect(result.stats.recoveryEventsGenerated).toBe(0);
+      expect(mockEventGenerator.generateOpenTimeEnd).not.toHaveBeenCalled();
     });
   });
 });

@@ -147,7 +147,7 @@ export class EventGenerator {
       // Validate and process URL
       const urlResult = this.urlProcessor.processUrl(url);
       if (!urlResult.isValid) {
-        EventGenerator.logger.debug('🤔 URL filtered, skipping open_time_start generation', { url, reason: urlResult.reason });
+        EventGenerator.logger.debug('🤔 URL filtered, skipping generation of |open_time_start| event', { url, reason: urlResult.reason });
         return {
           success: false,
           metadata: {

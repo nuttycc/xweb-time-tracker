@@ -18,6 +18,36 @@ import type { TimeAggregationData } from '@/core/db/repositories/aggregatedstats
 import type { WebTimeTrackerDB } from '@/core/db/schemas';
 import type { EventsLogRecord } from '@/core/db/schemas/eventslog.schema';
 
+// Mock the logger modules to avoid logging during tests
+vi.mock('@/utils/logger', () => ({
+  createLogger: vi.fn(() => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    trace: vi.fn(),
+  })),
+}));
+
+vi.mock('@/utils/logger-emoji', () => ({
+  createEmojiLogger: vi.fn(() => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    trace: vi.fn(),
+    logWithEmoji: vi.fn(),
+  })),
+  LogCategory: {
+    START: '▶️',
+    END: '⏹️',
+    DB: '💾',
+    HANDLE: '🛠️',
+    SUCCESS: '✅',
+    ERROR: '❌',
+  },
+}));
+
 // Type-safe test database implementation
 class TestDatabase extends Dexie implements WebTimeTrackerDB {
   aggregatedstats!: EntityTable<AggregatedStatsRecord, 'key'>;

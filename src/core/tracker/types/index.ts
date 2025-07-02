@@ -51,6 +51,9 @@ export const TabStateSchema = z.object({
 
   /** Browser window ID that contains this tab */
   windowId: z.number().int().nonnegative(),
+
+  /** Whether the current session has already generated an end event */
+  sessionEnded: z.boolean(),
 });
 
 export type TabState = z.infer<typeof TabStateSchema>;

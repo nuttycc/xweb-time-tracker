@@ -229,7 +229,7 @@ describe('AggregationEngine', () => {
       );
     });
 
-    it('should skip aggregation when no time is calculated', async () => {
+    it('should skip invalid visit groups with incomplete event sequences', async () => {
       const testEvents = [
         createTestEvent({
           id: 1,
@@ -238,7 +238,7 @@ describe('AggregationEngine', () => {
           visitId: 'visit-1',
           url: 'https://example.com',
         }),
-        // Missing end event - should result in 0 time
+        // Missing end event - should be filtered out by validation
       ];
 
       mockEventsLogRepo.getUnprocessedEvents.mockResolvedValue(testEvents);
@@ -247,7 +247,8 @@ describe('AggregationEngine', () => {
       await engine.run();
 
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
-      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1]);
+      // No events should be marked as processed since the visit group is invalid
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([]);
     });
   });
 
@@ -369,6 +370,36 @@ describe('AggregationEngine', () => {
       expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 2]);
     });
 
+    it('should handle events with negative time interval', async () => {
+      // Create events where end timestamp is before start timestamp
+      const testEvents = [
+        createTestEvent({
+          id: 1,
+          eventType: TEST_EVENT_TYPES.OPEN_TIME_START,
+          timestamp: 2000, // Start at 2000ms
+          visitId: 'visit-1',
+          url: 'https://example.com',
+        }),
+        createTestEvent({
+          id: 2,
+          eventType: TEST_EVENT_TYPES.OPEN_TIME_END,
+          timestamp: 1000, // End at 1000ms (before start!)
+          visitId: 'visit-1',
+          url: 'https://example.com',
+        }),
+      ];
+
+      mockEventsLogRepo.getUnprocessedEvents.mockResolvedValue(testEvents);
+      mockEventsLogRepo.markEventsAsProcessed.mockResolvedValue(undefined);
+
+      await engine.run();
+
+      // Should not create aggregation for negative time interval
+      expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
+      // But should still mark events as processed (complete interval)
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 2]);
+    });
+
     it('should handle orphaned start events', async () => {
       const testEvents = [
         createTestEvent({
@@ -396,7 +427,8 @@ describe('AggregationEngine', () => {
 
       // Should not create aggregation for incomplete sessions
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
-      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 2]);
+      // With validation, orphaned events are not processed
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([]);
     });
 
     it('should handle events with negative time differences', async () => {
@@ -416,7 +448,9 @@ describe('AggregationEngine', () => {
 
       // Should not create aggregation for negative time
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
-      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 2]);
+      // Only start event should be marked as processed (completed its "start" role)
+      // End event is not processed because it doesn't form a valid interval
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1]);
     });
 
     it('should handle repository errors during finalization', async () => {
@@ -619,7 +653,8 @@ describe('AggregationEngine', () => {
 
       // Should not create aggregation for orphaned checkpoint
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
-      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1]);
+      // Orphaned checkpoint should NOT be marked as processed (hasn't completed both roles)
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([]);
     });
 
     it('should handle open time checkpoint events correctly', async () => {
@@ -735,7 +770,8 @@ describe('AggregationEngine', () => {
 
       // Should not create aggregation for orphaned open time checkpoint
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
-      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1]);
+      // Orphaned checkpoint should NOT be marked as processed (hasn't completed both roles)
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([]);
     });
 
     it('should handle mixed open time and active time checkpoints in same visit', async () => {
@@ -950,7 +986,69 @@ describe('AggregationEngine', () => {
 
         // Should not create aggregation for truly isolated checkpoint
         expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
-        expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1]);
+        // Isolated checkpoint should NOT be marked as processed (hasn't completed both roles)
+        expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([]);
+      });
+
+      it('should handle role-based checkpoint processing correctly', async () => {
+        // Test the new role-based selective processing logic
+        const testEvents = [
+          createTestEvent({
+            id: 1,
+            eventType: TEST_EVENT_TYPES.OPEN_TIME_START,
+            timestamp: 1000,
+            visitId: 'visit-1',
+            activityId: null,
+            url: 'https://example.com',
+          }),
+          createTestEvent({
+            id: 2,
+            eventType: TEST_EVENT_TYPES.CHECKPOINT,
+            timestamp: 2000,
+            visitId: 'visit-1',
+            activityId: null, // Open Time checkpoint
+            url: 'https://example.com',
+          }),
+          createTestEvent({
+            id: 3,
+            eventType: TEST_EVENT_TYPES.CHECKPOINT,
+            timestamp: 3000,
+            visitId: 'visit-1',
+            activityId: null, // Another Open Time checkpoint
+            url: 'https://example.com',
+          }),
+          createTestEvent({
+            id: 4,
+            eventType: TEST_EVENT_TYPES.OPEN_TIME_END,
+            timestamp: 4000,
+            visitId: 'visit-1',
+            activityId: null,
+            url: 'https://example.com',
+          }),
+        ];
+
+        mockEventsLogRepo.getUnprocessedEvents.mockResolvedValue(testEvents);
+        mockAggregatedStatsRepo.upsertTimeAggregation.mockResolvedValue('stat-1');
+        mockEventsLogRepo.markEventsAsProcessed.mockResolvedValue(undefined);
+
+        await engine.run();
+
+        // Should process correctly
+        expect(mockAggregatedStatsRepo.upsertTimeAggregation).toHaveBeenCalledWith(
+          expect.objectContaining({
+            openTimeToAdd: 3000, // Total time: 4000-1000 = 3000
+            activeTimeToAdd: 0,
+          })
+        );
+
+        // Check which events should be marked as processed:
+        // Based on the actual implementation behavior:
+        // - Event 1 (start): processed (completed "start" role)
+        // - Event 2 (checkpoint): processed (completed both "end" and "start" roles)
+        // - Event 3 (checkpoint): processed (completed both "end" and "start" roles)
+        // - Event 4 (end): processed (completed "end" role)
+        // Note: Both checkpoints are marked because they're not the last in sequence
+        expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 4, 2, 3]);
       });
     });
   });
@@ -1112,6 +1210,171 @@ describe('AggregationEngine', () => {
       });
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
       expect(mockEventsLogRepo.markEventsAsProcessed).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('visit group validation', () => {
+    it('should process valid visit groups with complete open time sequences', async () => {
+      const testEvents = createOpenTimePair(
+        {
+          visitId: 'visit-1',
+          url: 'https://example.com',
+          timestamp: 1000,
+        },
+        1000
+      );
+
+      mockEventsLogRepo.getUnprocessedEvents.mockResolvedValue(testEvents);
+      mockAggregatedStatsRepo.upsertTimeAggregation.mockResolvedValue('stat-1');
+      mockEventsLogRepo.markEventsAsProcessed.mockResolvedValue(undefined);
+
+      await engine.run();
+
+      expect(mockAggregatedStatsRepo.upsertTimeAggregation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          openTimeToAdd: 1000,
+          activeTimeToAdd: 0,
+        })
+      );
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 2]);
+    });
+
+    it('should skip visit groups with only start events', async () => {
+      const testEvents = [
+        createTestEvent({
+          id: 1,
+          eventType: TEST_EVENT_TYPES.OPEN_TIME_START,
+          timestamp: 1000,
+          visitId: 'visit-1',
+          url: 'https://example.com',
+        }),
+      ];
+
+      mockEventsLogRepo.getUnprocessedEvents.mockResolvedValue(testEvents);
+      mockEventsLogRepo.markEventsAsProcessed.mockResolvedValue(undefined);
+
+      await engine.run();
+
+      expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([]);
+    });
+
+    it('should skip visit groups with only end events', async () => {
+      const testEvents = [
+        createTestEvent({
+          id: 1,
+          eventType: TEST_EVENT_TYPES.OPEN_TIME_END,
+          timestamp: 2000,
+          visitId: 'visit-1',
+          url: 'https://example.com',
+        }),
+      ];
+
+      mockEventsLogRepo.getUnprocessedEvents.mockResolvedValue(testEvents);
+      mockEventsLogRepo.markEventsAsProcessed.mockResolvedValue(undefined);
+
+      await engine.run();
+
+      expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([]);
+    });
+
+    it('should process visit groups with valid checkpoint sequences', async () => {
+      const testEvents = [
+        createTestEvent({
+          id: 1,
+          eventType: TEST_EVENT_TYPES.OPEN_TIME_START,
+          timestamp: 1000,
+          visitId: 'visit-1',
+          url: 'https://example.com',
+        }),
+        createTestEvent({
+          id: 2,
+          eventType: TEST_EVENT_TYPES.CHECKPOINT,
+          timestamp: 2000,
+          visitId: 'visit-1',
+          activityId: null,
+          url: 'https://example.com',
+        }),
+        createTestEvent({
+          id: 3,
+          eventType: TEST_EVENT_TYPES.OPEN_TIME_END,
+          timestamp: 3000,
+          visitId: 'visit-1',
+          url: 'https://example.com',
+        }),
+      ];
+
+      mockEventsLogRepo.getUnprocessedEvents.mockResolvedValue(testEvents);
+      mockAggregatedStatsRepo.upsertTimeAggregation.mockResolvedValue('stat-1');
+      mockEventsLogRepo.markEventsAsProcessed.mockResolvedValue(undefined);
+
+      await engine.run();
+
+      expect(mockAggregatedStatsRepo.upsertTimeAggregation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          openTimeToAdd: 2000, // 1000-2000 + 2000-3000 = 1000 + 1000 = 2000
+          activeTimeToAdd: 0,
+        })
+      );
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 3, 2]);
+    });
+
+    it('should process visit groups with valid active time sequences', async () => {
+      const testEvents = [
+        createTestEvent({
+          id: 1,
+          eventType: TEST_EVENT_TYPES.ACTIVE_TIME_START,
+          timestamp: 1000,
+          visitId: 'visit-1',
+          activityId: 'activity-1',
+          url: 'https://example.com',
+        }),
+        createTestEvent({
+          id: 2,
+          eventType: TEST_EVENT_TYPES.ACTIVE_TIME_END,
+          timestamp: 2000,
+          visitId: 'visit-1',
+          activityId: 'activity-1',
+          url: 'https://example.com',
+        }),
+      ];
+
+      mockEventsLogRepo.getUnprocessedEvents.mockResolvedValue(testEvents);
+      mockAggregatedStatsRepo.upsertTimeAggregation.mockResolvedValue('stat-1');
+      mockEventsLogRepo.markEventsAsProcessed.mockResolvedValue(undefined);
+
+      await engine.run();
+
+      expect(mockAggregatedStatsRepo.upsertTimeAggregation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          openTimeToAdd: 0,
+          activeTimeToAdd: 1000,
+        })
+      );
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 2]);
+    });
+
+    it('should skip visit groups with incomplete active time sequences', async () => {
+      const testEvents = [
+        createTestEvent({
+          id: 1,
+          eventType: TEST_EVENT_TYPES.ACTIVE_TIME_START,
+          timestamp: 1000,
+          visitId: 'visit-1',
+          activityId: 'activity-1',
+          url: 'https://example.com',
+        }),
+        // Missing active_time_end event
+      ];
+
+      mockEventsLogRepo.getUnprocessedEvents.mockResolvedValue(testEvents);
+      mockEventsLogRepo.markEventsAsProcessed.mockResolvedValue(undefined);
+
+      await engine.run();
+
+      expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([]);
     });
   });
 });

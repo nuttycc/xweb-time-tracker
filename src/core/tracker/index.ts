@@ -601,6 +601,7 @@ export class TimeTracker {
         lastInteractionTimestamp: timestamp,
         openTimeStart: timestamp,
         activeTimeStart: null,
+        sessionEnded: false,
       };
 
       // Check if tab state already exists
@@ -629,6 +630,15 @@ export class TimeTracker {
   }
 
   private async generateAndQueueOpenTimeEnd(tabState: TabState, timestamp: number): Promise<void> {
+    // Check if session has already ended to prevent duplicate end events
+    if (tabState.sessionEnded) {
+      TimeTracker.logger.debug('🚫 Session already ended, skipping duplicate open_time_end event', {
+        tabId: tabState.tabId,
+        visitId: tabState.visitId,
+      });
+      return;
+    }
+
     const context = {
       tabState,
       timestamp,
@@ -637,6 +647,16 @@ export class TimeTracker {
     const result = this.eventGenerator.generateOpenTimeEnd(context);
     if (result.success && result.event) {
       await this.eventQueue.enqueue(result.event);
+
+      // Mark session as ended to prevent future duplicates
+      this.tabStateManager.updateTabState(tabState.tabId, {
+        sessionEnded: true,
+      });
+
+      TimeTracker.logger.debug('✅ Generated open_time_end and marked session as ended', {
+        tabId: tabState.tabId,
+        visitId: tabState.visitId,
+      });
     }
   }
 
@@ -759,6 +779,7 @@ export class TimeTracker {
         lastInteractionTimestamp: timestamp,
         openTimeStart: timestamp,
         activeTimeStart: null,
+        sessionEnded: false,
       };
 
       this.tabStateManager.createTabState(tab.id, initialTabState, tab.windowId || 0, { validate: false });

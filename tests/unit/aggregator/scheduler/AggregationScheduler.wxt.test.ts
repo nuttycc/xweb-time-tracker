@@ -79,7 +79,7 @@ describe('AggregationScheduler (WXT Standard)', () => {
     it('should create alarm with default period when no custom period is set', async () => {
       // Mock production environment to avoid DEV mode override
       vi.stubEnv('DEV', false);
-      
+
       const createSpy = vi.spyOn(fakeBrowser.alarms, 'create');
       const addListenerSpy = vi.spyOn(fakeBrowser.alarms.onAlarm, 'addListener');
 
@@ -89,7 +89,7 @@ describe('AggregationScheduler (WXT Standard)', () => {
         periodInMinutes: DEFAULT_AGGREGATION_INTERVAL_MINUTES,
       });
       expect(addListenerSpy).toHaveBeenCalled();
-      
+
       // Clean up environment mock
       vi.unstubAllEnvs();
     });
@@ -97,7 +97,7 @@ describe('AggregationScheduler (WXT Standard)', () => {
     it('should create alarm with custom period from storage', async () => {
       // Mock production environment to avoid DEV mode override
       vi.stubEnv('DEV', false);
-      
+
       const customPeriod = 30;
       const createSpy = vi.spyOn(fakeBrowser.alarms, 'create');
 
@@ -117,7 +117,7 @@ describe('AggregationScheduler (WXT Standard)', () => {
       expect(createSpy).toHaveBeenCalledWith(AGGREGATION_ALARM_NAME, {
         periodInMinutes: customPeriod,
       });
-      
+
       // Clean up environment mock
       vi.unstubAllEnvs();
     });
@@ -218,7 +218,7 @@ describe('AggregationScheduler (WXT Standard)', () => {
       // Wait for async operations
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      expectEmojiLog(mockLogger, LogCategory.ERROR, 'error', 'error during scheduled aggregation');
+      expectEmojiLog(mockLogger, LogCategory.ERROR, 'error', 'Failed scheduled aggregation');
     });
 
     it('should log task duration', async () => {
@@ -232,11 +232,16 @@ describe('AggregationScheduler (WXT Standard)', () => {
 
       // Verify key log calls during task execution
       expect(mockLogger.logWithEmoji).toHaveBeenCalledWith(
-        LogCategory.START, 'info', 'scheduled aggregation task'
+        LogCategory.START,
+        'info',
+        'Started scheduled aggregation task'
       );
       expect(mockLogger.logWithEmoji).toHaveBeenCalledWith(
-        LogCategory.END, 'info', 'aggregation task finished', expect.objectContaining({
-          duration: expect.stringMatching(/\d+ms/)
+        LogCategory.END,
+        'info',
+        'Finished aggregation task',
+        expect.objectContaining({
+          duration: expect.stringMatching(/\d+ms/),
         })
       );
     });

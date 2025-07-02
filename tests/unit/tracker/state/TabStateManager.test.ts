@@ -50,6 +50,7 @@ describe('TabStateManager', () => {
       lastInteractionTimestamp: Date.now(),
       openTimeStart: Date.now(),
       activeTimeStart: null,
+      sessionEnded: false,
     };
 
     it('should create a new tab state', () => {
@@ -128,6 +129,7 @@ describe('TabStateManager', () => {
       lastInteractionTimestamp: Date.now(),
       openTimeStart: Date.now(),
       activeTimeStart: null,
+      sessionEnded: false,
     };
     const mockTabState2: Omit<TabState, 'isFocused' | 'tabId' | 'windowId'> = {
       url: 'https://example2.com',
@@ -137,6 +139,7 @@ describe('TabStateManager', () => {
       lastInteractionTimestamp: Date.now(),
       openTimeStart: Date.now(),
       activeTimeStart: null,
+      sessionEnded: false,
     };
 
     beforeEach(() => {
@@ -227,6 +230,7 @@ describe('TabStateManager', () => {
       lastInteractionTimestamp: Date.now(),
       openTimeStart: Date.now(),
       activeTimeStart: null,
+      sessionEnded: false,
     };
 
     beforeEach(() => {
@@ -344,6 +348,7 @@ describe('TabStateManager', () => {
         lastInteractionTimestamp: Date.now(),
         openTimeStart: Date.now(),
         activeTimeStart: null,
+        sessionEnded: false,
       };
 
       tabStateManager.createTabState(tabId, mockTabState, windowId);
@@ -363,6 +368,7 @@ describe('TabStateManager', () => {
         lastInteractionTimestamp: Date.now(),
         openTimeStart: Date.now(),
         activeTimeStart: null,
+        sessionEnded: false,
       };
 
       tabStateManager.createTabState(tabId, mockTabState, windowId);
@@ -388,6 +394,7 @@ describe('TabStateManager', () => {
         lastInteractionTimestamp: Date.now(),
         openTimeStart: Date.now(),
         activeTimeStart: null,
+        sessionEnded: false,
       };
 
       tabStateManager.createTabState(tabId1, mockTabState, windowId);

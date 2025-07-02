@@ -23,9 +23,9 @@ export class AggregationScheduler {
   private logger: EmojiLogger;
 
   /**
-   * @param aggregationEngine - The engine to run when the alarm fires.
-   * @param dataPruner - The pruner to run after aggregation.
-   * @param options - Configuration for the scheduler.
+   * @param aggregationEngine
+   * @param dataPruner 
+   * @param options 
    */
   constructor(
     private readonly aggregationEngine: AggregationEngine,
@@ -36,30 +36,29 @@ export class AggregationScheduler {
     this.handleAlarm = this.handleAlarm.bind(this);
   }
 
-  /**
-   * Starts the scheduler.
-   *
-   * Creates a recurring alarm that will trigger the aggregation process.
-   */
   public async start(): Promise<void> {
-    this.logger.logWithEmoji(LogCategory.START, 'info', 'aggregation scheduler');
-    
-    let periodInMinutes = 
+    this.logger.logWithEmoji(LogCategory.START, 'info', 'Started aggregation scheduler');
+
+    let periodInMinutes =
       (await storage.getItem<number>(SCHEDULER_PERIOD_MINUTES_KEY)) ??
       DEFAULT_AGGREGATION_INTERVAL_MINUTES;
-    
+
     // In development mode, use a shorter interval for faster testing
     // Note: Chrome alarms API minimum is 1 minute
     if (import.meta.env.DEV) {
-      periodInMinutes = Math.min(periodInMinutes, 1);
-      this.logger.logWithEmoji(LogCategory.SCHEDULE, 'debug', 'development mode: using 1-minute interval');
+      periodInMinutes = Math.min(periodInMinutes, 100);
+      this.logger.logWithEmoji(
+        LogCategory.SCHEDULE,
+        'debug',
+        'Configured development mode with 1-minute interval'
+      );
     }
-    
-    this.logger.logWithEmoji(LogCategory.SCHEDULE, 'info', 'creating alarm', { 
+
+    this.logger.logWithEmoji(LogCategory.SCHEDULE, 'info', 'Created aggregation alarm', {
       periodInMinutes,
-      isDev: import.meta.env.DEV 
+      isDev: import.meta.env.DEV,
     });
-    
+
     browser.alarms.create(AGGREGATION_ALARM_NAME, {
       periodInMinutes,
     });
@@ -67,36 +66,30 @@ export class AggregationScheduler {
     if (!this.isListenerRegistered) {
       browser.alarms.onAlarm.addListener(this.handleAlarm);
       this.isListenerRegistered = true;
-      this.logger.logWithEmoji(LogCategory.SUCCESS, 'debug', 'alarm listener registered');
+      this.logger.logWithEmoji(LogCategory.SUCCESS, 'debug', 'Registered alarm listener');
     }
   }
 
-  /**
-   * Handles the alarm event.
-   * @param alarm - The alarm that fired.
-   */
+
   private handleAlarm(alarm: Browser.alarms.Alarm): void {
     if (alarm.name === AGGREGATION_ALARM_NAME) {
       this.runTask();
     }
   }
 
-  /**
-   * Stops the scheduler.
-   *
-   * Clears the aggregation alarm.
-   */
   public async stop(): Promise<boolean> {
-    this.logger.logWithEmoji(LogCategory.END, 'info', 'stopping aggregation scheduler');
-    
+    this.logger.logWithEmoji(LogCategory.END, 'info', 'Stopping aggregation scheduler');
+
     const cleared = await browser.alarms.clear(AGGREGATION_ALARM_NAME);
     if (this.isListenerRegistered) {
       browser.alarms.onAlarm.removeListener(this.handleAlarm);
       this.isListenerRegistered = false;
-      this.logger.logWithEmoji(LogCategory.SUCCESS, 'debug', 'alarm listener removed');
+      this.logger.logWithEmoji(LogCategory.SUCCESS, 'debug', 'Removed alarm listener');
     }
-    
-    this.logger.logWithEmoji(LogCategory.SUCCESS, 'info', 'scheduler stopped', { alarmCleared: cleared });
+
+    this.logger.logWithEmoji(LogCategory.SUCCESS, 'info', 'Stopped aggregation scheduler', {
+      alarmCleared: cleared,
+    });
     return cleared;
   }
 
@@ -117,7 +110,7 @@ export class AggregationScheduler {
    * @returns Promise that resolves when the task completes
    */
   public async runNow(): Promise<void> {
-    this.logger.logWithEmoji(LogCategory.START, 'info', 'manual aggregation trigger');
+    this.logger.logWithEmoji(LogCategory.INFO, 'info', 'Started manual aggregation');
     await this.runTask();
   }
 
@@ -127,28 +120,38 @@ export class AggregationScheduler {
   private async runTask(): Promise<void> {
     const lock = await storage.getItem<{ timestamp: number }>(AGGREGATION_LOCK_KEY);
     if (lock && Date.now() - lock.timestamp < AGGREGATION_LOCK_TTL_MS) {
-      this.logger.logWithEmoji(LogCategory.SKIP, 'warn', 'aggregation task already running');
+      this.logger.logWithEmoji(
+        LogCategory.SKIP,
+        'warn',
+        'Skipped aggregation task (already running)'
+      );
       return;
     }
 
     await storage.setItem(AGGREGATION_LOCK_KEY, { timestamp: Date.now() });
     const startTime = Date.now();
-    this.logger.logWithEmoji(LogCategory.START, 'info', 'scheduled aggregation task');
-    
+    this.logger.logWithEmoji(LogCategory.START, 'info', 'Started scheduled aggregation task');
+
     try {
       const result = await this.aggregationEngine.run();
       if (result.success) {
-        this.logger.logWithEmoji(LogCategory.SUCCESS, 'info', 'aggregation completed', { processedEvents: result.processedEvents });
+        this.logger.logWithEmoji(LogCategory.SUCCESS, 'info', 'Completed aggregation.');
         await this.dataPruner.run();
       } else {
-        this.logger.logWithEmoji(LogCategory.ERROR, 'error', 'aggregation failed', { error: result.error });
+        this.logger.logWithEmoji(LogCategory.ERROR, 'error', 'Failed aggregation', {
+          error: result.error,
+        });
       }
     } catch (error) {
-      this.logger.logWithEmoji(LogCategory.ERROR, 'error', 'error during scheduled aggregation', { error });
+      this.logger.logWithEmoji(LogCategory.ERROR, 'error', 'Failed scheduled aggregation', {
+        error,
+      });
     } finally {
       await storage.removeItem(AGGREGATION_LOCK_KEY);
       const duration = Date.now() - startTime;
-      this.logger.logWithEmoji(LogCategory.END, 'info', 'aggregation task finished', { duration: `${duration}ms` });
+      this.logger.logWithEmoji(LogCategory.END, 'info', 'Finished aggregation task', {
+        duration: `${duration}ms`,
+      });
     }
   }
 }

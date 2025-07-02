@@ -7,6 +7,7 @@
 
 import type { IndexableType, EntityTable, IDType } from 'dexie';
 import type { WebTimeTrackerDB } from '../schemas';
+import { createLogger, type Logger } from '@/utils/logger';
 
 /**
  * Base entity interface for entities with primary keys
@@ -85,11 +86,13 @@ export abstract class BaseRepository<T, PK extends keyof T> {
   protected readonly table: EntityTable<T, PK>;
   protected readonly db: WebTimeTrackerDB;
   protected readonly tableName: string;
+  protected readonly logger: Logger;
 
   constructor(db: WebTimeTrackerDB, table: EntityTable<T, PK>, tableName: string) {
     this.db = db;
     this.table = table;
     this.tableName = tableName;
+    this.logger = createLogger(`${tableName}Repository`);
   }
 
   /**
@@ -282,6 +285,8 @@ export abstract class BaseRepository<T, PK extends keyof T> {
     operationName: string,
     options: RepositoryOptions
   ): Promise<TResult> {
+
+    
     const { timeout = 10000, retryOnFailure = true, maxRetries = 2 } = options;
 
     let lastError: Error;
@@ -305,7 +310,7 @@ export abstract class BaseRepository<T, PK extends keyof T> {
           throw error;
         }
 
-        console.warn(
+        this.logger.warn(
           `${this.tableName} repository ${operationName} failed (attempt ${attempts}/${maxRetries + 1}), retrying...`,
           error
         );

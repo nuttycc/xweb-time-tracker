@@ -16,6 +16,7 @@ import type { WebTimeTrackerDB } from '../schemas';
 import type { AggregatedStatsRecord } from '../schemas/aggregatedstats.schema';
 import { generateAggregatedStatsKey, getUtcDateString } from '../schemas/aggregatedstats.schema';
 import { AggregatedStatsValidation } from '../models/aggregatedstats.model';
+import { createEmojiLogger, LogCategory, type EmojiLogger } from '@/utils/logger-emoji';
 
 /**
  * Query options for AggregatedStats operations
@@ -59,9 +60,12 @@ export interface TimeAggregationData {
  * Note: This repository works with string primary keys (composite format: "YYYY-MM-DD:url")
  */
 export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRecord, 'key'> {
+  private readonly emojiLogger: EmojiLogger;
+
   constructor(db: WebTimeTrackerDB) {
     // Direct use of EntityTable without type assertion
     super(db, db.aggregatedstats, 'aggregatedstats');
+    this.emojiLogger = createEmojiLogger('AggregatedStatsRepository');
   }
 
   /**
@@ -76,20 +80,49 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
     data: TimeAggregationData,
     options: RepositoryOptions = {}
   ): Promise<string> {
+    const startTime = performance.now();
+
+    this.emojiLogger.logWithEmoji(
+      LogCategory.START,
+      'debug',
+      'Starting time aggregation upsert',
+      { data, options }
+    );
+
     try {
-      // Validate input data first
+      // Validate input data first (before generating key to ensure fast failure)
+      this.emojiLogger.logWithEmoji(LogCategory.HANDLE, 'debug', 'Validating aggregation data', data);
       this.validateTimeAggregationData(data);
 
+      // Generate key after validation passes
       const key = generateAggregatedStatsKey(data.date, data.url);
+      this.emojiLogger.logWithEmoji(LogCategory.HANDLE, 'debug', 'Generated aggregation key', { key });
 
       const result = await this.executeWithRetry(
         async () => {
+          this.emojiLogger.logWithEmoji(LogCategory.DB, 'debug', 'Starting database transaction', { key });
+
           return this.db.transaction('rw', 'aggregatedstats', async () => {
+            this.emojiLogger.logWithEmoji(LogCategory.DB, 'debug', 'Transaction started for aggregatedstats', { key });
+
             // Try to get existing record
+            this.emojiLogger.logWithEmoji(LogCategory.DB, 'debug', 'Checking for existing record', { key });
             const existing = await this.table.get(key);
 
             if (existing) {
               // Update existing record by adding time values
+              this.emojiLogger.logWithEmoji(
+                LogCategory.DB,
+                'info',
+                'Updating existing aggregated stats record',
+                {
+                  key,
+                  existing,
+                  openTimeToAdd: data.openTimeToAdd,
+                  activeTimeToAdd: data.activeTimeToAdd
+                }
+              );
+
               const updatedRecord: Partial<AggregatedStatsRecord> = {
                 total_open_time: existing.total_open_time + data.openTimeToAdd,
                 total_active_time: existing.total_active_time + data.activeTimeToAdd,
@@ -97,9 +130,30 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
               };
 
               await this.table.update(key, updatedRecord);
+
+              this.emojiLogger.logWithEmoji(
+                LogCategory.SUCCESS,
+                'info',
+                'Successfully updated aggregated stats',
+                {
+                  key,
+                  previousOpenTime: existing.total_open_time,
+                  previousActiveTime: existing.total_active_time,
+                  newOpenTime: updatedRecord.total_open_time,
+                  newActiveTime: updatedRecord.total_active_time
+                }
+              );
+
               return key;
             } else {
               // Create new record
+              this.emojiLogger.logWithEmoji(
+                LogCategory.DB,
+                'info',
+                'Creating new aggregated stats record',
+                { key, data }
+              );
+
               const newRecord: AggregatedStatsRecord = {
                 key,
                 date: data.date,
@@ -114,6 +168,14 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
               // Validate the new record before adding
               await this.validateForCreate(newRecord);
               await this.table.add(newRecord);
+
+              this.emojiLogger.logWithEmoji(
+                LogCategory.SUCCESS,
+                'info',
+                'Successfully created new aggregated stats record',
+                { key, newRecord }
+              );
+
               return key;
             }
           });
@@ -122,8 +184,27 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
         options
       );
 
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.END,
+        'info',
+        'Time aggregation upsert completed successfully',
+        { key, executionTime: `${executionTime.toFixed(2)}ms` }
+      );
+
       return result;
     } catch (error) {
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.ERROR,
+        'error',
+        'Time aggregation upsert failed',
+        {
+          data,
+          error: error instanceof Error ? error.message : String(error),
+          executionTime: `${executionTime.toFixed(2)}ms`
+        }
+      );
       throw this.handleError(error, 'upsertTimeAggregation');
     }
   }
@@ -141,20 +222,56 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
     endDate: string,
     options: AggregatedStatsQueryOptions = {}
   ): Promise<AggregatedStatsRecord[]> {
-    try {
-      const { limit, offset = 0, orderBy = 'date', orderDirection = 'asc' } = options;
+    const startTime = performance.now();
+    const { limit, offset = 0, orderBy = 'date', orderDirection = 'asc' } = options;
 
+    this.emojiLogger.logWithEmoji(
+      LogCategory.START,
+      'debug',
+      'Starting stats query by date range',
+      { startDate, endDate, limit, offset, orderBy, orderDirection }
+    );
+
+    try {
       const result = await this.executeWithRetry(
         async () => {
+          this.emojiLogger.logWithEmoji(
+            LogCategory.DB,
+            'debug',
+            'Executing date range query',
+            { startDate, endDate, orderBy, orderDirection }
+          );
+
           let collection = this.table.where('date').between(startDate, endDate, true, true);
 
           // Apply ordering
           if (orderBy === 'date') {
             collection = orderDirection === 'desc' ? collection.reverse() : collection;
+
+            this.emojiLogger.logWithEmoji(
+              LogCategory.HANDLE,
+              'debug',
+              'Using database-level sorting for date field',
+              { orderDirection }
+            );
           } else {
             // For other fields, we need to sort after retrieval
+            this.emojiLogger.logWithEmoji(
+              LogCategory.HANDLE,
+              'debug',
+              'Using memory sorting for non-indexed field',
+              { orderBy, orderDirection }
+            );
+
             const results = await collection.toArray();
             const sorted = this.sortRecords(results, orderBy, orderDirection);
+
+            this.emojiLogger.logWithEmoji(
+              LogCategory.HANDLE,
+              'debug',
+              'Applied memory sorting and pagination',
+              { recordCount: results.length, sortedCount: sorted.length, offset, limit }
+            );
 
             // Apply pagination manually for sorted results
             const start = offset;
@@ -170,14 +287,47 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
             collection = collection.limit(limit);
           }
 
+          this.emojiLogger.logWithEmoji(
+            LogCategory.HANDLE,
+            'debug',
+            'Applied database-level pagination',
+            { offset, limit }
+          );
+
           return collection.toArray();
         },
         'getStatsByDateRange',
         options
       );
 
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.END,
+        'info',
+        'Date range query completed successfully',
+        {
+          startDate,
+          endDate,
+          resultCount: result.length,
+          executionTime: `${executionTime.toFixed(2)}ms`
+        }
+      );
+
       return result;
     } catch (error) {
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.ERROR,
+        'error',
+        'Date range query failed',
+        {
+          startDate,
+          endDate,
+          options,
+          error: error instanceof Error ? error.message : String(error),
+          executionTime: `${executionTime.toFixed(2)}ms`
+        }
+      );
       throw this.handleError(error, 'getStatsByDateRange');
     }
   }
@@ -193,20 +343,56 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
     hostname: string,
     options: AggregatedStatsQueryOptions = {}
   ): Promise<AggregatedStatsRecord[]> {
-    try {
-      const { limit, offset = 0, orderBy = 'date', orderDirection = 'asc' } = options;
+    const startTime = performance.now();
+    const { limit, offset = 0, orderBy = 'date', orderDirection = 'asc' } = options;
 
+    this.emojiLogger.logWithEmoji(
+      LogCategory.START,
+      'debug',
+      'Starting stats query by hostname',
+      { hostname, limit, offset, orderBy, orderDirection }
+    );
+
+    try {
       const result = await this.executeWithRetry(
         async () => {
+          this.emojiLogger.logWithEmoji(
+            LogCategory.DB,
+            'debug',
+            'Executing hostname query',
+            { hostname, orderBy, orderDirection }
+          );
+
           let collection = this.table.where('hostname').equals(hostname);
 
           // Apply ordering
           if (orderBy === 'date') {
             collection = orderDirection === 'desc' ? collection.reverse() : collection;
+
+            this.emojiLogger.logWithEmoji(
+              LogCategory.HANDLE,
+              'debug',
+              'Using database-level sorting for date field',
+              { hostname, orderDirection }
+            );
           } else {
             // For other fields, we need to sort after retrieval
+            this.emojiLogger.logWithEmoji(
+              LogCategory.HANDLE,
+              'debug',
+              'Using memory sorting for non-indexed field',
+              { hostname, orderBy, orderDirection }
+            );
+
             const results = await collection.toArray();
             const sorted = this.sortRecords(results, orderBy, orderDirection);
+
+            this.emojiLogger.logWithEmoji(
+              LogCategory.HANDLE,
+              'debug',
+              'Applied memory sorting and pagination for hostname query',
+              { hostname, recordCount: results.length, sortedCount: sorted.length, offset, limit }
+            );
 
             // Apply pagination manually for sorted results
             const start = offset;
@@ -222,14 +408,45 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
             collection = collection.limit(limit);
           }
 
+          this.emojiLogger.logWithEmoji(
+            LogCategory.HANDLE,
+            'debug',
+            'Applied database-level pagination for hostname query',
+            { hostname, offset, limit }
+          );
+
           return collection.toArray();
         },
         'getStatsByHostname',
         options
       );
 
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.END,
+        'info',
+        'Hostname query completed successfully',
+        {
+          hostname,
+          resultCount: result.length,
+          executionTime: `${executionTime.toFixed(2)}ms`
+        }
+      );
+
       return result;
     } catch (error) {
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.ERROR,
+        'error',
+        'Hostname query failed',
+        {
+          hostname,
+          options,
+          error: error instanceof Error ? error.message : String(error),
+          executionTime: `${executionTime.toFixed(2)}ms`
+        }
+      );
       throw this.handleError(error, 'getStatsByHostname');
     }
   }
@@ -245,20 +462,56 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
     parentDomain: string,
     options: AggregatedStatsQueryOptions = {}
   ): Promise<AggregatedStatsRecord[]> {
-    try {
-      const { limit, offset = 0, orderBy = 'date', orderDirection = 'asc' } = options;
+    const startTime = performance.now();
+    const { limit, offset = 0, orderBy = 'date', orderDirection = 'asc' } = options;
 
+    this.emojiLogger.logWithEmoji(
+      LogCategory.START,
+      'debug',
+      'Starting stats query by parent domain',
+      { parentDomain, limit, offset, orderBy, orderDirection }
+    );
+
+    try {
       const result = await this.executeWithRetry(
         async () => {
+          this.emojiLogger.logWithEmoji(
+            LogCategory.DB,
+            'debug',
+            'Executing parent domain query',
+            { parentDomain, orderBy, orderDirection }
+          );
+
           let collection = this.table.where('parentDomain').equals(parentDomain);
 
           // Apply ordering
           if (orderBy === 'date') {
             collection = orderDirection === 'desc' ? collection.reverse() : collection;
+
+            this.emojiLogger.logWithEmoji(
+              LogCategory.HANDLE,
+              'debug',
+              'Using database-level sorting for date field',
+              { parentDomain, orderDirection }
+            );
           } else {
             // For other fields, we need to sort after retrieval
+            this.emojiLogger.logWithEmoji(
+              LogCategory.HANDLE,
+              'debug',
+              'Using memory sorting for non-indexed field',
+              { parentDomain, orderBy, orderDirection }
+            );
+
             const results = await collection.toArray();
             const sorted = this.sortRecords(results, orderBy, orderDirection);
+
+            this.emojiLogger.logWithEmoji(
+              LogCategory.HANDLE,
+              'debug',
+              'Applied memory sorting and pagination for parent domain query',
+              { parentDomain, recordCount: results.length, sortedCount: sorted.length, offset, limit }
+            );
 
             // Apply pagination manually for sorted results
             const start = offset;
@@ -274,14 +527,45 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
             collection = collection.limit(limit);
           }
 
+          this.emojiLogger.logWithEmoji(
+            LogCategory.HANDLE,
+            'debug',
+            'Applied database-level pagination for parent domain query',
+            { parentDomain, offset, limit }
+          );
+
           return collection.toArray();
         },
         'getStatsByParentDomain',
         options
       );
 
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.END,
+        'info',
+        'Parent domain query completed successfully',
+        {
+          parentDomain,
+          resultCount: result.length,
+          executionTime: `${executionTime.toFixed(2)}ms`
+        }
+      );
+
       return result;
     } catch (error) {
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.ERROR,
+        'error',
+        'Parent domain query failed',
+        {
+          parentDomain,
+          options,
+          error: error instanceof Error ? error.message : String(error),
+          executionTime: `${executionTime.toFixed(2)}ms`
+        }
+      );
       throw this.handleError(error, 'getStatsByParentDomain');
     }
   }
@@ -299,8 +583,50 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
     url: string,
     options: RepositoryOptions = {}
   ): Promise<AggregatedStatsRecord | undefined> {
+    const startTime = performance.now();
     const key = generateAggregatedStatsKey(date, url);
-    return this.findById(key, options);
+
+    this.emojiLogger.logWithEmoji(
+      LogCategory.START,
+      'debug',
+      'Starting stats query by date and URL',
+      { date, url, key }
+    );
+
+    try {
+      const result = await this.findById(key, options);
+
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.END,
+        'info',
+        'Date and URL query completed successfully',
+        {
+          date,
+          url,
+          key,
+          found: result !== undefined,
+          executionTime: `${executionTime.toFixed(2)}ms`
+        }
+      );
+
+      return result;
+    } catch (error) {
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.ERROR,
+        'error',
+        'Date and URL query failed',
+        {
+          date,
+          url,
+          key,
+          error: error instanceof Error ? error.message : String(error),
+          executionTime: `${executionTime.toFixed(2)}ms`
+        }
+      );
+      throw error;
+    }
   }
 
   /**
@@ -316,13 +642,36 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
     endDate: string,
     options: RepositoryOptions = {}
   ): Promise<{ totalOpenTime: number; totalActiveTime: number; recordCount: number }> {
+    const startTime = performance.now();
+
+    this.emojiLogger.logWithEmoji(
+      LogCategory.START,
+      'debug',
+      'Starting total time calculation by date range',
+      { startDate, endDate }
+    );
+
     try {
       const result = await this.executeWithRetry(
         async () => {
+          this.emojiLogger.logWithEmoji(
+            LogCategory.DB,
+            'debug',
+            'Fetching stats for total time calculation',
+            { startDate, endDate }
+          );
+
           const stats = await this.table
             .where('date')
             .between(startDate, endDate, true, true)
             .toArray();
+
+          this.emojiLogger.logWithEmoji(
+            LogCategory.HANDLE,
+            'debug',
+            'Processing stats for total time calculation',
+            { recordCount: stats.length, startDate, endDate }
+          );
 
           const totals = stats.reduce(
             (
@@ -336,14 +685,46 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
             { totalOpenTime: 0, totalActiveTime: 0, recordCount: 0 }
           );
 
+          this.emojiLogger.logWithEmoji(
+            LogCategory.HANDLE,
+            'debug',
+            'Completed total time calculation',
+            { totals, processedRecords: stats.length }
+          );
+
           return totals;
         },
         'getTotalTimeByDateRange',
         options
       );
 
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.END,
+        'info',
+        'Total time calculation completed successfully',
+        {
+          startDate,
+          endDate,
+          result,
+          executionTime: `${executionTime.toFixed(2)}ms`
+        }
+      );
+
       return result;
     } catch (error) {
+      const executionTime = performance.now() - startTime;
+      this.emojiLogger.logWithEmoji(
+        LogCategory.ERROR,
+        'error',
+        'Total time calculation failed',
+        {
+          startDate,
+          endDate,
+          error: error instanceof Error ? error.message : String(error),
+          executionTime: `${executionTime.toFixed(2)}ms`
+        }
+      );
       throw this.handleError(error, 'getTotalTimeByDateRange');
     }
   }

@@ -447,6 +447,7 @@ describe('Validation Helpers', () => {
           isFocused: true,
           tabId: 123,
           windowId: 1,
+          sessionEnded: false,
         },
         timestamp: Date.now(),
       };

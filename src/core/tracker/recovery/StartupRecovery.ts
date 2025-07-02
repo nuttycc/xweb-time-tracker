@@ -26,8 +26,8 @@ export const OrphanSessionSchema = z.object({
   /** Event ID of the orphan session */
   id: z.string(),
 
-  /** Event type (open_time_start or active_time_start) */
-  eventType: z.enum(['open_time_start', 'active_time_start']),
+  /** Event type (open_time_start, active_time_start, or checkpoint) */
+  eventType: z.enum(['open_time_start', 'active_time_start', 'checkpoint']),
 
   /** Visit ID for open time sessions */
   visitId: z.string().optional(),
@@ -241,11 +241,11 @@ export class StartupRecovery {
 
           if (!result.success || !result.event?.visitId) {
             if (result.metadata?.urlFiltered) {
-              StartupRecovery.logger.debug('🤔 Skipped tab for filtered URL', {
-                tabId: tab.id,
-                url: tab.url,
-                reason: result.metadata.skipReason,
-              });
+              // StartupRecovery.logger.debug('🤔 Skipped tab for filtered URL', {
+              //   tabId: tab.id,
+              //   url: tab.url,
+              //   reason: result.metadata.skipReason,
+              // });
             } else {
               StartupRecovery.logger.error('❌ Failed to generate open_time_start for tab', {
                 tabId: tab.id,
@@ -267,6 +267,7 @@ export class StartupRecovery {
             isFocused: false,
             tabId: tab.id,
             windowId: tab.windowId || 0,
+            sessionEnded: false,
           };
 
           tabStates.push({ tabId: tab.id, tabState: initialTabState });
@@ -297,7 +298,7 @@ export class StartupRecovery {
       cutoffTime,
       Date.now()
     );
-    StartupRecovery.logger.debug(`Found ${openTimeStartEvents.length} open_time_start events in time range`);
+    StartupRecovery.logger.debug(`Found ${openTimeStartEvents.length} open_time_start events in time range`, openTimeStartEvents);
 
     for (const startEvent of openTimeStartEvents) {
       StartupRecovery.logger.trace(
@@ -331,6 +332,30 @@ export class StartupRecovery {
       }
     }
 
+    // Query for checkpoint events without continuation
+    StartupRecovery.logger.debug(`Querying for checkpoint events from ${(new Date(cutoffTime)).toLocaleString()} to ${(new Date(Date.now())).toLocaleString()}`);
+    const checkpointEvents = await this.getEventsByTypeAndTimeRange(
+      'checkpoint',
+      cutoffTime,
+      Date.now()
+    );
+    StartupRecovery.logger.debug(`Found ${checkpointEvents.length} checkpoint events in time range`);
+
+    for (const checkpointEvent of checkpointEvents) {
+      StartupRecovery.logger.trace(
+        `Checking checkpoint event: visitId=${checkpointEvent.visitId}, activityId=${checkpointEvent.activityId}, timestamp=${checkpointEvent.timestamp}`
+      );
+      const hasContinuation = await this.hasContinuation(checkpointEvent);
+      StartupRecovery.logger.trace(`Has continuation: ${hasContinuation}`);
+      if (!hasContinuation) {
+        const orphanSession = this.createOrphanSessionFromEvent(checkpointEvent);
+        if (orphanSession) {
+          orphanSessions.push(orphanSession);
+          StartupRecovery.logger.debug(`Added orphan checkpoint session: ${orphanSession.id}`);
+        }
+      }
+    }
+
     return orphanSessions;
   }
 
@@ -338,12 +363,49 @@ export class StartupRecovery {
    * Get events by type and time range (wrapper for database service)
    */
   private async getEventsByTypeAndTimeRange(
-    eventType: 'open_time_start' | 'active_time_start',
+    eventType: 'open_time_start' | 'active_time_start' | 'checkpoint',
     startTime: number,
     endTime: number
   ): Promise<EventsLogRecord[]> {
     // Use the public API method
     return this.databaseService.getEventsByTypeAndTimeRange(eventType, startTime, endTime);
+  }
+
+  /**
+   * Check if a checkpoint event has continuation (subsequent events)
+   * A checkpoint is considered orphaned if there are no subsequent events
+   * (either _end events or other checkpoints) in the same session.
+   */
+  private async hasContinuation(checkpointEvent: EventsLogRecord): Promise<boolean> {
+    // For open_time checkpoints (activityId === null or undefined)
+    if (checkpointEvent.activityId === null || checkpointEvent.activityId === undefined) {
+      if (!checkpointEvent.visitId) {
+        StartupRecovery.logger.trace('No visitId found for open_time checkpoint, returning false');
+        return false;
+      }
+
+      // Query for subsequent events in the same visit
+      const visitEvents = await this.databaseService.getEventsByVisitId(checkpointEvent.visitId);
+      const subsequentEvents = visitEvents.filter(event =>
+        event.timestamp > checkpointEvent.timestamp &&
+        (event.eventType === 'open_time_end' ||
+         (event.eventType === 'checkpoint' && (event.activityId === null || event.activityId === undefined)))
+      );
+
+      StartupRecovery.logger.trace(`Found ${subsequentEvents.length} subsequent events for open_time checkpoint`);
+      return subsequentEvents.length > 0;
+    }
+
+    // For active_time checkpoints (activityId has a value)
+    // Query for subsequent events in the same activity
+    const activityEvents = await this.databaseService.getEventsByActivityId(checkpointEvent.activityId);
+    const subsequentEvents = activityEvents.filter(event =>
+      event.timestamp > checkpointEvent.timestamp &&
+      (event.eventType === 'active_time_end' || event.eventType === 'checkpoint')
+    );
+
+    StartupRecovery.logger.trace(`Found ${subsequentEvents.length} subsequent events for active_time checkpoint`);
+    return subsequentEvents.length > 0;
   }
 
   /**
@@ -446,6 +508,7 @@ export class StartupRecovery {
       isFocused: false,
       tabId: session.tabId || 0,
       windowId: 0, // Window ID is not available in recovery context
+      sessionEnded: false,
     };
 
     const context = {
@@ -457,8 +520,23 @@ export class StartupRecovery {
     let result;
     if (session.eventType === 'open_time_start') {
       result = this.eventGenerator.generateOpenTimeEnd(context);
-    } else {
+    } else if (session.eventType === 'active_time_start') {
       result = this.eventGenerator.generateActiveTimeEnd(context, 'tab_closed');
+    } else if (session.eventType === 'checkpoint') {
+      // For checkpoint events, generate the appropriate end event based on the session type
+      if (session.activityId === null || session.activityId === undefined) {
+        // Open time checkpoint - generate open_time_end
+        result = this.eventGenerator.generateOpenTimeEnd(context);
+      } else {
+        // Active time checkpoint - generate active_time_end
+        result = this.eventGenerator.generateActiveTimeEnd(context, 'tab_closed');
+      }
+    } else {
+      StartupRecovery.logger.error('❌ Unknown event type for recovery', {
+        eventType: session.eventType,
+        session,
+      });
+      return;
     }
 
     if (!result.success) {
