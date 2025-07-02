@@ -58,82 +58,84 @@ const timeTracker = createTimeTracker({
   enableCheckpoints: true,
 });
 
-export default defineBackground(async () => {
+export default defineBackground(() => {
   logger.info('WebTime Tracker starting...');
 
-  try {
-    // Initialize the time tracker
-    const initResult = await timeTracker.initialize();
+  // Set up browser event listeners and messaging handlers synchronously
+  // These can be attached before async initialization completes
+  setupBrowserEventListeners();
+  setupMessagingHandlers();
 
-    if (!initResult.success) {
-      logger.error('Failed to initialize time tracker:', initResult.error);
-      return;
-    }
-
-    logger.info('Time tracker initialized successfully:', initResult.stats);
-
-    // Start the time tracker
-    const startSuccess = await timeTracker.start();
-
-    if (!startSuccess) {
-      logger.error('Failed to start time tracker');
-      return;
-    }
-
-    logger.info('Time tracker started successfully');
-
-    // Initialize and start aggregation system
+  // Use IIAFE to handle async initialization without making main function async
+  (async () => {
     try {
-      const db = await connectionManager.getDatabase();
-      
-      // Initialize aggregation system components
-      const eventsLogRepository = new EventsLogRepository(db);
-      const aggregatedStatsRepository = new AggregatedStatsRepository(db);
-      const aggregationEngine = new AggregationEngine(eventsLogRepository, aggregatedStatsRepository);
-      const dataPruner = new DataPruner(eventsLogRepository);
-      const aggregationScheduler = new AggregationScheduler(aggregationEngine, dataPruner);
-      const aggregationService = new AggregationService(aggregationScheduler);
+      // Initialize the time tracker
+      const initResult = await timeTracker.initialize();
 
-      // Start the aggregation service
-      await aggregationService.start();
-      logger.info('Aggregation service started successfully');
-
-      // Expose debugging utilities in development mode
-      if (import.meta.env.DEV) {
-        // Make aggregation scheduler available for manual triggering in dev console
-        interface WebtimeDebugUtils {
-          triggerAggregation: () => Promise<void>;
-          getAggregationStatus: () => {
-            engineStats: string;
-            schedulerRunning: boolean;
-            isDevelopmentMode: boolean;
-          };
-        }
-        
-        (globalThis as typeof globalThis & { __webtimeDebug?: WebtimeDebugUtils }).__webtimeDebug = {
-          triggerAggregation: () => aggregationScheduler.runNow(),
-          getAggregationStatus: () => ({
-            engineStats: 'Use aggregationEngine methods for detailed stats',
-            schedulerRunning: true,
-            isDevelopmentMode: true
-          })
-        };
-        logger.info('Development debug utilities available at globalThis.__webtimeDebug');
+      if (!initResult.success) {
+        logger.error('Failed to initialize time tracker:', initResult.error);
+        return;
       }
+
+      logger.info('Time tracker initialized successfully:', initResult.stats);
+
+      // Start the time tracker
+      const startSuccess = await timeTracker.start();
+
+      if (!startSuccess) {
+        logger.error('Failed to start time tracker');
+        return;
+      }
+
+      logger.info('Time tracker started successfully');
+
+      // Initialize and start aggregation system
+      try {
+        const db = await connectionManager.getDatabase();
+        
+        // Initialize aggregation system components
+        const eventsLogRepository = new EventsLogRepository(db);
+        const aggregatedStatsRepository = new AggregatedStatsRepository(db);
+        const aggregationEngine = new AggregationEngine(eventsLogRepository, aggregatedStatsRepository);
+        const dataPruner = new DataPruner(eventsLogRepository);
+        const aggregationScheduler = new AggregationScheduler(aggregationEngine, dataPruner);
+        const aggregationService = new AggregationService(aggregationScheduler);
+
+        // Start the aggregation service
+        await aggregationService.start();
+        logger.info('Aggregation service started successfully');
+
+        // Expose debugging utilities in development mode
+        if (import.meta.env.DEV) {
+          // Make aggregation scheduler available for manual triggering in dev console
+          interface WebtimeDebugUtils {
+            triggerAggregation: () => Promise<void>;
+            getAggregationStatus: () => {
+              engineStats: string;
+              schedulerRunning: boolean;
+              isDevelopmentMode: boolean;
+            };
+          }
+          
+          (globalThis as typeof globalThis & { __webtimeDebug?: WebtimeDebugUtils }).__webtimeDebug = {
+            triggerAggregation: () => aggregationScheduler.runNow(),
+            getAggregationStatus: () => ({
+              engineStats: 'Use aggregationEngine methods for detailed stats',
+              schedulerRunning: true,
+              isDevelopmentMode: true
+            })
+          };
+          logger.info('Development debug utilities available at globalThis.__webtimeDebug');
+        }
+      } catch (error) {
+        logger.error('Failed to initialize aggregation service:', error);
+      }
+
+      logger.info('WebTime Tracker ready');
     } catch (error) {
-      logger.error('Failed to initialize aggregation service:', error);
+      logger.error('Error during initialization:', error);
     }
-
-    // Set up browser event listeners
-    setupBrowserEventListeners();
-
-    // Set up messaging handlers
-    setupMessagingHandlers();
-
-    logger.info('WebTime Tracker ready');
-  } catch (error) {
-    logger.error('Error during initialization:', error);
-  }
+  })();
 });
 
 /**
