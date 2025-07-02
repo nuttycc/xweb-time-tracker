@@ -74,6 +74,7 @@ describe('AggregationEngine', () => {
           eventType: TEST_EVENT_TYPES.OPEN_TIME_START,
           timestamp: 1000,
           visitId: 'visit-1',
+          activityId: null,
           url: 'https://example.com',
         }),
         createTestEvent({
@@ -81,6 +82,7 @@ describe('AggregationEngine', () => {
           eventType: TEST_EVENT_TYPES.OPEN_TIME_END,
           timestamp: 2000,
           visitId: 'visit-1',
+          activityId: null,
           url: 'https://example.com',
         }),
       ];
@@ -181,7 +183,7 @@ describe('AggregationEngine', () => {
         hostname: 'example.com',
         parentDomain: 'example.com',
         openTimeToAdd: 0,
-        activeTimeToAdd: 3000, // (2000-1000) + (4000-2000)
+        activeTimeToAdd: 3000, // 4000-1000 = 3000 (first-to-last calculation)
       });
     });
 
@@ -236,6 +238,7 @@ describe('AggregationEngine', () => {
           eventType: TEST_EVENT_TYPES.OPEN_TIME_START,
           timestamp: 1000,
           visitId: 'visit-1',
+          activityId: null,
           url: 'https://example.com',
         }),
         // Missing end event - should be filtered out by validation
@@ -378,6 +381,7 @@ describe('AggregationEngine', () => {
           eventType: TEST_EVENT_TYPES.OPEN_TIME_START,
           timestamp: 2000, // Start at 2000ms
           visitId: 'visit-1',
+          activityId: null,
           url: 'https://example.com',
         }),
         createTestEvent({
@@ -385,6 +389,7 @@ describe('AggregationEngine', () => {
           eventType: TEST_EVENT_TYPES.OPEN_TIME_END,
           timestamp: 1000, // End at 1000ms (before start!)
           visitId: 'visit-1',
+          activityId: null,
           url: 'https://example.com',
         }),
       ];
@@ -448,9 +453,9 @@ describe('AggregationEngine', () => {
 
       // Should not create aggregation for negative time
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
-      // Only start event should be marked as processed (completed its "start" role)
-      // End event is not processed because it doesn't form a valid interval
-      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1]);
+      // All events should be marked as processed to avoid reprocessing invalid data
+      // This prevents orphaned events from being processed repeatedly
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 2]);
     });
 
     it('should handle repository errors during finalization', async () => {
@@ -590,7 +595,7 @@ describe('AggregationEngine', () => {
 
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).toHaveBeenCalledWith(
         expect.objectContaining({
-          activeTimeToAdd: 3000, // (2000-1000) + (3000-2000) + (4000-3000)
+          activeTimeToAdd: 3000, // 4000-1000 = 3000 (first-to-last calculation)
           openTimeToAdd: 0,
         })
       );
@@ -653,7 +658,7 @@ describe('AggregationEngine', () => {
 
       // Should not create aggregation for orphaned checkpoint
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
-      // Orphaned checkpoint should NOT be marked as processed (hasn't completed both roles)
+      // Orphaned checkpoint should NOT be marked as processed (insufficient events for calculation)
       expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([]);
     });
 
@@ -745,7 +750,7 @@ describe('AggregationEngine', () => {
 
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).toHaveBeenCalledWith(
         expect.objectContaining({
-          openTimeToAdd: 3000, // (2000-1000) + (3000-2000) + (4000-3000)
+          openTimeToAdd: 3000, // 4000-1000 = 3000 (first-to-last calculation)
           activeTimeToAdd: 0,
         })
       );
@@ -770,7 +775,7 @@ describe('AggregationEngine', () => {
 
       // Should not create aggregation for orphaned open time checkpoint
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
-      // Orphaned checkpoint should NOT be marked as processed (hasn't completed both roles)
+      // Orphaned checkpoint should NOT be marked as processed (insufficient events for calculation)
       expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([]);
     });
 
@@ -841,9 +846,9 @@ describe('AggregationEngine', () => {
 
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).toHaveBeenCalledWith(
         expect.objectContaining({
-          // Open Time: (2000-1000) + (4000-2000) = 1000 + 2000 = 3000
+          // Open Time: 4000-1000 = 3000 (first-to-last calculation)
           openTimeToAdd: 3000,
-          // Active Time: (2500-1500) + (3000-2500) = 1000 + 500 = 1500
+          // Active Time: 3000-1500 = 1500 (first-to-last calculation)
           activeTimeToAdd: 1500,
         })
       );
@@ -888,7 +893,7 @@ describe('AggregationEngine', () => {
 
         expect(mockAggregatedStatsRepo.upsertTimeAggregation).toHaveBeenCalledWith(
           expect.objectContaining({
-            openTimeToAdd: 4000, // (3000-1000) + (5000-3000) = 2000 + 2000 = 4000
+            openTimeToAdd: 4000, // 5000-1000 = 4000 (first-to-last calculation)
             activeTimeToAdd: 0,
           })
         );
@@ -986,7 +991,7 @@ describe('AggregationEngine', () => {
 
         // Should not create aggregation for truly isolated checkpoint
         expect(mockAggregatedStatsRepo.upsertTimeAggregation).not.toHaveBeenCalled();
-        // Isolated checkpoint should NOT be marked as processed (hasn't completed both roles)
+        // Isolated checkpoint should NOT be marked as processed (insufficient events for calculation)
         expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([]);
       });
 
@@ -1042,13 +1047,10 @@ describe('AggregationEngine', () => {
         );
 
         // Check which events should be marked as processed:
-        // Based on the actual implementation behavior:
-        // - Event 1 (start): processed (completed "start" role)
-        // - Event 2 (checkpoint): processed (completed both "end" and "start" roles)
-        // - Event 3 (checkpoint): processed (completed both "end" and "start" roles)
-        // - Event 4 (end): processed (completed "end" role)
-        // Note: Both checkpoints are marked because they're not the last in sequence
-        expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 4, 2, 3]);
+        // Based on the new first-to-last calculation algorithm:
+        // Since the sequence ends with open_time_end (complete sequence),
+        // all events in the open time sequence should be marked as processed
+        expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 2, 3, 4]);
       });
     });
   });
@@ -1286,6 +1288,7 @@ describe('AggregationEngine', () => {
           eventType: TEST_EVENT_TYPES.OPEN_TIME_START,
           timestamp: 1000,
           visitId: 'visit-1',
+          activityId: null,
           url: 'https://example.com',
         }),
         createTestEvent({
@@ -1301,6 +1304,7 @@ describe('AggregationEngine', () => {
           eventType: TEST_EVENT_TYPES.OPEN_TIME_END,
           timestamp: 3000,
           visitId: 'visit-1',
+          activityId: null,
           url: 'https://example.com',
         }),
       ];
@@ -1313,11 +1317,11 @@ describe('AggregationEngine', () => {
 
       expect(mockAggregatedStatsRepo.upsertTimeAggregation).toHaveBeenCalledWith(
         expect.objectContaining({
-          openTimeToAdd: 2000, // 1000-2000 + 2000-3000 = 1000 + 1000 = 2000
+          openTimeToAdd: 2000, // 3000-1000 = 2000 (first-to-last calculation)
           activeTimeToAdd: 0,
         })
       );
-      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 3, 2]);
+      expect(mockEventsLogRepo.markEventsAsProcessed).toHaveBeenCalledWith([1, 2, 3]);
     });
 
     it('should process visit groups with valid active time sequences', async () => {

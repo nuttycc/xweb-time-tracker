@@ -7,26 +7,6 @@ import { createEmojiLogger, LogCategory, type EmojiLogger } from '@/utils/logger
 import * as psl from 'psl';
 
 /**
- * Validation result for a time sequence, including processing strategy
- */
-interface TimeSequenceValidation {
-  isValid: boolean;
-  isComplete: boolean; // Whether the sequence ends with a definitive end event
-  eventsToProcess: number[]; // Event IDs that should be marked as processed
-  eventsToKeep: number[]; // Event IDs that should be kept for next aggregation
-  reason?: string; // Reason for validation failure
-}
-
-/**
- * Complete validation result for a visit group
- */
-interface VisitValidationResult {
-  isValid: boolean;
-  openTime?: TimeSequenceValidation;
-  activeTime: Map<string, TimeSequenceValidation>;
-}
-
-/**
  * AggregationEngine class
  *
  * Core component for processing raw event logs and converting them into
@@ -58,7 +38,11 @@ export class AggregationEngine {
 
     try {
       // this.logger.logWithEmoji(LogCategory.DB, 'debug', 'fetching unprocessed events');
-      const unprocessedEvents = await this.eventsLogRepo.getUnprocessedEvents();
+      // Use ID ordering to preserve logical sequence, not timestamp ordering
+      const unprocessedEvents = await this.eventsLogRepo.getUnprocessedEvents({
+        orderBy: 'id',
+        orderDirection: 'asc',
+      });
 
       if (unprocessedEvents.length === 0) {
         this.logger.logWithEmoji(LogCategory.SKIP, 'info', 'No unprocessed events found');
@@ -141,28 +125,29 @@ export class AggregationEngine {
 
   /**
    * Calculates the time spent on a visit and updates the aggregated data.
-   * Implements role-based selective processing for checkpoint events.
+   * Uses simplified first-to-last time calculation algorithm.
    *
    * @param visit - The visit to process.
    * @param aggregatedData - The map to store the aggregated data.
    * @returns Array of event IDs that should be marked as processed.
    */
   private calculateTime(visit: VisitGroup, aggregatedData: AggregatedData): number[] {
-    visit.events.sort((a, b) => a.timestamp - b.timestamp);
+    // Events are already sorted by ID from the query, preserve logical order
 
-    // Perform detailed validation first
-    const validationResult = this.validateVisitGroupDetailed(visit);
-
-    // Handle validation failures with smart processing strategy
-    if (!validationResult.isValid) {
-      return this.handleValidationFailure(visit, validationResult);
+    // Perform basic validation
+    if (!this.isValidVisitGroup(visit)) {
+      this.logger.logWithEmoji(LogCategory.WARN, 'warn', 'invalid visit group, skipping', {
+        visitId: visit.events[0]?.visitId,
+        eventCount: visit.events.length,
+      });
+      return [];
     }
 
     const processedEventIds: number[] = [];
 
     // --- Calculate Open Time (based on visitId) ---
     let openTimeToAdd = 0;
-    let openTimeStartTimestamp: number | null = null;
+
     // Include checkpoint events with null activityId (Open Time checkpoints)
     const openTimeEvents = visit.events.filter(
       e =>
@@ -170,41 +155,71 @@ export class AggregationEngine {
         (e.eventType === 'checkpoint' && e.activityId === null)
     );
 
-    for (const event of openTimeEvents) {
-      if (event.eventType === 'open_time_start') {
-        if (openTimeStartTimestamp === null) {
-          openTimeStartTimestamp = event.timestamp;
-          // Mark start event as processed (its "start" role is complete)
-          if (event.id !== undefined) {
-            processedEventIds.push(event.id);
+    if (openTimeEvents.length >= 2) {
+      const firstEvent = openTimeEvents[0];
+      const lastEvent = openTimeEvents[openTimeEvents.length - 1];
+
+      // Calculate time difference
+      const timeDiff = lastEvent.timestamp - firstEvent.timestamp;
+
+      if (timeDiff > 0) {
+        // Positive time difference - normal processing
+        openTimeToAdd = timeDiff;
+
+        // Mark events as processed based on last event type
+        if (lastEvent.eventType === 'open_time_end') {
+          // Complete sequence - mark all events as processed
+          openTimeEvents.forEach(event => {
+            if (event.id !== undefined) {
+              processedEventIds.push(event.id);
+            }
+          });
+        } else if (lastEvent.eventType === 'checkpoint') {
+          // Incomplete sequence - mark all except last checkpoint as processed
+          for (let i = 0; i < openTimeEvents.length - 1; i++) {
+            if (openTimeEvents[i].id !== undefined) {
+              processedEventIds.push(openTimeEvents[i].id!);
+            }
           }
+          // Keep last checkpoint unprocessed for next aggregation
         }
-      } else if (event.eventType === 'checkpoint' && event.activityId === null) {
-        if (openTimeStartTimestamp !== null) {
-          openTimeToAdd += event.timestamp - openTimeStartTimestamp;
-          openTimeStartTimestamp = event.timestamp; // Reset for next interval
-          // Checkpoint completes its "end" role but NOT its "start" role yet
-          // Do NOT mark checkpoint as processed here
+      } else {
+        // Invalid time sequence (timeDiff <= 0) - mark all events as processed
+        // This prevents orphaned events from being reprocessed repeatedly
+        if (lastEvent.eventType === 'open_time_end') {
+          // Complete invalid sequence - mark all events as processed
+          openTimeEvents.forEach(event => {
+            if (event.id !== undefined) {
+              processedEventIds.push(event.id);
+            }
+          });
+        } else if (lastEvent.eventType === 'checkpoint') {
+          // Incomplete invalid sequence - mark all except last checkpoint as processed
+          for (let i = 0; i < openTimeEvents.length - 1; i++) {
+            if (openTimeEvents[i].id !== undefined) {
+              processedEventIds.push(openTimeEvents[i].id!);
+            }
+          }
+          // Keep last checkpoint unprocessed for next aggregation
         } else {
-          // Checkpoint without start event - use checkpoint as new start point
-          openTimeStartTimestamp = event.timestamp;
-          // This checkpoint is starting a new interval, don't mark as processed yet
+          // Other cases - mark all events as processed
+          openTimeEvents.forEach(event => {
+            if (event.id !== undefined) {
+              processedEventIds.push(event.id);
+            }
+          });
         }
-      } else if (event.eventType === 'open_time_end') {
-        if (openTimeStartTimestamp !== null) {
-          openTimeToAdd += event.timestamp - openTimeStartTimestamp;
-          openTimeStartTimestamp = null;
-          // Mark end event as processed (its "end" role is complete)
-          if (event.id !== undefined) {
-            processedEventIds.push(event.id);
-          }
-        }
+        // Don't add any time for invalid sequences
       }
     }
 
     // --- Calculate Active Time (based on activityId) ---
     let activeTimeToAdd = 0;
-    const activityEvents = visit.events.filter(e => e.activityId !== null);
+    const activityEvents = visit.events.filter(
+      e =>
+        e.activityId !== null &&
+        (e.eventType.startsWith('active_time') || e.eventType === 'checkpoint')
+    );
     const activities = new Map<string, EventsLogRecord[]>();
 
     // Group by activityId
@@ -215,47 +230,67 @@ export class AggregationEngine {
       activities.get(event.activityId!)!.push(event);
     }
 
-    // Process each activity session
+    // Process each activity session using first-to-last calculation
     for (const activity of activities.values()) {
-      activity.sort((a, b) => a.timestamp - b.timestamp);
-      let activityStartTimestamp: number | null = null;
-      for (const event of activity) {
-        if (event.eventType === 'active_time_start') {
-          if (activityStartTimestamp === null) {
-            activityStartTimestamp = event.timestamp;
-            // Mark start event as processed (its "start" role is complete)
-            if (event.id !== undefined) {
-              processedEventIds.push(event.id);
+      if (activity.length >= 2) {
+        const firstEvent = activity[0];
+        const lastEvent = activity[activity.length - 1];
+
+        // Calculate time difference
+        const timeDiff = lastEvent.timestamp - firstEvent.timestamp;
+
+        if (timeDiff > 0) {
+          // Positive time difference - normal processing
+          activeTimeToAdd += timeDiff;
+
+          // Mark events as processed based on last event type
+          if (lastEvent.eventType === 'active_time_end') {
+            // Complete sequence - mark all events as processed
+            activity.forEach(event => {
+              if (event.id !== undefined) {
+                processedEventIds.push(event.id);
+              }
+            });
+          } else if (lastEvent.eventType === 'checkpoint') {
+            // Incomplete sequence - mark all except last checkpoint as processed
+            for (let i = 0; i < activity.length - 1; i++) {
+              if (activity[i].id !== undefined) {
+                processedEventIds.push(activity[i].id!);
+              }
             }
+            // Keep last checkpoint unprocessed for next aggregation
           }
-        } else if (event.eventType === 'checkpoint') {
-          if (activityStartTimestamp !== null) {
-            activeTimeToAdd += event.timestamp - activityStartTimestamp;
-            activityStartTimestamp = event.timestamp; // Reset for next interval
-            // Checkpoint completes its "end" role but NOT its "start" role yet
-            // Do NOT mark checkpoint as processed here
+        } else {
+          // Invalid time sequence (timeDiff <= 0) - filter out but mark events as processed
+          if (lastEvent.eventType === 'active_time_end') {
+            // Complete invalid sequence - mark all events as processed
+            activity.forEach(event => {
+              if (event.id !== undefined) {
+                processedEventIds.push(event.id);
+              }
+            });
+          } else if (lastEvent.eventType === 'checkpoint') {
+            // Incomplete invalid sequence - mark all except last checkpoint as processed
+            for (let i = 0; i < activity.length - 1; i++) {
+              if (activity[i].id !== undefined) {
+                processedEventIds.push(activity[i].id!);
+              }
+            }
+            // Keep last checkpoint unprocessed for next aggregation
           } else {
-            // Checkpoint without start event - use checkpoint as new start point
-            activityStartTimestamp = event.timestamp;
-            // This checkpoint is starting a new interval, don't mark as processed yet
-          }
-        } else if (event.eventType === 'active_time_end') {
-          if (activityStartTimestamp !== null) {
-            activeTimeToAdd += event.timestamp - activityStartTimestamp;
-            activityStartTimestamp = null;
-            // Mark end event as processed (its "end" role is complete)
-            if (event.id !== undefined) {
-              processedEventIds.push(event.id);
+            // Other cases - only mark start event as processed
+            if (firstEvent.id !== undefined) {
+              processedEventIds.push(firstEvent.id);
             }
           }
+          // Don't add any time for invalid sequences
         }
       }
     }
 
     if (openTimeToAdd === 0 && activeTimeToAdd === 0) {
       // If no time was calculated, this might indicate a validation issue
-      // However, since the visit group passed validation, we still return processed event IDs
-      this.logger.logWithEmoji(LogCategory.WARN, 'warn', 'no time calculated for validated visit', {
+      this.logger.logWithEmoji(LogCategory.WARN, 'warn', 'no time calculated for visit', {
         visitId: visit.events[0]?.visitId,
         visit,
         eventCount: visit.events.length,
@@ -283,80 +318,7 @@ export class AggregationEngine {
     data.openTime += openTimeToAdd;
     data.activeTime += activeTimeToAdd;
 
-    // Now handle checkpoint events that completed both roles
-    // Check if any checkpoint events can now be marked as fully processed
-    this.markCompletedCheckpoints(visit, processedEventIds);
-
     return processedEventIds;
-  }
-
-  /**
-   * Marks checkpoint events as processed if they have completed both their roles.
-   * A checkpoint event can only be marked as processed if:
-   * 1. It has been used as an "end" point for a previous interval, AND
-   * 2. It has been used as a "start" point for a subsequent interval, OR there is no subsequent interval
-   *
-   * @param visit - The visit being processed
-   * @param processedEventIds - Array to add completed checkpoint event IDs to
-   */
-  private markCompletedCheckpoints(visit: VisitGroup, processedEventIds: number[]): void {
-    const checkpointEvents = visit.events.filter(e => e.eventType === 'checkpoint');
-
-    for (const checkpoint of checkpointEvents) {
-      if (checkpoint.id === undefined) continue;
-
-      // Check if this checkpoint has completed both roles
-      const hasCompletedBothRoles = this.hasCheckpointCompletedBothRoles(checkpoint, visit);
-
-      if (hasCompletedBothRoles) {
-        processedEventIds.push(checkpoint.id);
-        this.logger.logWithEmoji(LogCategory.HANDLE, 'debug', 'checkpoint completed both roles', {
-          checkpointId: checkpoint.id,
-          timestamp: checkpoint.timestamp,
-          visitId: checkpoint.visitId,
-          activityId: checkpoint.activityId,
-        });
-      }
-    }
-  }
-
-  /**
-   * Determines if a checkpoint event has completed both its "end" and "start" roles.
-   * This is a simplified heuristic: a checkpoint is considered complete if it's not
-   * the last event in its respective time category (open_time or active_time).
-   *
-   * @param checkpoint - The checkpoint event to check
-   * @param visit - The visit containing the checkpoint
-   * @returns True if the checkpoint has completed both roles
-   */
-  private hasCheckpointCompletedBothRoles(checkpoint: EventsLogRecord, visit: VisitGroup): boolean {
-    // For open_time checkpoints (activityId === null)
-    if (checkpoint.activityId === null) {
-      const openTimeEvents = visit.events
-        .filter(
-          e =>
-            e.eventType.startsWith('open_time') ||
-            (e.eventType === 'checkpoint' && e.activityId === null)
-        )
-        .sort((a, b) => a.timestamp - b.timestamp);
-
-      const checkpointIndex = openTimeEvents.findIndex(e => e.id === checkpoint.id);
-      // If this checkpoint is not the last event in the open_time sequence, it has completed both roles
-      return checkpointIndex !== -1 && checkpointIndex < openTimeEvents.length - 1;
-    }
-
-    // For active_time checkpoints (activityId !== null)
-    const activityEvents = visit.events
-      .filter(
-        e =>
-          e.activityId === checkpoint.activityId &&
-          (e.eventType.startsWith('active_time') || e.eventType === 'checkpoint')
-      )
-      .sort((a, b) => a.timestamp - b.timestamp);
-
-    const checkpointIndex = activityEvents.findIndex(e => e.id === checkpoint.id);
-    // If this checkpoint is not the last event in the activity sequence, it has completed both roles
-    return checkpointIndex !== -1 && checkpointIndex < activityEvents.length - 1;
   }
 
   /**
@@ -400,7 +362,8 @@ export class AggregationEngine {
    * @returns True if the visit group contains valid event sequences.
    */
   private isValidVisitGroup(visit: VisitGroup): boolean {
-    const events = visit.events.sort((a, b) => a.timestamp - b.timestamp);
+    // Events are already sorted by ID from the query, preserve logical order
+    const events = visit.events;
 
     // Use basic validation only - detailed validation with smart processing
     // is handled in calculateTime method
@@ -423,283 +386,6 @@ export class AggregationEngine {
 
     // At least one valid time sequence is required
     return hasValidOpenTimeSequence || hasValidActiveTimeSequence;
-  }
-
-  /**
-   * Performs detailed validation of a visit group, returning comprehensive validation results
-   * including processing strategies for failed validations.
-   *
-   * @param visit - The visit group to validate.
-   * @returns Detailed validation result with processing strategies.
-   */
-  private validateVisitGroupDetailed(visit: VisitGroup): VisitValidationResult {
-    const events = visit.events.sort((a, b) => a.timestamp - b.timestamp);
-    const result: VisitValidationResult = {
-      isValid: false,
-      activeTime: new Map(),
-    };
-
-    // Validate Open Time sequence
-    const openTimeEvents = events.filter(
-      e =>
-        e.eventType.startsWith('open_time') ||
-        (e.eventType === 'checkpoint' && e.activityId === null)
-    );
-
-    if (openTimeEvents.length >= 2) {
-      result.openTime = this.validateTimeSequenceDetailed(
-        openTimeEvents,
-        'open_time_start',
-        'open_time_end'
-      );
-    }
-
-    // Validate Active Time sequences (grouped by activityId)
-    const activityEvents = events.filter(e => e.activityId !== null);
-    const activities = new Map<string, EventsLogRecord[]>();
-
-    // Group by activityId
-    for (const event of activityEvents) {
-      if (!activities.has(event.activityId!)) {
-        activities.set(event.activityId!, []);
-      }
-      activities.get(event.activityId!)!.push(event);
-    }
-
-    // Validate each activity sequence
-    for (const [activityId, activityEventList] of activities) {
-      if (activityEventList.length >= 2) {
-        const validation = this.validateTimeSequenceDetailed(
-          activityEventList.sort((a, b) => a.timestamp - b.timestamp),
-          'active_time_start',
-          'active_time_end'
-        );
-        result.activeTime.set(activityId, validation);
-      }
-    }
-
-    // At least one valid time sequence is required
-    const hasValidOpenTime = result.openTime?.isValid ?? false;
-    const hasValidActiveTime = Array.from(result.activeTime.values()).some(v => v.isValid);
-    result.isValid = hasValidOpenTime || hasValidActiveTime;
-
-    return result;
-  }
-
-  /**
-   * Performs detailed validation of a time sequence with enhanced timestamp checking
-   * and processing strategy determination.
-   *
-   * @param events - The events to validate (should be pre-sorted by timestamp).
-   * @param startEventType - The start event type to look for.
-   * @param endEventType - The end event type to look for.
-   * @returns Detailed validation result with processing strategy.
-   */
-  private validateTimeSequenceDetailed(
-    events: EventsLogRecord[],
-    startEventType: string,
-    endEventType: string
-  ): TimeSequenceValidation {
-    const result: TimeSequenceValidation = {
-      isValid: false,
-      isComplete: false,
-      eventsToProcess: [],
-      eventsToKeep: [],
-    };
-
-    if (events.length < 2) {
-      result.reason = 'insufficient_events';
-      return result;
-    }
-
-    // Check basic event type requirements
-    const hasBasicValidation = this.hasValidTimeSequence(events, startEventType, endEventType);
-    if (!hasBasicValidation) {
-      result.reason = 'missing_required_event_types';
-      return result;
-    }
-
-    // Enhanced validation: check timestamp validity and intervals
-    const timestampValidation = this.validateTimestamps(events, startEventType, endEventType);
-    if (!timestampValidation.isValid) {
-      result.reason = timestampValidation.reason;
-      result.isComplete = timestampValidation.isComplete;
-      result.eventsToProcess = timestampValidation.eventsToProcess;
-      result.eventsToKeep = timestampValidation.eventsToKeep;
-      return result;
-    }
-
-    // If we reach here, the sequence is valid
-    result.isValid = true;
-    result.isComplete = timestampValidation.isComplete;
-    result.eventsToProcess = events.map(e => e.id).filter((id): id is number => id !== undefined);
-
-    return result;
-  }
-
-  /**
-   * Validates timestamps in a time sequence and determines processing strategy
-   * for invalid intervals.
-   *
-   * @param events - The events to validate (pre-sorted by timestamp).
-   * @param startEventType - The start event type.
-   * @param endEventType - The end event type.
-   * @returns Timestamp validation result with processing strategy.
-   */
-  private validateTimestamps(
-    events: EventsLogRecord[],
-    startEventType: string,
-    endEventType: string
-  ): {
-    isValid: boolean;
-    isComplete: boolean;
-    eventsToProcess: number[];
-    eventsToKeep: number[];
-    reason?: string;
-  } {
-    const result = {
-      isValid: true,
-      isComplete: false,
-      eventsToProcess: [] as number[],
-      eventsToKeep: [] as number[],
-      reason: undefined as string | undefined,
-    };
-
-    // Determine if sequence is complete (ends with definitive end event)
-    const lastEvent = events[events.length - 1];
-    result.isComplete = lastEvent.eventType === endEventType;
-
-    // Check for invalid time intervals (zero or negative)
-    const minTimeThreshold = 1; // 1ms minimum interval (configurable)
-    let hasInvalidInterval = false;
-    let hasValidInterval = false;
-
-    // Find all start and end events to calculate intervals
-    const startEvents = events.filter(
-      e => e.eventType === startEventType || e.eventType === 'checkpoint'
-    );
-    const endEvents = events.filter(
-      e => e.eventType === endEventType || e.eventType === 'checkpoint'
-    );
-
-    // Check all possible start-end combinations
-    let hasNegativeInterval = false;
-
-    for (const startEvent of startEvents) {
-      for (const endEvent of endEvents) {
-        // Only consider end events that come after start events (logically, not necessarily by timestamp)
-        if (endEvent.timestamp >= startEvent.timestamp) {
-          const interval = endEvent.timestamp - startEvent.timestamp;
-
-          if (interval < minTimeThreshold) {
-            hasInvalidInterval = true;
-          } else {
-            hasValidInterval = true;
-          }
-        } else {
-          // Negative interval (end before start)
-          hasInvalidInterval = true;
-          hasNegativeInterval = true;
-        }
-      }
-    }
-
-    // For negative intervals, override completeness - treat as complete but invalid
-    if (hasNegativeInterval) {
-      result.isComplete = true;
-    }
-
-    // Only mark as invalid if ALL intervals are invalid (zero or negative time)
-    if (hasInvalidInterval && !hasValidInterval) {
-      // All intervals are invalid (zero or negative time)
-      result.isValid = false;
-      result.reason = 'invalid_time_interval';
-
-      // Apply processing strategy based on completeness
-      if (result.isComplete) {
-        // Complete but invalid interval - process all events
-        result.eventsToProcess = events
-          .map(e => e.id)
-          .filter((id): id is number => id !== undefined);
-      } else {
-        // Incomplete interval - process all but keep the last event as starting point
-        for (let j = 0; j < events.length - 1; j++) {
-          if (events[j].id !== undefined) {
-            result.eventsToProcess.push(events[j].id!);
-          }
-        }
-        if (lastEvent.id !== undefined) {
-          result.eventsToKeep.push(lastEvent.id);
-        }
-      }
-
-      return result;
-    }
-
-    return result;
-  }
-
-  /**
-   * Handles validation failure by applying smart processing strategies
-   * based on interval completeness.
-   *
-   * @param visit - The visit group that failed validation.
-   * @param validationResult - The detailed validation result.
-   * @returns Array of event IDs that should be marked as processed.
-   */
-  private handleValidationFailure(
-    visit: VisitGroup,
-    validationResult: VisitValidationResult
-  ): number[] {
-    const processedEventIds: number[] = [];
-
-    // Handle Open Time validation failure
-    if (validationResult.openTime && !validationResult.openTime.isValid) {
-      processedEventIds.push(...validationResult.openTime.eventsToProcess);
-
-      this.logger.logWithEmoji(LogCategory.SKIP, 'debug', 'skipping invalid open time sequence', {
-        visitId: visit.events[0]?.visitId,
-        reason: validationResult.openTime.reason,
-        isComplete: validationResult.openTime.isComplete,
-        eventsProcessed: validationResult.openTime.eventsToProcess.length,
-        eventsKept: validationResult.openTime.eventsToKeep.length,
-      });
-    }
-
-    // Handle Active Time validation failures
-    for (const [activityId, validation] of validationResult.activeTime) {
-      if (!validation.isValid) {
-        processedEventIds.push(...validation.eventsToProcess);
-
-        this.logger.logWithEmoji(
-          LogCategory.SKIP,
-          'debug',
-          'skipping invalid active time sequence',
-          {
-            visitId: visit.events[0]?.visitId,
-            activityId,
-            reason: validation.reason,
-            isComplete: validation.isComplete,
-            eventsProcessed: validation.eventsToProcess.length,
-            eventsKept: validation.eventsToKeep.length,
-          }
-        );
-      }
-    }
-
-    // Log summary of validation failure handling
-    this.logger.logWithEmoji(
-      LogCategory.SKIP,
-      'debug',
-      'handled validation failure with smart processing',
-      {
-        visitId: visit.events[0]?.visitId,
-        totalEventsProcessed: processedEventIds.length,
-        totalEvents: visit.events.length,
-      }
-    );
-
-    return processedEventIds;
   }
 
   /**
