@@ -86,7 +86,3 @@ export type { AggregationResult, VisitGroup, AggregatedData } from './utils/type
  */
 export type { SchedulerOptions } from './scheduler';
 
-/**
- * Re-export emoji logger types and utilities
- */
-export { LogCategory, type EmojiLogger, createEmojiLogger } from '@/utils/logger-emoji';

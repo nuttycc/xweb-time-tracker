@@ -1,6 +1,6 @@
 /**
  * Mock helper for emoji logger in tests
- * 
+ *
  * Provides consistent mocking for emoji logger functionality
  * across all aggregator module tests.
  */
@@ -10,7 +10,7 @@ import type { EmojiLogger } from '@/utils/logger-emoji';
 
 /**
  * Creates a mock emoji logger with all required methods
- * 
+ *
  * @returns Mock emoji logger instance
  */
 export function createMockEmojiLogger(): EmojiLogger {
@@ -26,7 +26,7 @@ export function createMockEmojiLogger(): EmojiLogger {
 
 /**
  * Creates expectations for emoji log calls
- * 
+ *
  * @param mockLogger - The mock logger instance
  * @param category - Expected emoji category
  * @param level - Expected log level
@@ -48,7 +48,7 @@ export function expectEmojiLog(
 
 /**
  * Creates expectations for emoji log calls without data
- * 
+ *
  * @param mockLogger - The mock logger instance
  * @param category - Expected emoji category
  * @param level - Expected log level
@@ -65,4 +65,4 @@ export function expectEmojiLogSimple(
     level,
     expect.stringContaining(phrase)
   );
-} 
+}

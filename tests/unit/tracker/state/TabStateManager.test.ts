@@ -10,11 +10,24 @@
  * @version 1.0.0
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { TabStateManager } from '../../../../src/core/tracker/state/TabStateManager';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- FocusChangeEvent is used in test type annotations and mock function signatures
 import type { FocusChangeEvent } from '../../../../src/core/tracker/state/TabStateManager';
 import type { TabState } from '../../../../src/core/tracker/types';
+import { TabStateStorageUtils } from '../../../../src/core/tracker/storage/TabStateStorage';
+
+// Mock the storage utilities
+vi.mock('../../../../src/core/tracker/storage/TabStateStorage', () => ({
+  TabStateStorageUtils: {
+    getAllTabStates: vi.fn(),
+    saveAllTabStates: vi.fn(),
+    clearAllTabStates: vi.fn(),
+    getStorageMetadata: vi.fn(),
+    getStorageStats: vi.fn(),
+    watchStorageChanges: vi.fn(),
+  },
+}));
 
 describe('TabStateManager', () => {
   let tabStateManager: TabStateManager;
@@ -23,6 +36,18 @@ describe('TabStateManager', () => {
   beforeEach(() => {
     tabStateManager = new TabStateManager();
     mockFocusChangeListener = vi.fn();
+
+    // Reset all mocks
+    vi.clearAllMocks();
+
+    // Setup default mock behaviors
+    vi.mocked(TabStateStorageUtils.getAllTabStates).mockResolvedValue({});
+    vi.mocked(TabStateStorageUtils.saveAllTabStates).mockResolvedValue();
+    vi.mocked(TabStateStorageUtils.clearAllTabStates).mockResolvedValue();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
   });
 
   describe('Initialization', () => {
@@ -409,6 +434,252 @@ describe('TabStateManager', () => {
       expect(debugInfo.focusedWindowId).toBe(windowId);
       expect(debugInfo.activeTimeTabs).toEqual([tabId1]);
       expect(debugInfo.lastFocusChange).toBeTypeOf('number');
+    });
+  });
+
+  describe('Persistent Storage Integration', () => {
+    const mockTabState: Omit<TabState, 'isFocused' | 'tabId' | 'windowId'> = {
+      url: 'https://example.com',
+      visitId: '123e4567-e89b-12d3-a456-426614174000',
+      activityId: null,
+      isAudible: false,
+      lastInteractionTimestamp: Date.now(),
+      openTimeStart: Date.now(),
+      activeTimeStart: null,
+      sessionEnded: false,
+    };
+
+    describe('createTabState with persistence', () => {
+      it('should create tab state and sync to persistent storage', () => {
+        const tabId = 1;
+        const windowId = 100;
+
+        tabStateManager.createTabState(tabId, mockTabState, windowId);
+
+        // Verify memory state
+        const tabState = tabStateManager.getTabState(tabId);
+        expect(tabState).toBeDefined();
+        expect(tabState?.url).toBe(mockTabState.url);
+
+        // Verify persistent storage sync was called (fire-and-forget)
+        // Note: We can't easily test the async call without making the test async
+        // The sync happens in the background
+      });
+
+      it('should create tab state and wait for persistence with async version', async () => {
+        const tabId = 1;
+        const windowId = 100;
+
+        await tabStateManager.createTabStateAsync(tabId, mockTabState, windowId);
+
+        // Verify memory state
+        const tabState = tabStateManager.getTabState(tabId);
+        expect(tabState).toBeDefined();
+        expect(tabState?.url).toBe(mockTabState.url);
+
+        // Verify persistent storage was called
+        expect(TabStateStorageUtils.saveAllTabStates).toHaveBeenCalledWith({
+          [tabId]: expect.objectContaining({
+            url: mockTabState.url,
+            visitId: mockTabState.visitId,
+            tabId,
+            windowId,
+          }),
+        });
+      });
+    });
+
+    describe('updateTabState with persistence', () => {
+      beforeEach(() => {
+        const tabId = 1;
+        const windowId = 100;
+        tabStateManager.createTabState(tabId, mockTabState, windowId);
+        vi.clearAllMocks(); // Clear the create call
+      });
+
+      it('should update tab state and sync to persistent storage', () => {
+        const tabId = 1;
+        const updates = { isAudible: true };
+
+        tabStateManager.updateTabState(tabId, updates);
+
+        // Verify memory state
+        const tabState = tabStateManager.getTabState(tabId);
+        expect(tabState?.isAudible).toBe(true);
+      });
+
+      it('should update tab state and wait for persistence with async version', async () => {
+        const tabId = 1;
+        const updates = { isAudible: true };
+
+        await tabStateManager.updateTabStateAsync(tabId, updates);
+
+        // Verify memory state
+        const tabState = tabStateManager.getTabState(tabId);
+        expect(tabState?.isAudible).toBe(true);
+
+        // Verify persistent storage was called
+        expect(TabStateStorageUtils.saveAllTabStates).toHaveBeenCalledWith({
+          [tabId]: expect.objectContaining({
+            isAudible: true,
+          }),
+        });
+      });
+    });
+
+    describe('clearTabState with persistence', () => {
+      beforeEach(() => {
+        const tabId = 1;
+        const windowId = 100;
+        tabStateManager.createTabState(tabId, mockTabState, windowId);
+        vi.clearAllMocks(); // Clear the create call
+      });
+
+      it('should clear tab state and sync to persistent storage', () => {
+        const tabId = 1;
+
+        tabStateManager.clearTabState(tabId);
+
+        // Verify memory state
+        expect(tabStateManager.getTabState(tabId)).toBeUndefined();
+      });
+
+      it('should clear tab state and wait for persistence with async version', async () => {
+        const tabId = 1;
+
+        await tabStateManager.clearTabStateAsync(tabId);
+
+        // Verify memory state
+        expect(tabStateManager.getTabState(tabId)).toBeUndefined();
+
+        // Verify persistent storage was called (should be empty now)
+        expect(TabStateStorageUtils.saveAllTabStates).toHaveBeenCalledWith({});
+      });
+    });
+
+    describe('loadFromPersistentStorage', () => {
+      it('should load tab states from persistent storage into memory', async () => {
+        const persistentData = {
+          1: {
+            ...mockTabState,
+            tabId: 1,
+            windowId: 100,
+            isFocused: false,
+          },
+          2: {
+            ...mockTabState,
+            url: 'https://example2.com',
+            visitId: '123e4567-e89b-12d3-a456-426614174001',
+            tabId: 2,
+            windowId: 100,
+            isFocused: false,
+          },
+        };
+
+        vi.mocked(TabStateStorageUtils.getAllTabStates).mockResolvedValue(persistentData);
+
+        const loadedCount = await tabStateManager.loadFromPersistentStorage();
+
+        expect(loadedCount).toBe(2);
+        expect(tabStateManager.getTabState(1)).toEqual(persistentData[1]);
+        expect(tabStateManager.getTabState(2)).toEqual(persistentData[2]);
+        expect(TabStateStorageUtils.getAllTabStates).toHaveBeenCalled();
+      });
+
+      it('should handle storage load failure gracefully', async () => {
+        vi.mocked(TabStateStorageUtils.getAllTabStates).mockRejectedValue(
+          new Error('Storage error')
+        );
+
+        const loadedCount = await tabStateManager.loadFromPersistentStorage();
+
+        expect(loadedCount).toBe(0);
+        expect(tabStateManager.getAllTabStates().size).toBe(0);
+      });
+    });
+
+    describe('getTabStateAsync with fallback', () => {
+      it('should return tab state from memory if available', async () => {
+        const tabId = 1;
+        const windowId = 100;
+        tabStateManager.createTabState(tabId, mockTabState, windowId);
+
+        const tabState = await tabStateManager.getTabStateAsync(tabId);
+
+        expect(tabState).toBeDefined();
+        expect(tabState?.url).toBe(mockTabState.url);
+        // Should not call persistent storage since it's in memory
+        expect(TabStateStorageUtils.getAllTabStates).not.toHaveBeenCalled();
+      });
+
+      it('should fallback to persistent storage if not in memory', async () => {
+        const tabId = 1;
+        const persistentData = {
+          [tabId]: {
+            ...mockTabState,
+            tabId,
+            windowId: 100,
+            isFocused: false,
+          },
+        };
+
+        vi.mocked(TabStateStorageUtils.getAllTabStates).mockResolvedValue(persistentData);
+
+        const tabState = await tabStateManager.getTabStateAsync(tabId);
+
+        expect(tabState).toEqual(persistentData[tabId]);
+        expect(TabStateStorageUtils.getAllTabStates).toHaveBeenCalled();
+        // Should now be in memory cache
+        expect(tabStateManager.getTabState(tabId)).toEqual(persistentData[tabId]);
+      });
+
+      it('should return undefined if not found in memory or persistent storage', async () => {
+        const tabId = 999;
+
+        vi.mocked(TabStateStorageUtils.getAllTabStates).mockResolvedValue({});
+
+        const tabState = await tabStateManager.getTabStateAsync(tabId);
+
+        expect(tabState).toBeUndefined();
+        expect(TabStateStorageUtils.getAllTabStates).toHaveBeenCalled();
+      });
+    });
+
+    describe('forceSyncToPersistentStorage', () => {
+      it('should force sync all current states to persistent storage', async () => {
+        const tabId1 = 1;
+        const tabId2 = 2;
+        const windowId = 100;
+
+        tabStateManager.createTabState(tabId1, mockTabState, windowId);
+        tabStateManager.createTabState(
+          tabId2,
+          { ...mockTabState, url: 'https://example2.com' },
+          windowId
+        );
+
+        vi.clearAllMocks(); // Clear the create calls
+
+        await tabStateManager.forceSyncToPersistentStorage();
+
+        expect(TabStateStorageUtils.saveAllTabStates).toHaveBeenCalledWith({
+          [tabId1]: expect.objectContaining({ url: mockTabState.url }),
+          [tabId2]: expect.objectContaining({ url: 'https://example2.com' }),
+        });
+      });
+    });
+
+    describe('clearAllStateIncludingPersistent', () => {
+      it('should clear both memory and persistent storage', async () => {
+        const tabId = 1;
+        const windowId = 100;
+        tabStateManager.createTabState(tabId, mockTabState, windowId);
+
+        await tabStateManager.clearAllStateIncludingPersistent();
+
+        expect(tabStateManager.getAllTabStates().size).toBe(0);
+        expect(TabStateStorageUtils.clearAllTabStates).toHaveBeenCalled();
+      });
     });
   });
 });

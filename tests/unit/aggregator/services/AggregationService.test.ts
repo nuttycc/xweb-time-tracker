@@ -175,7 +175,7 @@ describe('AggregationService', () => {
         throw 'String stop error';
       });
 
-      // Focus on behavior: service should propagate non-Error exceptions  
+      // Focus on behavior: service should propagate non-Error exceptions
       await expect(service.stop()).rejects.toBe('String stop error');
     });
 

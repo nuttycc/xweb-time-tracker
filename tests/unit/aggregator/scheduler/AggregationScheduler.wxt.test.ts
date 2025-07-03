@@ -11,14 +11,25 @@ import { storage } from '#imports';
 import type { AggregationEngine } from '@/core/aggregator/engine/AggregationEngine';
 import type { DataPruner } from '@/core/aggregator/pruner/DataPruner';
 import type { AggregationResult } from '@/core/aggregator/utils/types';
-import type { EmojiLogger } from '@/utils/logger-emoji';
-import { LogCategory } from '@/utils/logger-emoji';
-import { createMockEmojiLogger, expectEmojiLog } from '../../../helpers/emoji-logger-mock';
 import {
   AGGREGATION_ALARM_NAME,
   SCHEDULER_PERIOD_MINUTES_KEY,
   DEFAULT_AGGREGATION_INTERVAL_MINUTES,
 } from '@/core/aggregator/utils/constants';
+
+// Create a mock logger instance that we can reference
+const mockLogger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  trace: vi.fn(),
+};
+
+// Mock the logger module since AggregationScheduler uses regular Logger, not EmojiLogger
+vi.mock('@/utils/logger', () => ({
+  createLogger: vi.fn(() => mockLogger),
+}));
 
 // Create mock implementations
 const createMockAggregationEngine = () => ({
@@ -37,7 +48,6 @@ describe('AggregationScheduler (WXT Standard)', () => {
   let scheduler: InstanceType<typeof AggregationScheduler>;
   let mockAggregationEngine: ReturnType<typeof createMockAggregationEngine>;
   let mockDataPruner: ReturnType<typeof createMockDataPruner>;
-  let mockLogger: EmojiLogger;
 
   beforeEach(async () => {
     // Reset WXT fake browser state
@@ -49,16 +59,21 @@ describe('AggregationScheduler (WXT Standard)', () => {
 
     mockAggregationEngine = createMockAggregationEngine();
     mockDataPruner = createMockDataPruner();
-    mockLogger = createMockEmojiLogger();
 
     scheduler = new AggregationScheduler(
       mockAggregationEngine as unknown as AggregationEngine,
-      mockDataPruner as unknown as DataPruner,
-      { logger: mockLogger }
+      mockDataPruner as unknown as DataPruner
     );
 
     // Reset all mocks
     vi.clearAllMocks();
+
+    // Reset the mock logger
+    mockLogger.debug.mockClear();
+    mockLogger.info.mockClear();
+    mockLogger.warn.mockClear();
+    mockLogger.error.mockClear();
+    mockLogger.trace.mockClear();
   });
 
   describe('constructor', () => {
@@ -66,7 +81,7 @@ describe('AggregationScheduler (WXT Standard)', () => {
       expect(scheduler).toBeInstanceOf(AggregationScheduler);
     });
 
-    it('should use default emoji logger when none provided', () => {
+    it('should use default logger when none provided', () => {
       const schedulerWithoutLogger = new AggregationScheduler(
         mockAggregationEngine as unknown as AggregationEngine,
         mockDataPruner as unknown as DataPruner
@@ -218,7 +233,13 @@ describe('AggregationScheduler (WXT Standard)', () => {
       // Wait for async operations
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      expectEmojiLog(mockLogger, LogCategory.ERROR, 'error', 'Failed scheduled aggregation');
+      // Verify error logging - AggregationScheduler uses regular logger.error, not logWithEmoji
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Fail scheduled aggregation task',
+        expect.objectContaining({
+          error: expect.any(Error),
+        })
+      );
     });
 
     it('should log task duration', async () => {
@@ -230,16 +251,10 @@ describe('AggregationScheduler (WXT Standard)', () => {
       // Wait for async operations
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      // Verify key log calls during task execution
-      expect(mockLogger.logWithEmoji).toHaveBeenCalledWith(
-        LogCategory.START,
-        'info',
-        'Started scheduled aggregation task'
-      );
-      expect(mockLogger.logWithEmoji).toHaveBeenCalledWith(
-        LogCategory.END,
-        'info',
-        'Finished aggregation task',
+      // Verify key log calls during task execution - AggregationScheduler uses regular logger methods
+      expect(mockLogger.info).toHaveBeenCalledWith('Run scheduled aggregation task');
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Finish aggregation task',
         expect.objectContaining({
           duration: expect.stringMatching(/\d+ms/),
         })

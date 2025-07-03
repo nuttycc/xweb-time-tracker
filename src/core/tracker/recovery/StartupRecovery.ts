@@ -18,11 +18,12 @@ import { DatabaseService } from '../../db/services/database.service';
 import { EventsLogRecord } from '../../db/models/eventslog.model';
 import { TabState, DomainEvent } from '../types';
 import { createLogger } from '../../../utils/logger';
+import { TabStateStorageUtils } from '../storage/TabStateStorage';
 
 /**
  * Schema for orphan session data
  */
-export const OrphanSessionSchema = z.object({
+export const OrphanEventSchema = z.object({
   /** Event ID of the orphan session */
   id: z.string(),
 
@@ -48,7 +49,7 @@ export const OrphanSessionSchema = z.object({
   tabId: z.number().optional(),
 });
 
-export type OrphanSession = z.infer<typeof OrphanSessionSchema>;
+export type OrphanEvent = z.infer<typeof OrphanEventSchema>;
 
 /**
  * Schema for recovery statistics
@@ -110,7 +111,7 @@ export class StartupRecovery {
   private readonly eventGenerator: EventGenerator;
   private readonly databaseService: DatabaseService;
   private stats: RecoveryStats;
-  private static readonly logger = createLogger('StartupRecovery');
+  private static readonly logger = createLogger('♻️ StartupRecovery');
 
   constructor(
     eventGenerator: EventGenerator,
@@ -135,17 +136,17 @@ export class StartupRecovery {
    * Phase 1: Recover orphan sessions in the DB (crash recovery)
    * Phase 2: Generate open_time_start events and tab session state for all currently open tabs, but do NOT write to DB directly.
    *
-   * @returns {Promise<{ stats: RecoveryStats, tabStates: Array<{ tabId: number, tabState: TabState }>, events: DomainEvent[] }>} 
+   * @returns {Promise<{ stats: RecoveryStats, tabStates: Array<{ tabId: number, tabState: TabState }>, events: DomainEvent[] }>}
    *   stats: Recovery statistics (DB orphan session recovery)
    *   tabStates: Initial in-memory session state for each tab
    *   events: open_time_start events for each tab (to be queued by TimeTracker)
    */
   async executeRecovery(): Promise<{
-    stats: RecoveryStats,
-    tabStates: Array<{ tabId: number, tabState: TabState }>,
-    events: DomainEvent[]
+    stats: RecoveryStats;
+    tabStates: Array<{ tabId: number; tabState: TabState }>;
+    events: DomainEvent[];
   }> {
-    StartupRecovery.logger.info('♻️ Starting startup recovery process');
+    StartupRecovery.logger.info('Start startup recovery process');
 
     try {
       // Phase 1: Recover orphan sessions in DB
@@ -155,47 +156,48 @@ export class StartupRecovery {
       const { tabStates, events } = await this.initializeCurrentState();
 
       this.stats.recoveryCompletionTime = Date.now();
-      StartupRecovery.logger.info('✅ Startup recovery completed', { 
+      StartupRecovery.logger.info('Complete startup recovery', {
         orphanSessionsFound: this.stats.orphanSessionsFound,
         recoveryEventsGenerated: this.stats.recoveryEventsGenerated,
         currentTabsInitialized: this.stats.currentTabsInitialized,
-        duration: `${this.stats.recoveryCompletionTime - this.stats.recoveryStartTime}ms`
+        duration: `${this.stats.recoveryCompletionTime - this.stats.recoveryStartTime}ms`,
       });
 
       return { stats: this.stats, tabStates, events };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.stats.errors.push(errorMessage);
-      StartupRecovery.logger.error('❌ Startup recovery failed', { error: errorMessage });
+      StartupRecovery.logger.error('Fail startup recovery', { error: errorMessage });
       throw error;
     }
   }
 
   /**
-   * Phase 1: Identify and recover orphan sessions
+   * Phase 1: Identify and recover orphan events
    */
   private async recoverOrphanSessions(): Promise<void> {
-    StartupRecovery.logger.info('🔍 Phase 1: Searching for orphan sessions');
+    StartupRecovery.logger.info('Phase 1: Search orphan sessions');
 
     try {
-      // Find orphan sessions in the database
-      const orphanSessions = await this.findOrphanSessions();
-      this.stats.orphanSessionsFound = orphanSessions.length;
+      // Find orphan events in the database
+      const orphanEvents = await this.findOrphanEvents();
+      this.stats.orphanSessionsFound = orphanEvents.length;
 
-      if (orphanSessions.length === 0) {
-        StartupRecovery.logger.info('✅ No orphan sessions found');
+      if (orphanEvents.length === 0) {
+        StartupRecovery.logger.info('No orphan sessions, phase 1 complete');
         return;
       }
 
-      StartupRecovery.logger.info(`🔍 Found ${orphanSessions.length} orphan sessions to recover`);
+      StartupRecovery.logger.info(
+        `Found ${orphanEvents.length} orphan events, generating end events for them`,
+        orphanEvents
+      );
 
       // Generate recovery events for each orphan session
-      for (const session of orphanSessions) {
-        await this.generateRecoveryEvent(session);
+      for (const event of orphanEvents) {
+        await this.generateEndEvent(event);
         this.stats.recoveryEventsGenerated++;
       }
-
-      StartupRecovery.logger.info(`✅ Generated ${this.stats.recoveryEventsGenerated} recovery events`);
     } catch (error) {
       const errorMessage = `Phase 1 failed: ${error instanceof Error ? error.message : String(error)}`;
       this.stats.errors.push(errorMessage);
@@ -204,77 +206,151 @@ export class StartupRecovery {
   }
 
   /**
-   * Phase 2: Generate open_time_start events and tab session state for all currently open tabs.
+   * Phase 2: Restore tab session state from persistent storage or generate new state.
    *
-   * This does NOT write to DB. Instead, it returns the events and tabStates for in-memory initialization.
+   * This phase attempts to restore tab states from persistent storage first to maintain
+   * session continuity. For tabs without saved state, it generates new open_time_start
+   * events and corresponding TabState. This does NOT write to DB.
    *
    * @returns {Promise<{ tabStates: Array<{ tabId: number, tabState: TabState }>, events: DomainEvent[] }>}
-   *   tabStates: Initial in-memory session state for each tab
-   *   events: open_time_start events for each tab
+   *   tabStates: Restored or newly created in-memory session state for each tab
+   *   events: open_time_start events for newly created sessions only
    */
   private async initializeCurrentState(): Promise<{
-    tabStates: Array<{ tabId: number, tabState: TabState }>,
-    events: DomainEvent[]
+    tabStates: Array<{ tabId: number; tabState: TabState }>;
+    events: DomainEvent[];
   }> {
-    StartupRecovery.logger.info('▶️ Phase 2: Generating session state for current browser tabs');
+    StartupRecovery.logger.info('Phase 2: Restoring session state for current browser tabs');
 
-    const tabStates: Array<{ tabId: number, tabState: TabState }> = [];
+    const tabStates: Array<{ tabId: number; tabState: TabState }> = [];
     const events: DomainEvent[] = [];
 
     try {
-      // Clear old local storage state
-      await this.clearOldLocalState();
+      // Step 1: Load existing tab states from persistent storage
+      const persistentTabStates = await TabStateStorageUtils.getAllTabStates();
+      const persistentTabIds = new Set(
+        Object.keys(persistentTabStates).map(id => parseInt(id, 10))
+      );
 
-      // Get all currently open tabs
-      const currentTabs = (await browser.tabs.query({})).filter(tab => tab.id !== undefined && tab.id >= 0);
-      StartupRecovery.logger.info(`🔍 Found ${currentTabs.length} currently open tabs`);
+      StartupRecovery.logger.info(
+        `Found ${persistentTabIds.size} tab states in persistent storage`
+      );
 
+      // Step 2: Get all currently open tabs
+      const currentTabs = (await browser.tabs.query({})).filter(
+        tab => tab.id !== undefined && tab.id >= 0
+      );
+      const currentTabIds = new Set(currentTabs.map(tab => tab.id!));
+
+      StartupRecovery.logger.info(`Found ${currentTabs.length} currently open tabs`);
+
+      // Step 3: Process each currently open tab
       for (const tab of currentTabs) {
         if (tab.url && tab.id !== undefined) {
-          // Generate open_time_start event for the tab
-          const result = this.eventGenerator.generateOpenTimeStart(
-            tab.id,
-            tab.url,
-            Date.now(),
-            tab.windowId || 0
-          );
+          // Check if we have a saved state for this tab
+          const savedTabState = persistentTabStates[tab.id];
 
-          if (!result.success || !result.event?.visitId) {
-            if (result.metadata?.urlFiltered) {
-              // StartupRecovery.logger.debug('🤔 Skipped tab for filtered URL', {
-              //   tabId: tab.id,
-              //   url: tab.url,
-              //   reason: result.metadata.skipReason,
-              // });
-            } else {
-              StartupRecovery.logger.error('❌ Failed to generate open_time_start for tab', {
-                tabId: tab.id,
-                error: result.error,
-              });
+          if (savedTabState) {
+            // Step 3a: Restore existing tab state (maintain session continuity)
+            StartupRecovery.logger.debug('Restoring tab state from persistent storage', {
+              tabId: tab.id,
+              visitId: savedTabState.visitId,
+              url: savedTabState.url,
+            });
+
+            // Update the restored state with current tab information
+            const restoredTabState = {
+              ...savedTabState,
+              url: tab.url, // Update URL in case it changed
+              isAudible: tab.audible || false, // Update audible state
+              isFocused: false, // Reset focus state (will be set by focus events)
+              tabId: tab.id,
+              windowId: tab.windowId || 0,
+            };
+
+            tabStates.push({ tabId: tab.id, tabState: restoredTabState });
+            // No event needed - we're continuing an existing session
+          } else {
+            // Step 3b: Create new tab state for tabs without saved state
+            const result = this.eventGenerator.generateOpenTimeStart(
+              tab.id,
+              tab.url,
+              Date.now(),
+              tab.windowId || 0
+            );
+
+            if (!result.success || !result.event?.visitId) {
+              if (result.metadata?.urlFiltered) {
+                // StartupRecovery.logger.debug('🤔 Skipped tab for filtered URL', {
+                //   tabId: tab.id,
+                //   url: tab.url,
+                //   reason: result.metadata.skipReason,
+                // });
+              } else {
+                StartupRecovery.logger.error('Failed to generate open_time_start for tab', {
+                  tabId: tab.id,
+                  error: result.error,
+                });
+              }
+              continue;
             }
-            continue;
+
+            // Build initial tab state for new session
+            const initialTabState = {
+              url: tab.url,
+              visitId: result.event.visitId,
+              activityId: null,
+              isAudible: tab.audible || false,
+              lastInteractionTimestamp: Date.now(),
+              openTimeStart: Date.now(),
+              activeTimeStart: null,
+              isFocused: false,
+              tabId: tab.id,
+              windowId: tab.windowId || 0,
+              sessionEnded: false,
+            };
+
+            tabStates.push({ tabId: tab.id, tabState: initialTabState });
+            events.push(result.event);
+
+            StartupRecovery.logger.debug('Created new tab state for tab', {
+              tabId: tab.id,
+              visitId: result.event.visitId,
+              url: tab.url,
+            });
           }
-
-          // Build initial tab state (in-memory)
-          const initialTabState = {
-            url: tab.url,
-            visitId: result.event.visitId,
-            activityId: null,
-            isAudible: tab.audible || false,
-            lastInteractionTimestamp: Date.now(),
-            openTimeStart: Date.now(),
-            activeTimeStart: null,
-            isFocused: false,
-            tabId: tab.id,
-            windowId: tab.windowId || 0,
-            sessionEnded: false,
-          };
-
-          tabStates.push({ tabId: tab.id, tabState: initialTabState });
-          events.push(result.event);
         }
       }
-      StartupRecovery.logger.info(`▶️ Generated ${events.length} open_time_start events for current tabs`);
+      // Step 4: Clean up persistent storage for closed tabs
+      const closedTabIds = Array.from(persistentTabIds).filter(tabId => !currentTabIds.has(tabId));
+      if (closedTabIds.length > 0) {
+        StartupRecovery.logger.info(
+          `Cleaning up ${closedTabIds.length} closed tabs from persistent storage`
+        );
+
+        // Remove closed tabs from persistent storage
+        const updatedPersistentStates = { ...persistentTabStates };
+        for (const tabId of closedTabIds) {
+          delete updatedPersistentStates[tabId];
+        }
+
+        try {
+          await TabStateStorageUtils.saveAllTabStates(updatedPersistentStates);
+        } catch (error) {
+          StartupRecovery.logger.error('Failed to clean up closed tabs from persistent storage', {
+            error,
+          });
+        }
+      }
+
+      // Clear old local storage state (after we've used the persistent storage)
+      await this.clearOldLocalState();
+
+      const restoredCount = tabStates.length - events.length;
+      StartupRecovery.logger.info(
+        `Session recovery complete: ${restoredCount} tabs restored, ${events.length} new sessions created`
+      );
+
       this.stats.currentTabsInitialized = tabStates.length;
       return { tabStates, events };
     } catch (error) {
@@ -285,20 +361,25 @@ export class StartupRecovery {
   }
 
   /**
-   * Find orphan sessions in the database
+   * Find orphan sessions in the event log database
    */
-  private async findOrphanSessions(): Promise<OrphanSession[]> {
+  private async findOrphanEvents(): Promise<OrphanEvent[]> {
     const cutoffTime = Date.now() - this.config.maxSessionAge;
-    const orphanSessions: OrphanSession[] = [];
+    const orphanEvents: OrphanEvent[] = [];
 
     // Query for open_time_start events without corresponding end events
-    StartupRecovery.logger.debug(`Querying for open_time_start events from ${(new Date(cutoffTime)).toLocaleString()} to ${(new Date(Date.now())).toLocaleString()}`);
+    StartupRecovery.logger.debug(
+      `Query open_time_start events from ${new Date(cutoffTime).toLocaleString()} to ${new Date(Date.now()).toLocaleString()}`
+    );
     const openTimeStartEvents = await this.getEventsByTypeAndTimeRange(
       'open_time_start',
       cutoffTime,
       Date.now()
     );
-    StartupRecovery.logger.debug(`Found ${openTimeStartEvents.length} open_time_start events in time range`, openTimeStartEvents);
+    StartupRecovery.logger.debug(
+      `Found ${openTimeStartEvents.length} open_time_start events in time range`,
+      openTimeStartEvents
+    );
 
     for (const startEvent of openTimeStartEvents) {
       StartupRecovery.logger.trace(
@@ -307,10 +388,10 @@ export class StartupRecovery {
       const hasEndEvent = await this.hasCorrespondingEndEvent(startEvent);
       StartupRecovery.logger.trace(`Has corresponding end event: ${hasEndEvent}`);
       if (!hasEndEvent) {
-        const orphanSession = this.createOrphanSessionFromEvent(startEvent);
-        if (orphanSession) {
-          orphanSessions.push(orphanSession);
-          StartupRecovery.logger.debug(`Added orphan session: ${orphanSession.id}`);
+        const orphanEvent = this.createOrphanEventFromEvent(startEvent);
+        if (orphanEvent) {
+          orphanEvents.push(orphanEvent);
+          StartupRecovery.logger.debug(`Added orphan event: ${orphanEvent.id}`);
         }
       }
     }
@@ -325,21 +406,25 @@ export class StartupRecovery {
     for (const startEvent of activeTimeStartEvents) {
       const hasEndEvent = await this.hasCorrespondingEndEvent(startEvent);
       if (!hasEndEvent) {
-        const orphanSession = this.createOrphanSessionFromEvent(startEvent);
-        if (orphanSession) {
-          orphanSessions.push(orphanSession);
+        const orphanEvent = this.createOrphanEventFromEvent(startEvent);
+        if (orphanEvent) {
+          orphanEvents.push(orphanEvent);
         }
       }
     }
 
     // Query for checkpoint events without continuation
-    StartupRecovery.logger.debug(`Querying for checkpoint events from ${(new Date(cutoffTime)).toLocaleString()} to ${(new Date(Date.now())).toLocaleString()}`);
+    StartupRecovery.logger.debug(
+      `Query for checkpoint events from ${new Date(cutoffTime).toLocaleString()} to ${new Date(Date.now()).toLocaleString()}`
+    );
     const checkpointEvents = await this.getEventsByTypeAndTimeRange(
       'checkpoint',
       cutoffTime,
       Date.now()
     );
-    StartupRecovery.logger.debug(`Found ${checkpointEvents.length} checkpoint events in time range`);
+    StartupRecovery.logger.debug(
+      `Found ${checkpointEvents.length} checkpoint events in time range`
+    );
 
     for (const checkpointEvent of checkpointEvents) {
       StartupRecovery.logger.trace(
@@ -348,15 +433,15 @@ export class StartupRecovery {
       const hasContinuation = await this.hasContinuation(checkpointEvent);
       StartupRecovery.logger.trace(`Has continuation: ${hasContinuation}`);
       if (!hasContinuation) {
-        const orphanSession = this.createOrphanSessionFromEvent(checkpointEvent);
-        if (orphanSession) {
-          orphanSessions.push(orphanSession);
-          StartupRecovery.logger.debug(`Added orphan checkpoint session: ${orphanSession.id}`);
+        const orphanEvent = this.createOrphanEventFromEvent(checkpointEvent);
+        if (orphanEvent) {
+          orphanEvents.push(orphanEvent);
+          StartupRecovery.logger.debug(`Added orphan checkpoint event: ${orphanEvent.id}`);
         }
       }
     }
 
-    return orphanSessions;
+    return orphanEvents;
   }
 
   /**
@@ -386,25 +471,34 @@ export class StartupRecovery {
 
       // Query for subsequent events in the same visit
       const visitEvents = await this.databaseService.getEventsByVisitId(checkpointEvent.visitId);
-      const subsequentEvents = visitEvents.filter(event =>
-        event.timestamp > checkpointEvent.timestamp &&
-        (event.eventType === 'open_time_end' ||
-         (event.eventType === 'checkpoint' && (event.activityId === null || event.activityId === undefined)))
+      const subsequentEvents = visitEvents.filter(
+        event =>
+          event.timestamp > checkpointEvent.timestamp &&
+          (event.eventType === 'open_time_end' ||
+            (event.eventType === 'checkpoint' &&
+              (event.activityId === null || event.activityId === undefined)))
       );
 
-      StartupRecovery.logger.trace(`Found ${subsequentEvents.length} subsequent events for open_time checkpoint`);
+      StartupRecovery.logger.trace(
+        `Found ${subsequentEvents.length} subsequent events for open_time checkpoint`
+      );
       return subsequentEvents.length > 0;
     }
 
     // For active_time checkpoints (activityId has a value)
     // Query for subsequent events in the same activity
-    const activityEvents = await this.databaseService.getEventsByActivityId(checkpointEvent.activityId);
-    const subsequentEvents = activityEvents.filter(event =>
-      event.timestamp > checkpointEvent.timestamp &&
-      (event.eventType === 'active_time_end' || event.eventType === 'checkpoint')
+    const activityEvents = await this.databaseService.getEventsByActivityId(
+      checkpointEvent.activityId
+    );
+    const subsequentEvents = activityEvents.filter(
+      event =>
+        event.timestamp > checkpointEvent.timestamp &&
+        (event.eventType === 'active_time_end' || event.eventType === 'checkpoint')
     );
 
-    StartupRecovery.logger.trace(`Found ${subsequentEvents.length} subsequent events for active_time checkpoint`);
+    StartupRecovery.logger.trace(
+      `Found ${subsequentEvents.length} subsequent events for active_time checkpoint`
+    );
     return subsequentEvents.length > 0;
   }
 
@@ -418,7 +512,9 @@ export class StartupRecovery {
     const sessionId =
       startEvent.eventType === 'open_time_start' ? startEvent.visitId : startEvent.activityId;
 
-    StartupRecovery.logger.trace(`Checking for end event: sessionId=${sessionId}, endEventType=${endEventType}`);
+    StartupRecovery.logger.trace(
+      `Checking for end event: sessionId=${sessionId}, endEventType=${endEventType}`
+    );
 
     if (!sessionId) {
       StartupRecovery.logger.trace('No sessionId found, returning false');
@@ -461,12 +557,12 @@ export class StartupRecovery {
   /**
    * Create orphan session object from database event
    */
-  private createOrphanSessionFromEvent(event: EventsLogRecord): OrphanSession | null {
+  private createOrphanEventFromEvent(event: EventsLogRecord): OrphanEvent | null {
     try {
       // Extract domain from URL if not available in event
       const domain = event.url ? new URL(event.url).hostname : 'unknown';
 
-      return OrphanSessionSchema.parse({
+      return OrphanEventSchema.parse({
         id: (event.id ?? 0).toString(),
         eventType: event.eventType,
         visitId: event.visitId || undefined,
@@ -485,46 +581,43 @@ export class StartupRecovery {
   /**
    * Generate a recovery end event for an orphan session
    */
-  private async generateRecoveryEvent(session: OrphanSession): Promise<void> {
-    const sessionId = session.visitId || session.activityId;
+  private async generateEndEvent(event: OrphanEvent): Promise<void> {
+    const eventId = event.id;
 
-    if (!sessionId) {
-      StartupRecovery.logger.warn('⚠️ Cannot generate recovery event: missing session ID', { 
-        eventType: session.eventType, 
-        url: session.url 
-      });
+    if (!eventId) {
+      StartupRecovery.logger.warn('Cannot generate recovery event: missing event ID', event);
       return;
     }
 
     // Create a mock tab state for the recovery event
     const mockTabState: TabState = {
-      url: session.url,
-      visitId: session.visitId || '',
-      activityId: session.activityId || null,
+      url: event.url,
+      visitId: event.visitId || '',
+      activityId: event.activityId || null,
       isAudible: false,
-      lastInteractionTimestamp: session.timestamp,
-      openTimeStart: session.timestamp,
-      activeTimeStart: session.eventType === 'active_time_start' ? session.timestamp : null,
+      lastInteractionTimestamp: event.timestamp,
+      openTimeStart: event.timestamp,
+      activeTimeStart: event.eventType === 'active_time_start' ? event.timestamp : null,
       isFocused: false,
-      tabId: session.tabId || 0,
+      tabId: event.tabId || 0,
       windowId: 0, // Window ID is not available in recovery context
       sessionEnded: false,
     };
 
     const context = {
       tabState: mockTabState,
-      timestamp: session.timestamp,
+      timestamp: event.timestamp,
       resolution: 'crash_recovery' as const,
     };
 
     let result;
-    if (session.eventType === 'open_time_start') {
+    if (event.eventType === 'open_time_start') {
       result = this.eventGenerator.generateOpenTimeEnd(context);
-    } else if (session.eventType === 'active_time_start') {
+    } else if (event.eventType === 'active_time_start') {
       result = this.eventGenerator.generateActiveTimeEnd(context, 'tab_closed');
-    } else if (session.eventType === 'checkpoint') {
+    } else if (event.eventType === 'checkpoint') {
       // For checkpoint events, generate the appropriate end event based on the session type
-      if (session.activityId === null || session.activityId === undefined) {
+      if (event.activityId === null || event.activityId === undefined) {
         // Open time checkpoint - generate open_time_end
         result = this.eventGenerator.generateOpenTimeEnd(context);
       } else {
@@ -532,16 +625,16 @@ export class StartupRecovery {
         result = this.eventGenerator.generateActiveTimeEnd(context, 'tab_closed');
       }
     } else {
-      StartupRecovery.logger.error('❌ Unknown event type for recovery', {
-        eventType: session.eventType,
-        session,
+      StartupRecovery.logger.error('Unknown event type for recovery', {
+        eventType: event.eventType,
+        event,
       });
       return;
     }
 
     if (!result.success) {
-      StartupRecovery.logger.error('❌ Failed to generate recovery event', {
-        session,
+      StartupRecovery.logger.error('Failed to generate recovery event', {
+        event,
         error: result.error,
       });
       return;
@@ -551,23 +644,11 @@ export class StartupRecovery {
     if (result.event) {
       try {
         await this.databaseService.addEvent(result.event);
-        StartupRecovery.logger.info(`⏹️ Generated recovery event: ${result.event.eventType}`, {
-          sessionId,
-          url: session.url,
-          originalEventType: session.eventType,
-        });
       } catch (error) {
-        StartupRecovery.logger.error('❌ Failed to save recovery event to database', {
-          session,
-          event: result.event,
-          error,
-        });
+        StartupRecovery.logger.error('Failed to add end event to DB', { error, result, event });
       }
     } else {
-      StartupRecovery.logger.warn('⚠️ No event generated for recovery', { 
-        eventType: session.eventType, 
-        url: session.url 
-      });
+      StartupRecovery.logger.warn('No end event generated for orphan event', event);
     }
   }
 
@@ -583,9 +664,11 @@ export class StartupRecovery {
       const storageKeys = ['webtime-focus-state', 'webtime-session-data'];
       await browser.storage.local.remove(storageKeys);
 
-      StartupRecovery.logger.debug('🧹 Cleared old local storage state');
+      StartupRecovery.logger.debug('Cleared old local storage state');
     } catch (error) {
-      StartupRecovery.logger.warn('⚠️ Failed to clear local storage', { error: error instanceof Error ? error.message : String(error) });
+      StartupRecovery.logger.warn('Failed to clear local storage', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Don't throw here as this is not critical
     }
   }

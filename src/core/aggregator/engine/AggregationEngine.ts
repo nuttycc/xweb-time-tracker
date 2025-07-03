@@ -3,7 +3,7 @@ import type { EventsLogRepository } from '../../db/repositories/eventslog.reposi
 import type { AggregatedStatsRepository } from '../../db/repositories/aggregatedstats.repository';
 import type { AggregationResult, VisitGroup, AggregatedData } from '../utils/types';
 import { getUtcDateString } from '../../db/schemas/aggregatedstats.schema';
-import { createEmojiLogger, LogCategory, type EmojiLogger } from '@/utils/logger-emoji';
+import { createLogger } from '@/utils/logger';
 import * as psl from 'psl';
 
 /**
@@ -13,7 +13,7 @@ import * as psl from 'psl';
  * aggregated statistical data.
  */
 export class AggregationEngine {
-  private readonly logger: EmojiLogger;
+  private static readonly logger = createLogger('⚙️ AggregationEngine');
 
   /**
    * @param eventsLogRepo - Repository for accessing event log data.
@@ -23,7 +23,6 @@ export class AggregationEngine {
     private readonly eventsLogRepo: EventsLogRepository,
     private readonly aggregatedStatsRepo: AggregatedStatsRepository
   ) {
-    this.logger = createEmojiLogger('AggregationEngine');
   }
 
   /**
@@ -34,34 +33,29 @@ export class AggregationEngine {
    * @returns A promise that resolves to an AggregationResult.
    */
   public async run(): Promise<AggregationResult> {
-    this.logger.logWithEmoji(LogCategory.START, 'info', 'Start run aggregation process');
+    AggregationEngine.logger.info('Starting aggregation process');
 
     try {
-      // this.logger.logWithEmoji(LogCategory.DB, 'debug', 'fetching unprocessed events');
+      // this.logger.debug('Fetching unprocessed events');
       // Use ID ordering to preserve logical sequence, not timestamp ordering
       const unprocessedEvents = await this.eventsLogRepo.getUnprocessedEvents({
         orderBy: 'id',
         orderDirection: 'asc',
       });
 
+      AggregationEngine.logger.info(`Found ${unprocessedEvents.length} unprocessed events`);
+
       if (unprocessedEvents.length === 0) {
-        this.logger.logWithEmoji(LogCategory.SKIP, 'info', 'No unprocessed events found');
         return { success: true, processedEvents: 0 };
       }
 
-      this.logger.logWithEmoji(
-        LogCategory.HANDLE,
-        'info',
-        `processing ${unprocessedEvents.length} events`,
-        unprocessedEvents
-      );
       await this.processEvents(unprocessedEvents);
 
-      this.logger.logWithEmoji(LogCategory.SUCCESS, 'info', 'Completed aggregation.');
+      AggregationEngine.logger.info('Completed aggregation process');
       return { success: true, processedEvents: unprocessedEvents.length };
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
-      this.logger.logWithEmoji(LogCategory.ERROR, 'error', 'aggregation failed', { error });
+      AggregationEngine.logger.error('Failed aggregation process', { error });
       return {
         success: false,
         processedEvents: 0,
@@ -79,28 +73,22 @@ export class AggregationEngine {
    * @param events - An array of event log records to process.
    */
   private async processEvents(events: EventsLogRecord[]): Promise<void> {
-    this.logger.logWithEmoji(LogCategory.HANDLE, 'debug', 'grouping events by visit', events);
-    const visits = this.groupEventsByVisit(events);
+    AggregationEngine.logger.debug('Grouping events by visit id');
+    const visitGroups = this.groupEventsByVisit(events);
 
-    // Validate visit groups to ensure they contain complete event sequences
-    const validVisits = this.validateVisitGroups(visits);
+    const validVisitGroups = this.validateVisitGroups(visitGroups);
 
     const aggregatedData: AggregatedData = {};
     const processedEventIds = new Set<number>();
 
-    this.logger.logWithEmoji(
-      LogCategory.HANDLE,
-      'debug',
-      'calculating time for valid visits',
-      validVisits
-    );
-    for (const visit of validVisits.values()) {
+    AggregationEngine.logger.debug('Calculating time for valid visit groups', validVisitGroups);
+    for (const visit of validVisitGroups.values()) {
       const visitProcessedIds = this.calculateTime(visit, aggregatedData);
       visitProcessedIds.forEach(id => processedEventIds.add(id));
     }
 
     const eventIds = Array.from(processedEventIds);
-    this.logger.logWithEmoji(LogCategory.DB, 'debug', 'finalizing aggregation', aggregatedData);
+    AggregationEngine.logger.debug('Completed aggregation process');
     await this.finalizeAggregation(aggregatedData, eventIds);
   }
 
@@ -111,34 +99,34 @@ export class AggregationEngine {
    * @returns A map of visitId to VisitGroup.
    */
   private groupEventsByVisit(events: EventsLogRecord[]): Map<string, VisitGroup> {
-    const visits = new Map<string, VisitGroup>();
+    const visitGroups = new Map<string, VisitGroup>();
 
     for (const event of events) {
-      if (!visits.has(event.visitId)) {
-        visits.set(event.visitId, { events: [], url: event.url });
+      if (!visitGroups.has(event.visitId)) {
+        visitGroups.set(event.visitId, { events: [], url: event.url });
       }
-      visits.get(event.visitId)!.events.push(event);
+      visitGroups.get(event.visitId)!.events.push(event);
     }
 
-    return visits;
+    return visitGroups;
   }
 
   /**
    * Calculates the time spent on a visit and updates the aggregated data.
    * Uses simplified first-to-last time calculation algorithm.
    *
-   * @param visit - The visit to process.
+   * @param visitGroup - The visit group to process.
    * @param aggregatedData - The map to store the aggregated data.
    * @returns Array of event IDs that should be marked as processed.
    */
-  private calculateTime(visit: VisitGroup, aggregatedData: AggregatedData): number[] {
+  private calculateTime(visitGroup: VisitGroup, aggregatedData: AggregatedData): number[] {
     // Events are already sorted by ID from the query, preserve logical order
 
     // Perform basic validation
-    if (!this.isValidVisitGroup(visit)) {
-      this.logger.logWithEmoji(LogCategory.WARN, 'warn', 'invalid visit group, skipping', {
-        visitId: visit.events[0]?.visitId,
-        eventCount: visit.events.length,
+    if (!this.isValidVisitGroup(visitGroup)) {
+      AggregationEngine.logger.warn('Invalid visit group, skipping', {
+        visitId: visitGroup.events[0]?.visitId,
+        eventCount: visitGroup.events.length,
       });
       return [];
     }
@@ -149,7 +137,7 @@ export class AggregationEngine {
     let openTimeToAdd = 0;
 
     // Include checkpoint events with null activityId (Open Time checkpoints)
-    const openTimeEvents = visit.events.filter(
+    const openTimeEvents = visitGroup.events.filter(
       e =>
         e.eventType.startsWith('open_time') ||
         (e.eventType === 'checkpoint' && e.activityId === null)
@@ -215,7 +203,7 @@ export class AggregationEngine {
 
     // --- Calculate Active Time (based on activityId) ---
     let activeTimeToAdd = 0;
-    const activityEvents = visit.events.filter(
+    const activityEvents = visitGroup.events.filter(
       e =>
         e.activityId !== null &&
         (e.eventType.startsWith('active_time') || e.eventType === 'checkpoint')
@@ -290,24 +278,24 @@ export class AggregationEngine {
 
     if (openTimeToAdd === 0 && activeTimeToAdd === 0) {
       // If no time was calculated, this might indicate a validation issue
-      this.logger.logWithEmoji(LogCategory.WARN, 'warn', 'no time calculated for visit', {
-        visitId: visit.events[0]?.visitId,
-        visit,
-        eventCount: visit.events.length,
+      AggregationEngine.logger.warn('No time calculated for visit', {
+        visitId: visitGroup.events[0]?.visitId,
+        visitGroup,
+        eventCount: visitGroup.events.length,
         processedEventIds: processedEventIds.length,
       });
       return processedEventIds;
     }
 
-    const { hostname, parentDomain } = this.parseUrl(visit.url);
-    const date = getUtcDateString(visit.events[0].timestamp);
-    const key = `${date}:${visit.url}`;
+    const { hostname, parentDomain } = this.parseUrl(visitGroup.url);
+    const date = getUtcDateString(visitGroup.events[0].timestamp);
+    const key = `${date}:${visitGroup.url}`;
 
     if (!(key in aggregatedData)) {
       aggregatedData[key] = {
         openTime: 0,
         activeTime: 0,
-        url: visit.url,
+        url: visitGroup.url,
         date,
         hostname,
         parentDomain,
@@ -325,45 +313,33 @@ export class AggregationEngine {
    * Validates visit groups to ensure they contain valid event sequences
    * that can form complete time intervals.
    *
-   * @param visits - The map of visit groups to validate.
+   * @param visitGroups - The map of visit groups to validate.
    * @returns A map containing only valid visit groups.
    */
-  private validateVisitGroups(visits: Map<string, VisitGroup>): Map<string, VisitGroup> {
-    const validVisits = new Map<string, VisitGroup>();
+  private validateVisitGroups(visitGroups: Map<string, VisitGroup>): Map<string, VisitGroup> {
+    const validVisitGroups = new Map<string, VisitGroup>();
 
-    for (const [visitId, visit] of visits) {
-      if (this.isValidVisitGroup(visit)) {
-        validVisits.set(visitId, visit);
-        this.logger.logWithEmoji(LogCategory.HANDLE, 'debug', 'visit group validated', {
-          visitId,
-          eventCount: visit.events.length,
-        });
+    for (const [visitGroupId, visitGroup] of visitGroups) {
+      if (this.isValidVisitGroup(visitGroup)) {
+        validVisitGroups.set(visitGroupId, visitGroup);
       } else {
-        this.logger.logWithEmoji(LogCategory.SKIP, 'debug', 'skipping invalid visit group', {
-          visitId,
-          eventCount: visit.events.length,
-          events: visit.events.map(e => ({
-            id: e.id,
-            eventType: e.eventType,
-            activityId: e.activityId,
-          })),
-        });
+        AggregationEngine.logger.debug('Invalid visit group', visitGroup);
       }
     }
 
-    return validVisits;
+    return validVisitGroups;
   }
 
   /**
    * Checks if a visit group contains valid event sequences that can form time intervals.
    * Now uses basic validation only - detailed validation is handled in calculateTime.
    *
-   * @param visit - The visit group to validate.
+   * @param visitGroup - The visit group to validate.
    * @returns True if the visit group contains valid event sequences.
    */
-  private isValidVisitGroup(visit: VisitGroup): boolean {
+  private isValidVisitGroup(visitGroup: VisitGroup): boolean {
     // Events are already sorted by ID from the query, preserve logical order
-    const events = visit.events;
+    const events = visitGroup.events;
 
     // Use basic validation only - detailed validation with smart processing
     // is handled in calculateTime method
@@ -458,7 +434,7 @@ export class AggregationEngine {
     aggregatedData: AggregatedData,
     eventIds: number[]
   ): Promise<void> {
-    this.logger.logWithEmoji(LogCategory.DB, 'debug', 'upserting aggregated stats', aggregatedData);
+    AggregationEngine.logger.debug('Upserting aggregated stats');
 
     const upsertPromises = Object.values(aggregatedData).map(data =>
       this.aggregatedStatsRepo.upsertTimeAggregation({
@@ -473,7 +449,7 @@ export class AggregationEngine {
 
     await Promise.all(upsertPromises);
 
-    this.logger.logWithEmoji(LogCategory.DB, 'debug', 'marking events as processed', {
+    AggregationEngine.logger.debug('Marking events as processed', {
       size: eventIds.length,
     });
 
@@ -482,7 +458,7 @@ export class AggregationEngine {
 
   private parseUrl(url: string): { hostname: string; parentDomain: string } {
     if (!url || !url.startsWith('http')) {
-      this.logger.logWithEmoji(LogCategory.ERROR, 'error', 'invalid URL for parsing', { url });
+      AggregationEngine.logger.error('Invalid URL for parsing', { url });
       throw new Error(`Invalid URL for parsing: ${url}`);
     }
     try {
@@ -493,7 +469,7 @@ export class AggregationEngine {
       }
       return { hostname, parentDomain: domain };
     } catch (error) {
-      this.logger.logWithEmoji(LogCategory.ERROR, 'error', 'URL parsing failed', { url, error });
+      AggregationEngine.logger.error('URL parsing failed', { url, error });
       throw new Error(
         `URL parsing failed: ${error instanceof Error ? error.message : String(error)}`
       );

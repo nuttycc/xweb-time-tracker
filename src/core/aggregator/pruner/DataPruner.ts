@@ -1,20 +1,19 @@
 import { DEFAULT_PRUNER_RETENTION_DAYS, PRUNER_RETENTION_DAYS_KEY } from '../utils/constants';
 import type { EventsLogRepository } from '../../db/repositories/eventslog.repository';
 import type { EventsLogRecord } from '../../db/schemas/eventslog.schema';
-import { createEmojiLogger, LogCategory, type EmojiLogger } from '@/utils/logger-emoji';
+import { createLogger } from '@/utils/logger';
 import { storage } from '#imports';
 
 /**
  * Cleans up old, processed event logs from the database.
  */
 export class DataPruner {
-  private readonly logger: EmojiLogger;
+  private static readonly logger = createLogger('🧹 DataPruner');
 
   /**
    * @param eventsLogRepo - Repository for accessing event log data.
    */
   constructor(private readonly eventsLogRepo: EventsLogRepository) {
-    this.logger = createEmojiLogger('DataPruner');
   }
 
   /**
@@ -23,34 +22,37 @@ export class DataPruner {
    * Deletes processed events that are older than the retention period.
    */
   public async run(): Promise<void> {
-    this.logger.logWithEmoji(LogCategory.START, 'info', 'data pruning process');
-    
+    DataPruner.logger.info('Start data pruning task');
+
     try {
       const retentionDays = await storage.getItem<number>(PRUNER_RETENTION_DAYS_KEY);
       const effectiveRetentionDays = retentionDays ?? DEFAULT_PRUNER_RETENTION_DAYS;
       const retentionTimestamp = Date.now() - effectiveRetentionDays * 24 * 60 * 60 * 1000;
-      
-      this.logger.logWithEmoji(LogCategory.DB, 'debug', 'fetching old processed events', { 
-        retentionDays: effectiveRetentionDays,
-        cutoffTimestamp: retentionTimestamp 
-      });
-      
+
+
+
       const oldEvents = await this.eventsLogRepo.getProcessedEventsOlderThan(retentionTimestamp);
+
+      DataPruner.logger.debug('Get old processed events with retention days', {
+        retentionDays: effectiveRetentionDays,
+        cutoffTimestamp: retentionTimestamp,
+        oldEventsCount: oldEvents.length,
+      });
 
       if (oldEvents.length > 0) {
         const eventIds = oldEvents.map((event: EventsLogRecord) => event.id!);
-        
-        this.logger.logWithEmoji(LogCategory.DB, 'info', 'deleting old events', { count: eventIds.length });
+
+        DataPruner.logger.info('Delete old events', {
+          count: eventIds.length,
+        });
         await this.eventsLogRepo.deleteEventsByIds(eventIds);
-        
-        this.logger.logWithEmoji(LogCategory.SUCCESS, 'info', 'pruning completed', { prunedEvents: eventIds.length });
+
+        DataPruner.logger.info('Complete data pruning task', { prunedEvents: eventIds.length });
       } else {
-        this.logger.logWithEmoji(LogCategory.SKIP, 'info', 'no old events to prune');
+        DataPruner.logger.info('No old events to prune, complete data pruning task');
       }
-      
-      this.logger.logWithEmoji(LogCategory.END, 'info', 'data pruning process');
     } catch (error) {
-      this.logger.logWithEmoji(LogCategory.ERROR, 'error', 'error during data pruning', { error });
+      DataPruner.logger.error('Fail data pruning task', { error });
     }
   }
 }

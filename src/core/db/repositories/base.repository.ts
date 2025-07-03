@@ -285,8 +285,6 @@ export abstract class BaseRepository<T, PK extends keyof T> {
     operationName: string,
     options: RepositoryOptions
   ): Promise<TResult> {
-
-    
     const { timeout = 10000, retryOnFailure = true, maxRetries = 2 } = options;
 
     let lastError: Error;

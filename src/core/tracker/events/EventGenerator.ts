@@ -95,7 +95,7 @@ export interface EventGenerationResult {
 export class EventGenerator {
   private urlProcessor: URLProcessor;
   private options: EventGenerationOptions;
-  private static readonly logger = createLogger('EventGenerator');
+  private static readonly logger = createLogger('🔄 EventGenerator');
   
   constructor(options: EventGenerationOptions = {}) {
     this.options = {
@@ -134,7 +134,7 @@ export class EventGenerator {
     try {
 
       if(tabId === undefined || tabId < 0) {
-        EventGenerator.logger.debug('🤔 Invalid tabId', { tabId });
+        EventGenerator.logger.debug('Invalid tabId', { tabId });
         return {
           success: false,
           error: 'Invalid tabId',
@@ -147,7 +147,7 @@ export class EventGenerator {
       // Validate and process URL
       const urlResult = this.urlProcessor.processUrl(url);
       if (!urlResult.isValid) {
-        EventGenerator.logger.debug('🤔 URL filtered, skipping generation of |open_time_start| event', { url, reason: urlResult.reason });
+        EventGenerator.logger.debug('Skip filtered url', { url, reason: urlResult.reason });
         return {
           success: false,
           metadata: {
@@ -177,7 +177,7 @@ export class EventGenerator {
         DomainEventSchema.parse(event);
       }
 
-      EventGenerator.logger.debug('▶️ Generated open_time_start', { tabId, url: urlResult.normalizedUrl, visitId });
+      EventGenerator.logger.debug('Generated open_time_start', { tabId, url: urlResult.normalizedUrl, visitId });
 
       return {
         event,
@@ -223,7 +223,7 @@ export class EventGenerator {
         DomainEventSchema.parse(event);
       }
 
-      EventGenerator.logger.debug('⏹️ Generated open_time_end', { tabId: tabState.tabId, url: tabState.url, visitId: tabState.visitId });
+      EventGenerator.logger.debug('Generated open_time_end', { tabId: tabState.tabId, url: tabState.url, visitId: tabState.visitId });
 
       return {
         event,
@@ -259,7 +259,7 @@ export class EventGenerator {
       // Validate URL
       const urlResult = this.urlProcessor.processUrl(tabState.url);
       if (!urlResult.isValid) {
-        EventGenerator.logger.debug('🤔 URL filtered, skipping active_time_start generation', { url: tabState.url, reason: urlResult.reason });
+        EventGenerator.logger.debug('Skip filtered url', { url: tabState.url, reason: urlResult.reason });
         return {
           success: false,
           metadata: {
@@ -289,7 +289,7 @@ export class EventGenerator {
         DomainEventSchema.parse(event);
       }
 
-      EventGenerator.logger.debug('▶️ Generated active_time_start', { tabId: tabState.tabId, url: tabState.url, activityId });
+      EventGenerator.logger.debug('Generated active_time_start', { tabId: tabState.tabId, url: tabState.url, activityId });
 
       return {
         event,
@@ -347,7 +347,7 @@ export class EventGenerator {
         DomainEventSchema.parse(event);
       }
 
-      EventGenerator.logger.debug('⏹️ Generated active_time_end', { tabId: tabState.tabId, url: tabState.url, activityId: tabState.activityId, reason });
+      EventGenerator.logger.debug('Generated active_time_end', { tabId: tabState.tabId, url: tabState.url, activityId: tabState.activityId, reason });
 
       return {
         event,
@@ -404,7 +404,7 @@ export class EventGenerator {
         DomainEventSchema.parse(event);
       }
 
-      EventGenerator.logger.debug('⏰ Generated checkpoint', { tabId: tabState.tabId, url: tabState.url, checkpointType: checkpointData.checkpointType });
+      EventGenerator.logger.debug('Generated checkpoint', { tabId: tabState.tabId, url: tabState.url, checkpointType: checkpointData.checkpointType });
 
       return {
         event,
