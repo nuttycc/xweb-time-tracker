@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+使用下面命令进检查
+
+
+- run `pnpm check` (including eslint and vue-tsc)

@@ -1,6 +1,7 @@
-# 项目上下文信息
+# Project Context Information
 
-- 项目基础specs存放于docs\deprecated\plan, 包含PRD,SRS等，注意这些早期文档可能存在问题，只能作为参考，不能完全照搬。
-- 项目实施任务计划存放于docs\plan
+- Basic project specifications are stored in docs\deprecated\plan, including PRD, SRS, etc. Note that these early documents may contain issues and should only be used as references, not followed exactly.
+- Project implementation task plans are stored in docs\plan
+
 
 
