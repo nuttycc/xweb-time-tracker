@@ -87,7 +87,7 @@ export class DatabaseService {
     options: RepositoryOptions = {}
   ): Promise<number> {
     // Add isProcessed: 0 for new events
-    DatabaseService.logger.info('💾 Added single event to database', { eventType: event.eventType, tabId: event.tabId });
+    DatabaseService.logger.info('💾 Added single event to eventsLogRepo', { eventType: event.eventType, tabId: event.tabId });
     const eventWithProcessed = { ...event, isProcessed: 0 as const };
     return this.eventsLogRepo.createEvent(eventWithProcessed, options);
   }
@@ -195,6 +195,29 @@ export class DatabaseService {
     options: AggregatedStatsQueryOptions = {}
   ): Promise<AggregatedStatsRecord[]> {
     return this.aggregatedStatsRepo.getStatsByParentDomain(parentDomain, options);
+  }
+
+  /**
+   * Get all unprocessed events relevant for recovery in a single query.
+   *
+   * Fetches all event types needed for orphan detection that are unprocessed
+   * and occurred after a specific timestamp.
+   *
+   * @param startTime - The minimum timestamp for events to fetch.
+   * @param options - Additional query options.
+   * @returns A promise that resolves to an array of event records.
+   */
+  async getUnprocessedEventsForRecovery(
+    startTime: number,
+    options: EventsLogQueryOptions = {},
+  ): Promise<EventsLogRecord[]> {
+    DatabaseService.logger.debug(
+      `🔍 Getting all unprocessed events for recovery since ${new Date(startTime).toISOString()}`,
+    );
+    return this.eventsLogRepo.getUnprocessedEventsByTimeRange(
+      startTime,
+      options,
+    );
   }
 
   // ==================== HEALTH CHECK OPERATIONS ====================

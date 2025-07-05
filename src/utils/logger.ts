@@ -1,16 +1,16 @@
 /**
  * Unified Logging System for WebTime Tracker
- * 
+ *
  * Based on loglevel library with prefix plugin for consistent logging across
  * all WXT framework contexts (content/background/popup).
- * 
+ *
  * Features:
  * - Environment-based log level control (dev: debug+, prod: warn+)
  * - Module-based logger creation with prefixed output
  * - Persistent configuration using WXT storage
  * - Cross-browser compatibility
  * - TypeScript support
- * 
+ *
  * @module utils/logger
  */
 
@@ -20,13 +20,14 @@ import { storage } from '#imports';
 
 /**
  * Logger interface compatible with existing console usage patterns
+ * Supports variable arguments like native console methods
  */
 export interface Logger {
-  debug(message: string, data?: unknown): void;
-  info(message: string, data?: unknown): void;
-  warn(message: string, data?: unknown): void;
-  error(message: string, data?: unknown): void;
-  trace(message: string, data?: unknown): void;
+  debug(...args: unknown[]): void;
+  info(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+  trace(...args: unknown[]): void;
 }
 
 /**
@@ -37,7 +38,7 @@ export const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'silent'] 
 /**
  * Log levels supported by the system
  */
-export type LogLevel = typeof LOG_LEVELS[number];
+export type LogLevel = (typeof LOG_LEVELS)[number];
 
 /**
  * Logger configuration options
@@ -54,18 +55,16 @@ export interface LoggerConfig {
  */
 const DEFAULT_CONFIG: LoggerConfig = {
   defaultLevel: import.meta.env.MODE === 'production' ? 'warn' : 'debug',
-  template: `[${__APP_NAME__}] [%n] [%l]`,
+  // template: `[${__APP_NAME__}] [%n] [%l]`,
+  template: `[tracker] [%l] [%n]`,
 };
 
 /**
  * WXT storage item for persisting log level configuration
  */
-const logLevelStorage = storage.defineItem<LogLevel>(
-  `local:log-level`,
-  {
-    fallback: DEFAULT_CONFIG.defaultLevel,
-  },
-);
+const logLevelStorage = storage.defineItem<LogLevel>(`local:log-level`, {
+  fallback: DEFAULT_CONFIG.defaultLevel,
+});
 
 // Initialize the prefix plugin
 prefix.reg(log);
@@ -73,16 +72,16 @@ prefix.reg(log);
 /**
  * Initializes the logging system with the specified configuration.
  *
- * Applies a consistent prefix format to log messages, sets the default log level, 
+ * Applies a consistent prefix format to log messages, sets the default log level,
  * and loads the persisted log level from WXT storage.
  */
 async function initializeLogging(config: LoggerConfig = DEFAULT_CONFIG): Promise<void> {
   // Apply prefix template
   prefix.apply(log, {
     template: config.template || DEFAULT_CONFIG.template,
-    levelFormatter: (level) => level.toUpperCase(),
-    nameFormatter: (name) => name || 'ROOT',
-    timestampFormatter: (date) => date.toISOString(),
+    levelFormatter: level => level.toUpperCase(),
+    nameFormatter: name => name || 'ROOT',
+    timestampFormatter: date => date.toISOString(),
   });
 
   // Set default log level
@@ -123,6 +122,7 @@ function isValidLogLevel(level: string): level is LogLevel {
  * Creates a logger instance with a module-specific prefix for structured logging.
  *
  * The returned logger prepends each message with a timestamp, the provided module name, and the log level.
+ * Supports variable arguments like native console methods.
  *
  * @param moduleName - The name to identify the logger's module context (e.g., 'TimeTracker', 'DatabaseService')
  * @returns A logger with standard logging methods that include the module prefix
@@ -130,30 +130,19 @@ function isValidLogLevel(level: string): level is LogLevel {
  * @example
  * const logger = createLogger('TimeTracker');
  * logger.info('Tracker started successfully');
- * // Output: [12:34:56] [TimeTracker] [INFO] Tracker started successfully
+ * logger.debug('User data:', userData, 'Session:', sessionId);
+ * // Output: [🕒] [TimeTracker] Tracker started successfully
+ * // Output: [🕒] [TimeTracker] User data: {...} Session: abc123
  */
 export function createLogger(moduleName: string): Logger {
   const moduleLogger = log.getLogger(moduleName);
 
-  // Helper function to handle logging with optional data
-  const logWithData = (
-    level: keyof Logger,
-    message: string,
-    data?: unknown
-  ) => {
-    if (data !== undefined) {
-      moduleLogger[level](message, data);
-    } else {
-      moduleLogger[level](message);
-    }
-  };
-
   return {
-    debug: (message, data) => logWithData('debug', message, data),
-    info: (message, data) => logWithData('info', message, data),
-    warn: (message, data) => logWithData('warn', message, data),
-    error: (message, data) => logWithData('error', message, data),
-    trace: (message, data) => logWithData('trace', message, data),
+    debug: (...args) => moduleLogger.debug(...args),
+    info: (...args) => moduleLogger.info(...args),
+    warn: (...args) => moduleLogger.warn(...args),
+    error: (...args) => moduleLogger.error(...args),
+    trace: (...args) => moduleLogger.trace(...args),
   };
 }
 
@@ -165,7 +154,7 @@ export function createLogger(moduleName: string): Logger {
  */
 export async function setLogLevel(level: LogLevel, persist: boolean = true): Promise<void> {
   log.setLevel(level, false);
-  
+
   if (persist) {
     await saveLogLevel(level);
   }
@@ -204,7 +193,7 @@ export function getLogLevel(): LogLevel {
 
 /**
  * Retrieves the persisted log level from WXT storage.
- * 
+ *
  * @returns Promise that resolves to the stored log level or null if not set
  */
 export async function getPersistedLogLevel(): Promise<LogLevel | null> {
@@ -236,11 +225,11 @@ export function getAvailableLogLevels(): readonly LogLevel[] {
 
 /**
  * Watches for changes to the log level in storage and applies them automatically.
- * 
+ *
  * @returns Function to stop watching for changes
  */
 export function watchLogLevel(): () => void {
-  return logLevelStorage.watch((newLevel) => {
+  return logLevelStorage.watch(newLevel => {
     if (newLevel && isValidLogLevel(newLevel)) {
       log.setLevel(newLevel, false);
     }

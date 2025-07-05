@@ -290,6 +290,46 @@ export class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id'> {
   }
 
   /**
+   * Get unprocessed events within a specific time range.
+   *
+   * @param startTime - The minimum timestamp for events to fetch (inclusive).
+   * @param options - Query options, such as limit and offset.
+   * @returns A promise that resolves to an array of unprocessed event records.
+   */
+  async getUnprocessedEventsByTimeRange(
+    startTime: number,
+    options: EventsLogQueryOptions = {}
+  ): Promise<EventsLogRecord[]> {
+    try {
+      const { limit, offset = 0, orderBy = 'timestamp', orderDirection = 'asc' } = options;
+
+      const result = await this.executeWithRetry(
+        async () => {
+          const collection = this.table
+            .where('isProcessed')
+            .equals(0)
+            .and(event => event.timestamp >= startTime);
+
+          // Manual sorting for timestamp since it's not a primary index for this compound query
+          const results = await collection.toArray();
+          const sorted = this.sortRecords(results, orderBy, orderDirection);
+
+          // Apply pagination manually
+          const start = offset;
+          const end = limit ? start + limit : undefined;
+          return sorted.slice(start, end);
+        },
+        'getUnprocessedEventsByTimeRange',
+        options
+      );
+
+      return result;
+    } catch (error) {
+      throw this.handleError(error, 'getUnprocessedEventsByTimeRange');
+    }
+  }
+
+  /**
    * Delete events by IDs (for data cleanup)
    *
    * @param eventIds - Array of event IDs to delete

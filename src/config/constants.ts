@@ -19,7 +19,7 @@ import { z } from 'zod/v4';
  * Inactive timeout threshold for regular content (milliseconds)
  * After this time without interaction, Active Time counting automatically terminates
  */
-export const INACTIVE_TIMEOUT_DEFAULT = 30000; // 30 seconds
+export const INACTIVE_TIMEOUT_DEFAULT = 5000; // 5 seconds
 
 /**
  * Inactive timeout threshold when audio content is playing (milliseconds)

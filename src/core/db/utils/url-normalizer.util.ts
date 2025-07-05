@@ -130,6 +130,9 @@ export function normalizeUrl(url: string, options: UrlNormalizationOptions = {})
     throw new Error('Invalid URL format');
   }
 
+  parsedUrl.hostname = parsedUrl.hostname.toLowerCase();
+  parsedUrl.pathname = parsedUrl.pathname.toLowerCase();
+
   const { preserveFragment = false, additionalAllowedParams = [], sortParams = false } = options;
 
   // Create additional allowed params set only if needed

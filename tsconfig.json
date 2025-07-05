@@ -1,4 +1,3 @@
 {
-  "extends": "./.wxt/tsconfig.json",
-  "exclude": ["tests/**/*", "**/*.test.ts", "**/*.spec.ts"]
+  "extends": "./.wxt/tsconfig.json"
 }

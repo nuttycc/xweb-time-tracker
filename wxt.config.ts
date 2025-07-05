@@ -17,7 +17,7 @@ export default defineConfig({
   },
   manifest: ({ browser, manifestVersion, mode, command }) => {
     return {
-      permissions: ['tabs', 'activeTab', 'scripting', 'alarms', 'storage', 'webNavigation'],
+      permissions: ['tabs', 'activeTab', 'scripting', 'alarms', 'storage', 'webNavigation', 'idle'],
       host_permissions: ['<all_urls>'],
     };
   },
