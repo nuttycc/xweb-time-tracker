@@ -17,5 +17,5 @@ Web Time Tracker is a browser extension that helps you understand how you spend 
 - **Privacy Focused:** All tracking data remains on your device.
 
 ---
-
+ttttt
 _This README was generated with assistance from an AI coding partner._
