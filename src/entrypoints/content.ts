@@ -9,7 +9,13 @@
 
 import { defineContentScript } from '#imports';
 import { defineExtensionMessaging } from '@webext-core/messaging';
-import { SCROLL_THRESHOLD_PIXELS, MOUSEMOVE_THRESHOLD_PIXELS } from '../config/constants';
+import { throttle, debounce } from 'es-toolkit';
+import {
+  SCROLL_THRESHOLD_PIXELS,
+  MOUSEMOVE_THRESHOLD_PIXELS,
+  INACTIVE_TIMEOUT_DEFAULT,
+  INACTIVE_TIMEOUT_MEDIA,
+} from '../config/constants';
 import type { InteractionMessage } from '../core/tracker/types';
 import { createLogger } from '@/utils/logger';
 
@@ -18,14 +24,20 @@ interface TrackerProtocolMap {
   /** Content script sends interaction data to background script */
   'interaction-detected': (data: InteractionMessage) => Promise<void>;
 
+  /** Content script sends idle notification to background script */
+  'tab-is-idle': (data: { tabId: number; timestamp: number }) => Promise<void>;
+
   /** Background script sends page status updates to content script */
   'page-status-update': (data: { isTracking: boolean; tabId: number }) => Promise<void>;
 
   /** Content script requests current tracking status */
-  'get-tracking-status': () => Promise<{ isTracking: boolean; tabId: number }>;
+  'get-tracking-status': () => Promise<{ isTracking: boolean; tabId: number; isAudible: boolean }>;
 
   /** Background script notifies content script of focus changes */
   'focus-changed': (data: { isFocused: boolean; tabId: number }) => Promise<void>;
+
+  /** Background script notifies content script of audible state changes */
+  'audible-state-changed': (data: { tabId: number; isAudible: boolean }) => Promise<void>;
 }
 
 const { sendMessage, onMessage } = defineExtensionMessaging<TrackerProtocolMap>();
@@ -56,16 +68,22 @@ class InteractionDetector {
   private isTracking = false;
   private tabId = 0;
 
-  // Throttling state
-  private lastScrollTime = 0;
-  private lastMouseMoveTime = 0;
-  private lastInteractionTime = 0;
+  // Throttling configuration - 500ms as per requirements
+  private readonly THROTTLE_INTERVAL = 500; // 500ms for interaction-detected messages
+
+  // Accumulator state for threshold-based events
   private scrollAccumulator = 0;
   private mouseMoveAccumulator = 0;
+  private lastScrollY = 0;
+  private lastMouseX?: number;
+  private lastMouseY?: number;
 
-  // Throttling configuration
-  private readonly THROTTLE_INTERVAL = 1000; // 1 second
-  private readonly INTERACTION_COOLDOWN = 500; // 0.5 seconds between interactions
+  // Idle detection state
+  private isAudible = false;
+  private debouncedSendIdleNotification: ReturnType<typeof debounce>;
+
+  // Throttled functions using es-toolkit
+  private throttledSendInteraction: ReturnType<typeof throttle>;
 
   // Event listeners (stored for cleanup)
   private eventListeners: Array<{
@@ -73,6 +91,23 @@ class InteractionDetector {
     event: string;
     handler: EventListener;
   }> = [];
+
+  constructor() {
+    // Initialize throttled function for sending interactions
+    this.throttledSendInteraction = throttle(
+      this.sendInteractionInternal.bind(this),
+      this.THROTTLE_INTERVAL,
+      { edges: ['leading', 'trailing'] }
+    );
+
+    // Initialize debounced function for idle detection
+    // Start with default timeout, will be updated based on audible state
+    this.debouncedSendIdleNotification = debounce(
+      this.sendIdleNotification.bind(this),
+      INACTIVE_TIMEOUT_DEFAULT,
+      { edges: ['trailing'] }
+    );
+  }
 
   /**
    * Initialize the interaction detector
@@ -87,6 +122,10 @@ class InteractionDetector {
       const status = await sendMessage('get-tracking-status');
       this.isTracking = status.isTracking;
       this.tabId = status.tabId;
+      this.isAudible = status.isAudible;
+
+      // Update debounce timeout based on audible state
+      this.updateIdleTimeout();
 
       // Set up event listeners
       this.setupEventListeners();
@@ -98,6 +137,7 @@ class InteractionDetector {
       this.logger.info('Interaction detector initialized', {
         isTracking: this.isTracking,
         tabId: this.tabId,
+        isAudible: this.isAudible,
       });
     } catch (error) {
       this.logger.error('Failed to initialize interaction detector:', error);
@@ -154,6 +194,22 @@ class InteractionDetector {
         }
       }
     });
+
+    // Handle audible state change notifications
+    onMessage('audible-state-changed', message => {
+      const { data } = message;
+
+      if (data.tabId === this.tabId) {
+        this.logger.debug('Audible state changed', {
+          isAudible: data.isAudible,
+          previousState: this.isAudible,
+        });
+
+        // Update audible state and timeout
+        this.isAudible = data.isAudible;
+        this.updateIdleTimeout();
+      }
+    });
   }
 
   /**
@@ -162,31 +218,28 @@ class InteractionDetector {
   private handleScroll(): void {
     if (!this.isTracking) return;
 
-    const now = Date.now();
+    // Reset idle timer on any interaction
+    this.resetIdleTimer();
 
     // Calculate scroll distance
     const scrollY = window.scrollY || document.documentElement.scrollTop;
-    const scrollDelta = Math.abs(scrollY - (this.lastScrollY || scrollY));
+    const scrollDelta = Math.abs(scrollY - this.lastScrollY);
     this.lastScrollY = scrollY;
 
     // Accumulate scroll distance
     this.scrollAccumulator += scrollDelta;
 
-    // Check if we should send a scroll interaction
-    if (
-      this.scrollAccumulator >= SCROLL_THRESHOLD_PIXELS &&
-      now - this.lastScrollTime >= this.THROTTLE_INTERVAL
-    ) {
-      this.sendInteraction('scroll', {
+    // Check if we should send a scroll interaction (threshold check)
+    if (this.scrollAccumulator >= SCROLL_THRESHOLD_PIXELS) {
+      // Use throttled function to send interaction
+      this.throttledSendInteraction('scroll', {
         scrollDelta: this.scrollAccumulator,
       });
 
+      // Reset accumulator after sending
       this.scrollAccumulator = 0;
-      this.lastScrollTime = now;
     }
   }
-
-  private lastScrollY = 0;
 
   /**
    * Handle mouse move events
@@ -195,7 +248,8 @@ class InteractionDetector {
     const mouseEvent = event as MouseEvent;
     if (!this.isTracking) return;
 
-    const now = Date.now();
+    // Reset idle timer on any interaction
+    this.resetIdleTimer();
 
     // Calculate mouse movement distance
     if (this.lastMouseX !== undefined && this.lastMouseY !== undefined) {
@@ -210,22 +264,17 @@ class InteractionDetector {
     this.lastMouseX = mouseEvent.clientX;
     this.lastMouseY = mouseEvent.clientY;
 
-    // Check if we should send a mousemove interaction
-    if (
-      this.mouseMoveAccumulator >= MOUSEMOVE_THRESHOLD_PIXELS &&
-      now - this.lastMouseMoveTime >= this.THROTTLE_INTERVAL
-    ) {
-      this.sendInteraction('mousemove', {
+    // Check if we should send a mousemove interaction (threshold check)
+    if (this.mouseMoveAccumulator >= MOUSEMOVE_THRESHOLD_PIXELS) {
+      // Use throttled function to send interaction
+      this.throttledSendInteraction('mousemove', {
         movementDelta: this.mouseMoveAccumulator,
       });
 
+      // Reset accumulator after sending
       this.mouseMoveAccumulator = 0;
-      this.lastMouseMoveTime = now;
     }
   }
-
-  private lastMouseX?: number;
-  private lastMouseY?: number;
 
   /**
    * Handle mouse down events
@@ -233,13 +282,11 @@ class InteractionDetector {
   private handleMouseDown(): void {
     if (!this.isTracking) return;
 
-    const now = Date.now();
+    // Reset idle timer on any interaction
+    this.resetIdleTimer();
 
-    // Throttle mouse down events
-    if (now - this.lastInteractionTime >= this.INTERACTION_COOLDOWN) {
-      this.sendInteraction('mousedown');
-      this.lastInteractionTime = now;
-    }
+    // Use throttled function to send interaction
+    this.throttledSendInteraction('mousedown');
   }
 
   /**
@@ -248,19 +295,18 @@ class InteractionDetector {
   private handleKeyDown(): void {
     if (!this.isTracking) return;
 
-    const now = Date.now();
+    // Reset idle timer on any interaction
+    this.resetIdleTimer();
 
-    // Throttle key down events
-    if (now - this.lastInteractionTime >= this.INTERACTION_COOLDOWN) {
-      this.sendInteraction('keydown');
-      this.lastInteractionTime = now;
-    }
+    // Use throttled function to send interaction
+    this.throttledSendInteraction('keydown');
   }
 
   /**
-   * Send interaction message to background script
+   * Internal method to send interaction message to background script
+   * This is the actual implementation that gets throttled
    */
-  private async sendInteraction(
+  private async sendInteractionInternal(
     type: 'scroll' | 'mousemove' | 'keydown' | 'mousedown',
     data?: { scrollDelta?: number; movementDelta?: number }
   ): Promise<void> {
@@ -278,6 +324,57 @@ class InteractionDetector {
     } catch (error) {
       this.logger.error('Failed to send interaction:', error);
     }
+  }
+
+  /**
+   * Send idle notification to background script
+   * This is called by the debounced function when no interactions occur for the timeout period
+   */
+  private async sendIdleNotification(): Promise<void> {
+    try {
+      await sendMessage('tab-is-idle', {
+        tabId: this.tabId,
+        timestamp: Date.now(),
+      });
+
+      this.logger.debug('Idle notification sent', { tabId: this.tabId });
+    } catch (error) {
+      this.logger.error('Failed to send idle notification:', error);
+    }
+  }
+
+  /**
+   * Update idle timeout based on audible state
+   * Recreates the debounced function with the appropriate timeout
+   */
+  private updateIdleTimeout(): void {
+    // Cancel existing debounced function
+    this.debouncedSendIdleNotification.cancel();
+
+    // Choose timeout based on audible state
+    const timeout = this.isAudible ? INACTIVE_TIMEOUT_MEDIA : INACTIVE_TIMEOUT_DEFAULT;
+
+    // Create new debounced function with updated timeout
+    this.debouncedSendIdleNotification = debounce(this.sendIdleNotification.bind(this), timeout, {
+      edges: ['trailing'],
+    });
+
+    this.logger.debug('Updated idle timeout', {
+      isAudible: this.isAudible,
+      timeout: timeout / 1000 + 's',
+    });
+  }
+
+  /**
+   * Reset the idle timer by canceling and rescheduling the debounced function
+   * This should be called on every user interaction
+   */
+  private resetIdleTimer(): void {
+    // Cancel any pending idle notification
+    this.debouncedSendIdleNotification.cancel();
+
+    // Schedule a new idle notification
+    this.debouncedSendIdleNotification();
   }
 
   /**
@@ -300,19 +397,26 @@ class InteractionDetector {
   private resetAccumulators(): void {
     this.scrollAccumulator = 0;
     this.mouseMoveAccumulator = 0;
-    this.lastScrollTime = 0;
-    this.lastMouseMoveTime = 0;
-    this.lastInteractionTime = 0;
+    this.lastScrollY = 0;
+    this.lastMouseX = undefined;
+    this.lastMouseY = undefined;
   }
 
   /**
-   * Cleanup event listeners
+   * Cleanup event listeners and throttled/debounced functions
    */
   cleanup(): void {
     this.eventListeners.forEach(({ element, event, handler }) => {
       element.removeEventListener(event, handler);
     });
     this.eventListeners = [];
+
+    // Cancel any pending throttled calls
+    this.throttledSendInteraction.cancel();
+
+    // Cancel any pending debounced calls
+    this.debouncedSendIdleNotification.cancel();
+
     this.isInitialized = false;
 
     this.logger.info('Interaction detector cleaned up');

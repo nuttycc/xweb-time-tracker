@@ -56,7 +56,7 @@ export interface LoggerConfig {
 const DEFAULT_CONFIG: LoggerConfig = {
   defaultLevel: import.meta.env.MODE === 'production' ? 'warn' : 'debug',
   // template: `[${__APP_NAME__}] [%n] [%l]`,
-  template: `[tracker] [%n]`,
+  template: `[tracker] [%l] [%n]`,
 };
 
 /**

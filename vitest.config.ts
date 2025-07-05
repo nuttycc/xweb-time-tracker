@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { WxtVitest } from 'wxt/testing';
-import { resolve } from 'path';
+
 import pkg from './package.json';
 
 export default defineConfig({
@@ -10,34 +10,27 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   test: {
-    // 基础配置 - 让WxtVitest自动处理环境配置
     globals: true,
-    setupFiles: ['./tests/setup.ts'],
+    setupFiles: ['./vitest.setup.ts'],
 
-    // TypeScript 配置
     typecheck: {
       enabled: true,
       checker: 'tsc',
-      tsconfig: './tests/tsconfig.json',
-      include: ['tests/**/*.test-d.ts'],
+      include: ['src/**/*.test-d.ts'],
       exclude: ['node_modules/**', 'dist/**', '.wxt/**', 'coverage/**'],
     },
 
-    // 超时配置 - 修复大量数据测试超时问题
-    testTimeout: 30000, // 测试超时时间 30秒 (针对大量数据测试)
-    hookTimeout: 15000, // 钩子超时时间 15秒
-    teardownTimeout: 10000, // 清理超时时间 10秒
+    testTimeout: 30000,
+    hookTimeout: 15000,
+    teardownTimeout: 10000,
 
-    // 重试机制 - 提高测试稳定性
     retry: 1,
 
     include: [
+      'src/**/__tests__/**/*.{test,spec}.{js,ts}',
+      'src/**/*.{test,spec}.{js,ts}',
       'tests/**/*.{test,spec}.{js,ts}',
       'tests/**/*.test-d.ts',
-      'tests/unit/**/*.test.ts',
-      'tests/integration/**/*.test.ts',
-      'tests/boundary/**/*.test.ts',
-      'tests/performance/**/*.test.ts',
     ],
     exclude: ['node_modules/**', 'dist/**', '.wxt/**', 'coverage/**'],
 
@@ -51,6 +44,7 @@ export default defineConfig({
         'src/**/*.d.ts',
         'src/**/*.test.ts',
         'src/**/*.spec.ts',
+        'src/**/__tests__/**',
         'src/entrypoints/**',
         'src/assets/**',
       ],
@@ -64,19 +58,10 @@ export default defineConfig({
       },
     },
 
-    // 性能基准测试配置
     benchmark: {
-      include: ['tests/performance/**/*.bench.ts'],
+      include: ['src/**/__tests__/**/*.bench.ts', 'tests/**/*.bench.ts'],
       exclude: ['node_modules/**'],
       reporters: ['verbose'],
-    },
-  },
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, './src'),
-      '~': resolve(__dirname, './src'),
-      '@tests': resolve(__dirname, './tests'),
-      '#imports': resolve(__dirname, './tests/mocks/wxt-imports.ts'),
     },
   },
 });
