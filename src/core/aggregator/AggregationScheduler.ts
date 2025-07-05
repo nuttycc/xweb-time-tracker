@@ -4,9 +4,9 @@ import {
   AGGREGATION_LOCK_TTL_MS,
   SCHEDULER_PERIOD_MINUTES_KEY,
   DEFAULT_AGGREGATION_INTERVAL_MINUTES,
-} from '../utils/constants';
-import type { AggregationEngine } from '../engine';
-import type { DataPruner } from '../pruner';
+} from './constants';
+import type { AggregationEngine } from './AggregationEngine';
+import type { DataPruner } from './DataPruner';
 import { createLogger, type Logger } from '@/utils/logger';
 import { browser, Browser } from 'wxt/browser';
 import { storage } from '#imports';

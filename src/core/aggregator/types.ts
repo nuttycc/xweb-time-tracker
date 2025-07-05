@@ -1,4 +1,4 @@
-import type { EventsLogRecord } from '../../db/models/eventslog.model';
+import type { EventsLogRecord } from '@/core/db/models/eventslog.model';
 
 export interface AggregationResult {
   success: boolean;

@@ -1,4 +1,4 @@
-import type { AggregationScheduler } from '../scheduler';
+import type { AggregationScheduler } from './AggregationScheduler';
 import { createLogger } from '@/utils/logger';
 
 /**

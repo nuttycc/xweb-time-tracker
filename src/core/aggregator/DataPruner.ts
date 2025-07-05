@@ -1,6 +1,6 @@
-import { DEFAULT_PRUNER_RETENTION_DAYS, PRUNER_RETENTION_DAYS_KEY } from '../utils/constants';
-import type { EventsLogRepository } from '../../db/repositories/eventslog.repository';
-import type { EventsLogRecord } from '../../db/schemas/eventslog.schema';
+import { DEFAULT_PRUNER_RETENTION_DAYS, PRUNER_RETENTION_DAYS_KEY } from './constants';
+import type { EventsLogRepository } from '@/core/db/repositories/eventslog.repository';
+import type { EventsLogRecord } from '@/core/db/schemas/eventslog.schema';
 import { createLogger } from '@/utils/logger';
 import { storage } from '#imports';
 
@@ -13,8 +13,7 @@ export class DataPruner {
   /**
    * @param eventsLogRepo - Repository for accessing event log data.
    */
-  constructor(private readonly eventsLogRepo: EventsLogRepository) {
-  }
+  constructor(private readonly eventsLogRepo: EventsLogRepository) {}
 
   /**
    * Runs the data pruning process.
@@ -28,8 +27,6 @@ export class DataPruner {
       const retentionDays = await storage.getItem<number>(PRUNER_RETENTION_DAYS_KEY);
       const effectiveRetentionDays = retentionDays ?? DEFAULT_PRUNER_RETENTION_DAYS;
       const retentionTimestamp = Date.now() - effectiveRetentionDays * 24 * 60 * 60 * 1000;
-
-
 
       const oldEvents = await this.eventsLogRepo.getProcessedEventsOlderThan(retentionTimestamp);
 

@@ -1,8 +1,8 @@
-import type { EventsLogRecord } from '../../db/models/eventslog.model';
-import type { EventsLogRepository } from '../../db/repositories/eventslog.repository';
-import type { AggregatedStatsRepository } from '../../db/repositories/aggregatedstats.repository';
-import type { AggregationResult, VisitGroup, AggregatedData } from '../utils/types';
-import { getUtcDateString } from '../../db/schemas/aggregatedstats.schema';
+import type { EventsLogRecord } from '../db/models/eventslog.model';
+import type { EventsLogRepository } from '../db/repositories/eventslog.repository';
+import type { AggregatedStatsRepository } from '../db/repositories/aggregatedstats.repository';
+import type { AggregationResult, VisitGroup, AggregatedData } from './types';
+import { getUtcDateString } from '../db/schemas/aggregatedstats.schema';
 import { createLogger } from '@/utils/logger';
 import * as psl from 'psl';
 
@@ -22,8 +22,7 @@ export class AggregationEngine {
   constructor(
     private readonly eventsLogRepo: EventsLogRepository,
     private readonly aggregatedStatsRepo: AggregatedStatsRepository
-  ) {
-  }
+  ) {}
 
   /**
    * Runs the entire aggregation process.
@@ -33,7 +32,7 @@ export class AggregationEngine {
    * @returns A promise that resolves to an AggregationResult.
    */
   public async run(): Promise<AggregationResult> {
-    AggregationEngine.logger.info('Starting aggregation process');
+    AggregationEngine.logger.info('Aggregation started');
 
     try {
       // this.logger.debug('Fetching unprocessed events');
@@ -43,15 +42,20 @@ export class AggregationEngine {
         orderDirection: 'asc',
       });
 
-      AggregationEngine.logger.info(`Found ${unprocessedEvents.length} unprocessed events`);
+      AggregationEngine.logger.info(`Fetched ${unprocessedEvents.length} unprocessed events`);
+      AggregationEngine.logger.debug('Fetched unprocessed events', {
+        count: unprocessedEvents.length,
+        unprocessedEvents,
+      });
 
       if (unprocessedEvents.length === 0) {
+        AggregationEngine.logger.info('No unprocessed events, aggregation finished');
         return { success: true, processedEvents: 0 };
       }
 
       await this.processEvents(unprocessedEvents);
 
-      AggregationEngine.logger.info('Completed aggregation process');
+      AggregationEngine.logger.info('Aggregation finished', { processedEvents: unprocessedEvents.length });
       return { success: true, processedEvents: unprocessedEvents.length };
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
@@ -73,23 +77,41 @@ export class AggregationEngine {
    * @param events - An array of event log records to process.
    */
   private async processEvents(events: EventsLogRecord[]): Promise<void> {
-    AggregationEngine.logger.debug('Grouping events by visit id');
+    AggregationEngine.logger.info(`Processing ${events.length} events`);
     const visitGroups = this.groupEventsByVisit(events);
+    AggregationEngine.logger.info(`Grouped into ${visitGroups.size} visit groups`);
 
     const validVisitGroups = this.validateVisitGroups(visitGroups);
+    AggregationEngine.logger.info(`Get ${validVisitGroups.size} valid visit groups`);
+    AggregationEngine.logger.debug('Get visit groups', {
+      count: {
+        valid: validVisitGroups.size,
+        total: visitGroups.size,
+      },
+      groupes: {
+        valid: validVisitGroups,
+        total: visitGroups
+      },
+    });
 
     const aggregatedData: AggregatedData = {};
     const processedEventIds = new Set<number>();
 
-    AggregationEngine.logger.debug('Calculating time for valid visit groups', validVisitGroups);
-    for (const visit of validVisitGroups.values()) {
-      const visitProcessedIds = this.calculateTime(visit, aggregatedData);
-      visitProcessedIds.forEach(id => processedEventIds.add(id));
+    for (const group of validVisitGroups.values()) {
+      const groupProcessedIds = this.calculateTime(group, aggregatedData);
+      groupProcessedIds.forEach(id => processedEventIds.add(id));
     }
 
+    AggregationEngine.logger.debug('Aggregated data after calculation', {
+      keys: Object.keys(aggregatedData),
+      data: aggregatedData,
+    });
+
     const eventIds = Array.from(processedEventIds);
-    AggregationEngine.logger.debug('Completed aggregation process');
     await this.finalizeAggregation(aggregatedData, eventIds);
+
+    AggregationEngine.logger.info(`Processed and marked ${eventIds.length} events`);
+    AggregationEngine.logger.debug(`Processed and marked ${eventIds.length} events`);
   }
 
   /**
@@ -277,10 +299,10 @@ export class AggregationEngine {
     }
 
     if (openTimeToAdd === 0 && activeTimeToAdd === 0) {
-      // If no time was calculated, this might indicate a validation issue
       AggregationEngine.logger.warn('No time calculated for visit', {
         visitId: visitGroup.events[0]?.visitId,
-        visitGroup,
+        url: visitGroup.url,
+        eventTypes: visitGroup.events.map(e => e.eventType),
         eventCount: visitGroup.events.length,
         processedEventIds: processedEventIds.length,
       });
@@ -322,8 +344,6 @@ export class AggregationEngine {
     for (const [visitGroupId, visitGroup] of visitGroups) {
       if (this.isValidVisitGroup(visitGroup)) {
         validVisitGroups.set(visitGroupId, visitGroup);
-      } else {
-        AggregationEngine.logger.debug('Invalid visit group', visitGroup);
       }
     }
 
@@ -434,7 +454,7 @@ export class AggregationEngine {
     aggregatedData: AggregatedData,
     eventIds: number[]
   ): Promise<void> {
-    AggregationEngine.logger.debug('Upserting aggregated stats');
+    AggregationEngine.logger.info(`Upserting ${Object.keys(aggregatedData).length} aggregated stats records`);
 
     const upsertPromises = Object.values(aggregatedData).map(data =>
       this.aggregatedStatsRepo.upsertTimeAggregation({
@@ -448,12 +468,11 @@ export class AggregationEngine {
     );
 
     await Promise.all(upsertPromises);
-
-    AggregationEngine.logger.debug('Marking events as processed', {
-      size: eventIds.length,
-    });
-
+    
     await this.eventsLogRepo.markEventsAsProcessed(eventIds);
+
+    AggregationEngine.logger.info(`Marking ${eventIds.length} events as processed`);
+
   }
 
   private parseUrl(url: string): { hostname: string; parentDomain: string } {

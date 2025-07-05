@@ -24,22 +24,22 @@
 /**
  * Core aggregation engine for processing raw event logs into statistical data
  */
-export { AggregationEngine } from './engine';
+export { AggregationEngine } from './AggregationEngine';
 
 /**
  * Scheduler for managing automated aggregation tasks using Chrome alarms API
  */
-export { AggregationScheduler } from './scheduler';
+export { AggregationScheduler } from './AggregationScheduler';
 
 /**
  * Data pruner for cleaning up old processed event logs
  */
-export { DataPruner } from './pruner';
+export { DataPruner } from './DataPruner';
 
 /**
  * Main service for coordinating aggregation components
  */
-export { AggregationService } from './services';
+export { AggregationService } from './AggregationService';
 
 // ============================================================================
 // TYPES AND INTERFACES - Namespaced exports to avoid conflicts
@@ -54,7 +54,7 @@ export { AggregationService } from './services';
  * type Result = AggregatorTypes.AggregationResult;
  * ```
  */
-export * as AggregatorTypes from './utils/types';
+export * as AggregatorTypes from './types';
 
 // ============================================================================
 // CONSTANTS - Named exports for better discoverability
@@ -70,7 +70,7 @@ export {
   AGGREGATION_LOCK_KEY,
   AGGREGATION_LOCK_TTL_MS,
   SCHEDULER_PERIOD_MINUTES_KEY,
-} from './utils/constants';
+} from './constants';
 
 // ============================================================================
 // CONVENIENCE RE-EXPORTS - For commonly used types
@@ -79,10 +79,9 @@ export {
 /**
  * Re-export commonly used types for convenience
  */
-export type { AggregationResult, VisitGroup, AggregatedData } from './utils/types';
+export type { AggregationResult, VisitGroup, AggregatedData } from './types';
 
 /**
  * Re-export scheduler options interface
  */
-export type { SchedulerOptions } from './scheduler';
-
+export type { SchedulerOptions } from './AggregationScheduler';
