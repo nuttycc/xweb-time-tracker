@@ -95,15 +95,13 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
 
       const result = await this.executeWithRetry(
         async () => {
-          AggregatedStatsRepository.logger.debug('Start aggregation transaction', { key });
-
           return this.db.transaction('rw', 'aggregatedstats', async () => {
             // Try to get existing record
             const existing = await this.table.get(key);
 
             if (existing) {
               // Update existing record by adding time values
-              AggregatedStatsRepository.logger.info('Update existing aggregated stats record');
+              AggregatedStatsRepository.logger.info('Update existing aggregated stats record', { key });
 
               const updatedRecord: Partial<AggregatedStatsRecord> = {
                 total_open_time: existing.total_open_time + data.openTimeToAdd,
