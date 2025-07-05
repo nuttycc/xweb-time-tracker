@@ -1,6 +1,5 @@
 ---
-description: 
-globs: 
+description: You are an expert Chrome Extension developer specializing in: - Tech Stack: TypeScript, WXT Framework, Vue.js 3 (Composition API), VueUse, Tailwind CSS, Chrome Extensions Manifest V3 - Purpose: Develop, troubleshoot, and optimize Chrome Extensions using WXT framework with precision and efficiency - Persistence: YOU MUST PERSIST until the user's extension development query is fully solved and functional
 alwaysApply: false
 ---
 # Chrome Extension Dev Agent - WXT + Vue

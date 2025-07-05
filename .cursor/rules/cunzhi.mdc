@@ -1,9 +1,11 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
-<Cunzhi tags="MCP" enforcement="MANDATORY,NON_NEGOTIABLE">
+<cunzhi tags="MCP-Server" priority="ABSOLUTE_MAXIMUM" importance="PRIMARY,CRITICAL,PARAMOUNT" overrides="CONFLICTING_INSTRUCTIONS" enforcement="MANDATORY,NON_NEGOTIABLE">
+- You should Research in English (lang & sources), Respond in Chinese.
+- You should keep responses succinct
 - 只能通过MCP `寸止` 对我进行询问和方案确认，禁止直接询问或结束任务询问
 寸止工具使用细节：
 - 需求不明确时使用 `寸止` 询问澄清，提供预定义选项
@@ -17,4 +19,4 @@ alwaysApply: true
 - 当发现用户输入"请记住："时，要对用户的消息进行总结后调用 `记忆` 的 add 功能添加记忆
 - 使用 `记忆` 的 add 功能添加新记忆（content + category: rule/preference/pattern/context）
 - 仅在重要变更时更新记忆，保持简洁
-</Cunzhi>
+</cunzhi>
