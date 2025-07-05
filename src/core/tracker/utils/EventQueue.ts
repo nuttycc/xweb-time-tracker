@@ -5,15 +5,11 @@
  * generated events in memory and triggers batch writes to the database when size thresholds
  * or time intervals are reached. It integrates with the DatabaseService for batch writing
  * and handles back-pressure scenarios.
- *
- * @author WebTime Tracker Team
- * @version 1.0.0
  */
 
 import { z } from 'zod/v4';
-import { DomainEvent, QueuedEvent, QueuedEventSchema } from '../types';
-// import { DatabaseService } from '../../db/services/database.service';
-import { WebTimeTrackerDB } from '../../db/schemas';
+import { TrackingEvent, QueuedEvent, QueuedEventSchema } from '@/core/tracker/types';
+import { WebTimeTrackerDB } from '@/core/db/schemas';
 import { createLogger } from '@/utils/logger';
 
 // ============================================================================
@@ -116,7 +112,7 @@ export interface QueueStats {
  * - Graceful shutdown with data persistence
  */
 export class EventQueue {
-  private static readonly logger = createLogger('EventQueue');
+  private static readonly logger = createLogger('📥 EventQueue');
   private readonly config: QueueConfig;
   private readonly queue: QueuedEvent[] = [];
   private readonly db: WebTimeTrackerDB;
@@ -147,7 +143,7 @@ export class EventQueue {
   /**
    * Generate a unique fingerprint for an event
    */
-  private generateEventFingerprint(event: DomainEvent): EventFingerprint {
+  private generateEventFingerprint(event: TrackingEvent): EventFingerprint {
     const id = `${event.eventType}:${event.tabId}:${event.visitId || 'null'}:${event.activityId || 'null'}`;
 
     return {
@@ -274,7 +270,7 @@ export class EventQueue {
    * @param event - Domain event to queue
    * @throws {Error} If queue is shutting down or event validation fails
    */
-  async enqueue(event: DomainEvent): Promise<void> {
+  async enqueue(event: TrackingEvent): Promise<void> {
     if (this.isShuttingDown) {
       throw new Error('Cannot enqueue events during shutdown');
     }
@@ -288,11 +284,11 @@ export class EventQueue {
     // Check for duplicates
     if (this.isDuplicateEvent(fingerprint)) {
       this.stats.duplicatesFiltered++;
-      EventQueue.logger.debug(`🚫 Filtered duplicate event: ${event.eventType}`, {
+      EventQueue.logger.debug(`Filtered duplicate event: ${event.eventType}`, {
         tabId: event.tabId,
         visitId: event.visitId,
         activityId: event.activityId,
-        duplicatesFiltered: this.stats.duplicatesFiltered
+        duplicatesFiltered: this.stats.duplicatesFiltered,
       });
       return; // Skip duplicate event
     }
@@ -311,7 +307,10 @@ export class EventQueue {
     this.queue.push(queuedEvent);
     this.stats.queueSize = this.queue.length;
 
-    EventQueue.logger.debug(`📥 Enqueued event: ${event.eventType}`, { queueSize: this.queue.length, tabId: event.tabId });
+    EventQueue.logger.debug(`Enqueued event: ${event.eventType}`, {
+      queueSize: this.queue.length,
+      tabId: event.tabId,
+    });
 
     // Check if we need to flush
     if (this.shouldFlush()) {
@@ -353,7 +352,8 @@ export class EventQueue {
     filterRate: number;
   } {
     // Total events = processed + currently queued + filtered duplicates
-    const totalEvents = this.stats.totalProcessed + this.queue.length + this.stats.duplicatesFiltered;
+    const totalEvents =
+      this.stats.totalProcessed + this.queue.length + this.stats.duplicatesFiltered;
     const filterRate = totalEvents > 0 ? (this.stats.duplicatesFiltered / totalEvents) * 100 : 0;
 
     return {
@@ -370,7 +370,7 @@ export class EventQueue {
    */
   logDeduplicationStats(): void {
     const stats = this.getDeduplicationStats();
-    EventQueue.logger.info(`📊 Deduplication Statistics`, {
+    EventQueue.logger.info(`Deduplication Statistics`, {
       duplicatesFiltered: stats.duplicatesFiltered,
       cacheSize: stats.cacheSize,
       cacheCapacity: stats.cacheCapacity,
@@ -391,7 +391,7 @@ export class EventQueue {
 
     const queueSize = this.queue.length;
     const reason = this.queue.length >= this.config.maxQueueSize ? 'maxQueueSize' : 'scheduled';
-    EventQueue.logger.info(`📤 Flushing queue: ${queueSize} events`, { reason });
+    EventQueue.logger.info(`Flushing queue: ${queueSize} events`, { reason });
 
     // Clear any pending flush timer
     this.clearFlushTimer();
@@ -442,7 +442,9 @@ export class EventQueue {
     try {
       await Promise.race([this.flush(), timeoutPromise]);
     } catch (error) {
-      EventQueue.logger.error('❌ EventQueue shutdown error', { error: error instanceof Error ? error.message : String(error) });
+      EventQueue.logger.error('EventQueue shutdown error', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Continue with shutdown even if flush fails
     }
   }
@@ -454,7 +456,7 @@ export class EventQueue {
   /**
    * Validate domain event
    */
-  private validateEvent(event: DomainEvent): DomainEvent {
+  private validateEvent(event: TrackingEvent): TrackingEvent {
     try {
       return QueuedEventSchema.parse({ event, queuedAt: Date.now(), retryCount: 0 }).event;
     } catch (error) {
@@ -477,14 +479,18 @@ export class EventQueue {
       return;
     }
 
-    EventQueue.logger.debug(`⏰ Scheduled flush in ${this.config.maxWaitTime}ms`, { queueSize: this.queue.length });
+    EventQueue.logger.debug(`Scheduled flush in ${this.config.maxWaitTime}ms`, {
+      queueSize: this.queue.length,
+    });
 
     this.flushTimer = setTimeout(async () => {
       this.flushTimer = null;
       try {
         await this.flush();
       } catch (error) {
-        EventQueue.logger.error('❌ Scheduled flush failed', { error: error instanceof Error ? error.message : String(error) });
+        EventQueue.logger.error('Scheduled flush failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }, this.config.maxWaitTime);
   }
@@ -511,7 +517,7 @@ export class EventQueue {
     const domainEvents = events.map(qe => qe.event);
 
     const startTime = Date.now();
-    EventQueue.logger.info(`💾 Writing ${events.length} events to database...`, events);
+    EventQueue.logger.info(`Writing ${events.length} events to database...`, events);
 
     try {
       // Use Dexie's bulkAdd for efficient batch writing
@@ -529,12 +535,17 @@ export class EventQueue {
       );
 
       const duration = Date.now() - startTime;
-      EventQueue.logger.info(`✅ Bulk write success: ${events.length} events`, { duration: `${duration}ms` });
+      EventQueue.logger.info(`Bulk write success: ${events.length} events`, {
+        duration: `${duration}ms`,
+      });
 
       this.stats.totalProcessed += events.length;
       return events.length;
     } catch (error) {
-      EventQueue.logger.error('❌ Bulk write failed', { error: error instanceof Error ? error.message : String(error), eventsCount: events.length });
+      EventQueue.logger.error('Bulk write failed', {
+        error: error instanceof Error ? error.message : String(error),
+        eventsCount: events.length,
+      });
       throw error;
     }
   }
@@ -557,16 +568,19 @@ export class EventQueue {
       } else {
         // Max retries exceeded
         this.stats.totalFailed++;
-        EventQueue.logger.error('❌ Event failed after max retries', { eventType: queuedEvent.event.eventType, tabId: queuedEvent.event.tabId });
+        EventQueue.logger.error('Event failed after max retries', {
+          eventType: queuedEvent.event.eventType,
+          tabId: queuedEvent.event.tabId,
+        });
         failedCount++;
       }
     }
 
     if (requeuedCount > 0) {
-      EventQueue.logger.warn(`⚠️ Re-queuing ${requeuedCount} failed events for retry`);
+      EventQueue.logger.warn(`Re-queuing ${requeuedCount} failed events for retry`);
     }
     if (failedCount > 0) {
-      EventQueue.logger.error(`❌ ${failedCount} events permanently failed after max retries`);
+      EventQueue.logger.error(`${failedCount} events permanently failed after max retries`);
     }
 
     this.stats.queueSize = this.queue.length;
@@ -628,4 +642,3 @@ export function createLowLatencyEventQueue(db: WebTimeTrackerDB): EventQueue {
     retryDelay: 200,
   });
 }
-

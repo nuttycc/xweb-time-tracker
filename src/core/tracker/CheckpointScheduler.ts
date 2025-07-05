@@ -8,21 +8,19 @@
  * to create checkpoint events. The scheduler handles alarm persistence across
  * service worker restarts.
  *
- * @author WebTime Tracker Team
- * @version 1.0.0
  */
 
 // import { z } from 'zod/v4';
 import { browser } from '#imports';
-import { TabStateManager } from '../state/TabStateManager';
-import { EventGenerator } from '../events/EventGenerator';
-import { EventQueue } from '../queue/EventQueue';
-import { TabState, CheckpointData } from '../types';
+import { TabStateManager } from '@/core/tracker/utils/TabStateManager';
+import { EventGenerator } from '@/core/tracker/utils/EventGenerator';
+import { EventQueue } from '@/core/tracker/utils/EventQueue';
+import { TabState, CheckpointData } from '@/core/tracker/types';
 import {
   CHECKPOINT_INTERVAL,
   CHECKPOINT_ACTIVE_TIME_THRESHOLD,
   CHECKPOINT_OPEN_TIME_THRESHOLD,
-} from '../../../config/constants';
+} from '@/config/constants';
 
 // All types can be accessed via WXT's Browser namespace:
 import { type Browser } from 'wxt/browser';

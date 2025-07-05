@@ -13,16 +13,16 @@
 import { z } from 'zod/v4';
 import { browser } from '#imports';
 import { type Browser } from 'wxt/browser';
-import { EventGenerator } from './events/EventGenerator';
-import { EventQueue } from './queue/EventQueue';
-import { CheckpointScheduler } from './scheduler/CheckpointScheduler';
-import { StartupRecovery } from './recovery/StartupRecovery';
+import { EventGenerator } from '@/core/tracker/utils/EventGenerator';
+import { EventQueue } from '@/core/tracker/utils/EventQueue';
+import { CheckpointScheduler } from '@/core/tracker/CheckpointScheduler';
+import { StartupRecovery } from '@/core/tracker/StartupRecovery';
 import { createLogger } from '@/utils/logger';
-import { InteractionDetector } from './messaging/InteractionDetector';
-import { DatabaseService } from '../db/services/database.service';
-import { db, type WebTimeTrackerDB } from '../db/schemas';
-import { TabState, InteractionMessage } from './types';
-import { TabStateManager } from './state/TabStateManager';
+import { InteractionDetector } from '@/core/tracker/InteractionDetector';
+import { DatabaseService } from '@/core/db/services/database.service';
+import { db, type WebTimeTrackerDB } from '@/core/db/schemas';
+import { TabState, InteractionMessage } from '@/core/tracker/types';
+import { TabStateManager } from '@/core/tracker/utils/TabStateManager';
 
 /**
  * Time tracker configuration schema
@@ -155,6 +155,9 @@ export class TimeTracker {
   // Race condition protection for active session creation
   private activeSessionPromises = new Map<number, Promise<void>>();
 
+  // Callback for audible state changes
+  private onAudibleStateChanged?: (tabId: number, isAudible: boolean) => void;
+
   // Event handlers mapping for type-safe event processing
   private readonly eventHandlers = new Map<
     BrowserEventType,
@@ -257,26 +260,14 @@ export class TimeTracker {
         };
       }
 
-      // Initialize in-memory tab states from recovery result
+      // Initialize in-memory tab states from recovery result using batch loading
       this.tabStateManager.clearAllState();
-      for (const { tabId, tabState } of recoveryResult.tabStates) {
-        // Use the synchronous version during initialization to avoid async complexity
-        // The persistent storage will be synced after all states are loaded
-        this.tabStateManager.createTabState(tabId, tabState, tabState.windowId);
-      }
+      const loadedCount = this.tabStateManager.loadTabStatesBatch(recoveryResult.tabStates);
 
-      // Ensure all recovered states are synced to persistent storage
-      // This handles both restored states and newly created states
-      try {
-        await this.tabStateManager.forceSyncToPersistentStorage();
-        TimeTracker.logger.debug('Synced recovered tab states to persistent storage', {
-          tabCount: recoveryResult.tabStates.length,
-        });
-      } catch (error) {
-        TimeTracker.logger.error('Failed to sync recovered states to persistent storage', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+      // Note: No persistent storage sync needed in pure memory mode
+      TimeTracker.logger.debug('Loaded recovered tab states into memory', {
+        tabCount: loadedCount,
+      });
 
       // Queue open_time_start events for DB persistence
       for (const event of recoveryResult.events) {
@@ -477,14 +468,29 @@ export class TimeTracker {
     const currentState = this.tabStateManager.getTabState(eventData.tabId);
 
     // Handle audible state changes (independent of navigation)
-    if ('audible' in eventData.changeInfo && currentState) {
+    if (
+      'audible' in eventData.changeInfo &&
+      currentState &&
+      eventData.changeInfo.audible !== undefined
+    ) {
+      const newAudibleState = eventData.changeInfo.audible;
+      const previousAudibleState = currentState.isAudible;
+
+      // Update tab state
       this.tabStateManager.updateTabState(eventData.tabId, {
-        isAudible: eventData.changeInfo.audible,
+        isAudible: newAudibleState,
       });
+
       TimeTracker.logger.debug(`Update audible state`, {
         tabId: eventData.tabId,
-        isAudible: eventData.changeInfo.audible,
+        isAudible: newAudibleState,
+        previousState: previousAudibleState,
       });
+
+      // Notify callback if state actually changed
+      if (newAudibleState !== previousAudibleState && this.onAudibleStateChanged) {
+        this.onAudibleStateChanged(eventData.tabId, newAudibleState);
+      }
     }
 
     // Note: URL changes are now handled exclusively by handleWebNavigationCommitted
@@ -507,8 +513,8 @@ export class TimeTracker {
       }
       await this.generateAndQueueOpenTimeEnd(tabState, eventData.timestamp);
 
-      // Clear tab state (use async version to ensure persistence)
-      await this.tabStateManager.clearTabStateAsync(eventData.tabId);
+      // Clear tab state (memory only)
+      this.tabStateManager.clearTabState(eventData.tabId);
     }
   }
 
@@ -644,9 +650,9 @@ export class TimeTracker {
       // Check if tab state already exists
       const existingState = this.tabStateManager.getTabState(tab.id);
       if (existingState) {
-        await this.tabStateManager.updateTabStateAsync(tab.id, newTabState);
+        this.tabStateManager.updateTabState(tab.id, newTabState);
       } else {
-        await this.tabStateManager.createTabStateAsync(tab.id, newTabState, tab.windowId || 0);
+        this.tabStateManager.createTabState(tab.id, newTabState, tab.windowId || 0);
       }
 
       // Step 3: Enqueue the event for persistence
@@ -686,7 +692,7 @@ export class TimeTracker {
       await this.eventQueue.enqueue(result.event);
 
       // Mark session as ended to prevent future duplicates
-      await this.tabStateManager.updateTabStateAsync(tabState.tabId, {
+      this.tabStateManager.updateTabState(tabState.tabId, {
         sessionEnded: true,
       });
 
@@ -711,7 +717,7 @@ export class TimeTracker {
       await this.eventQueue.enqueue(result.event);
 
       // Update tab state
-      await this.tabStateManager.updateTabStateAsync(tabState.tabId, {
+      this.tabStateManager.updateTabState(tabState.tabId, {
         activityId: result.event.activityId!,
         activeTimeStart: timestamp,
       });
@@ -723,8 +729,42 @@ export class TimeTracker {
     timestamp: number,
     reason: 'timeout' | 'focus_lost' | 'tab_closed' | 'navigation' = 'focus_lost'
   ): Promise<void> {
+    // Atomic check-and-clear operation to prevent race conditions
+    // Only proceed if there's actually an active session to end
+    if (!tabState.activityId || !tabState.activeTimeStart) {
+      TimeTracker.logger.debug('No active session to end (already ended or never started)', {
+        tabId: tabState.tabId,
+        activityId: tabState.activityId,
+        activeTimeStart: tabState.activeTimeStart,
+        reason,
+      });
+      return;
+    }
+
+    // Capture the current activityId for the event generation
+    const currentActivityId = tabState.activityId;
+    const currentActiveTimeStart = tabState.activeTimeStart;
+
+    // Immediately clear the active time state to prevent concurrent calls
+    // This is the atomic operation that ensures only one end event per session
+    this.tabStateManager.updateTabState(tabState.tabId, {
+      activityId: null,
+      activeTimeStart: null,
+    });
+
+    TimeTracker.logger.debug('Cleared active session state', {
+      tabId: tabState.tabId,
+      activityId: currentActivityId,
+      reason,
+    });
+
+    // Now generate the event using the captured values
     const context = {
-      tabState,
+      tabState: {
+        ...tabState,
+        activityId: currentActivityId,
+        activeTimeStart: currentActiveTimeStart,
+      },
       timestamp,
     };
 
@@ -732,10 +772,25 @@ export class TimeTracker {
     if (result.success && result.event) {
       await this.eventQueue.enqueue(result.event);
 
-      // Clear active time state
-      await this.tabStateManager.updateTabStateAsync(tabState.tabId, {
-        activityId: null,
-        activeTimeStart: null,
+      TimeTracker.logger.info('Generated active_time_end event', {
+        tabId: tabState.tabId,
+        activityId: currentActivityId,
+        duration: timestamp - currentActiveTimeStart,
+        reason,
+      });
+    } else {
+      // If event generation failed, we need to restore the state
+      // This is a rare edge case but important for consistency
+      this.tabStateManager.updateTabState(tabState.tabId, {
+        activityId: currentActivityId,
+        activeTimeStart: currentActiveTimeStart,
+      });
+
+      TimeTracker.logger.error('Failed to generate active_time_end event, restored state', {
+        tabId: tabState.tabId,
+        activityId: currentActivityId,
+        error: result.error,
+        reason,
       });
     }
   }
@@ -808,17 +863,50 @@ export class TimeTracker {
       this.tabStateManager.createTabState(tab.id, initialTabState, tab.windowId || 0, {
         validate: false,
       });
-
-      TimeTracker.logger.debug('Created tab state (memory-only)', {
-        tabId: tab.id,
-        url: tab.url,
-      });
     } catch (error) {
       TimeTracker.logger.error('Fail to create tab state for tab', {
         tabId: tab.id,
         url: tab.url,
         error: error instanceof Error ? error.message : String(error),
       });
+    }
+  }
+
+  /**
+   * Get tab state for a specific tab ID
+   * @param tabId - The tab ID to get state for
+   * @returns The tab state or undefined if not found
+   */
+  getTabState(tabId: number): TabState | undefined {
+    return this.tabStateManager.getTabState(tabId);
+  }
+
+  /**
+   * Set callback for audible state changes
+   * @param callback - Function to call when audible state changes
+   */
+  setAudibleStateChangeCallback(callback: (tabId: number, isAudible: boolean) => void): void {
+    this.onAudibleStateChanged = callback;
+  }
+
+  /**
+   * End active session for a tab due to idle timeout
+   * @param tabId - The tab ID to end active session for
+   * @param timestamp - The timestamp when idle was detected
+   */
+  async endActiveSessionDueToIdle(tabId: number, timestamp: number): Promise<void> {
+    const tabState = this.tabStateManager.getTabState(tabId);
+
+    if (tabState?.activeTimeStart) {
+      await this.generateAndQueueActiveTimeEnd(tabState, timestamp, 'timeout');
+
+      TimeTracker.logger.info('Ended active session due to idle timeout', {
+        tabId,
+        activityId: tabState.activityId,
+        duration: timestamp - tabState.activeTimeStart,
+      });
+    } else {
+      TimeTracker.logger.debug('No active session to end for idle tab', { tabId });
     }
   }
 }
@@ -838,11 +926,11 @@ export function createTimeTracker(
 }
 
 // Export all types and components for external use
-export * from './types';
-export * from './state/TabStateManager';
-export * from './events/EventGenerator';
-export * from './queue/EventQueue';
-export * from './scheduler/CheckpointScheduler';
-export * from './recovery/StartupRecovery';
-export * from './messaging/InteractionDetector';
-export * from './url/URLProcessor';
+export * from '@/core/tracker/types';
+export * from '@/core/tracker/utils/TabStateManager';
+export * from '@/core/tracker/utils/EventGenerator';
+export * from '@/core/tracker/utils/EventQueue';
+export * from '@/core/tracker/CheckpointScheduler';
+export * from '@/core/tracker/StartupRecovery';
+export * from '@/core/tracker/InteractionDetector';
+export * from '@/core/tracker/utils/URLProcessor';

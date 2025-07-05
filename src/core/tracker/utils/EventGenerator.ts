@@ -5,22 +5,19 @@
  * into domain events. This class generates open_time_start, open_time_end, active_time_start,
  * active_time_end, and checkpoint events based on user interactions and state transitions.
  * It integrates with the URL normalizer and applies business rules for event creation.
- *
- * @author WebTime Tracker Team
- * @version 1.0.0
  */
 
 
 import { z } from 'zod/v4';
-import { DomainEvent, DomainEventSchema, TabState, TabStateSchema, CheckpointData } from '../types';
-import { URLProcessor, createDefaultURLProcessor } from '../url/URLProcessor';
-import { ResolutionType } from '../../db/models/eventslog.model';
+import { TrackingEvent, TrackingEventSchema, TabState, TabStateSchema, CheckpointData } from '@/core/tracker/types';
+import { URLProcessor, createDefaultURLProcessor } from '@/core/tracker/utils/URLProcessor';
+import { ResolutionType } from '@/core/db/models/eventslog.model';
 import {
   INACTIVE_TIMEOUT_DEFAULT,
   INACTIVE_TIMEOUT_MEDIA,
   CHECKPOINT_ACTIVE_TIME_THRESHOLD,
   CHECKPOINT_OPEN_TIME_THRESHOLD,
-} from '../../../config/constants';
+} from '@/config/constants';
 import { createLogger } from '@/utils/logger';
 
 // ============================================================================
@@ -68,7 +65,7 @@ export const EventGenerationContextSchema = z.object({
  */
 export interface EventGenerationResult {
   /** Generated event (if any) */
-  event?: DomainEvent;
+  event?: TrackingEvent;
   /** Whether event was generated successfully */
   success: boolean;
   /** Error message if generation failed */
@@ -134,7 +131,6 @@ export class EventGenerator {
     try {
 
       if(tabId === undefined || tabId < 0) {
-        EventGenerator.logger.debug('Invalid tabId', { tabId });
         return {
           success: false,
           error: 'Invalid tabId',
@@ -147,7 +143,6 @@ export class EventGenerator {
       // Validate and process URL
       const urlResult = this.urlProcessor.processUrl(url);
       if (!urlResult.isValid) {
-        EventGenerator.logger.debug('Skip filtered url', { url, reason: urlResult.reason });
         return {
           success: false,
           metadata: {
@@ -161,7 +156,7 @@ export class EventGenerator {
       const visitId = crypto.randomUUID();
 
       // Create domain event
-      const event: DomainEvent = {
+      const event: TrackingEvent = {
         timestamp,
         eventType: 'open_time_start',
         tabId,
@@ -174,10 +169,8 @@ export class EventGenerator {
 
       // Validate if required
       if (this.options.validateEvents) {
-        DomainEventSchema.parse(event);
+        TrackingEventSchema.parse(event);
       }
-
-      EventGenerator.logger.debug('Generated open_time_start', { tabId, url: urlResult.normalizedUrl, visitId });
 
       return {
         event,
@@ -207,7 +200,7 @@ export class EventGenerator {
       const { tabState, timestamp, resolution } = context;
 
       // Create domain event
-      const event: DomainEvent = {
+      const event: TrackingEvent = {
         timestamp,
         eventType: 'open_time_end',
         tabId: tabState.tabId,
@@ -220,10 +213,8 @@ export class EventGenerator {
 
       // Validate if required
       if (this.options.validateEvents) {
-        DomainEventSchema.parse(event);
+        TrackingEventSchema.parse(event);
       }
-
-      EventGenerator.logger.debug('Generated open_time_end', { tabId: tabState.tabId, url: tabState.url, visitId: tabState.visitId });
 
       return {
         event,
@@ -259,7 +250,6 @@ export class EventGenerator {
       // Validate URL
       const urlResult = this.urlProcessor.processUrl(tabState.url);
       if (!urlResult.isValid) {
-        EventGenerator.logger.debug('Skip filtered url', { url: tabState.url, reason: urlResult.reason });
         return {
           success: false,
           metadata: {
@@ -273,7 +263,7 @@ export class EventGenerator {
       const activityId = crypto.randomUUID();
 
       // Create domain event
-      const event: DomainEvent = {
+      const event: TrackingEvent = {
         timestamp,
         eventType: 'active_time_start',
         tabId: tabState.tabId,
@@ -286,10 +276,8 @@ export class EventGenerator {
 
       // Validate if required
       if (this.options.validateEvents) {
-        DomainEventSchema.parse(event);
+        TrackingEventSchema.parse(event);
       }
-
-      EventGenerator.logger.debug('Generated active_time_start', { tabId: tabState.tabId, url: tabState.url, activityId });
 
       return {
         event,
@@ -331,7 +319,7 @@ export class EventGenerator {
       }
 
       // Create domain event
-      const event: DomainEvent = {
+      const event: TrackingEvent = {
         timestamp,
         eventType: 'active_time_end',
         tabId: tabState.tabId,
@@ -344,10 +332,8 @@ export class EventGenerator {
 
       // Validate if required
       if (this.options.validateEvents) {
-        DomainEventSchema.parse(event);
+        TrackingEventSchema.parse(event);
       }
-
-      EventGenerator.logger.debug('Generated active_time_end', { tabId: tabState.tabId, url: tabState.url, activityId: tabState.activityId, reason });
 
       return {
         event,
@@ -388,7 +374,7 @@ export class EventGenerator {
       const { tabState, timestamp, resolution } = context;
 
       // Create domain event
-      const event: DomainEvent = {
+      const event: TrackingEvent = {
         timestamp,
         eventType: 'checkpoint',
         tabId: tabState.tabId,
@@ -401,10 +387,8 @@ export class EventGenerator {
 
       // Validate if required
       if (this.options.validateEvents) {
-        DomainEventSchema.parse(event);
+        TrackingEventSchema.parse(event);
       }
-
-      EventGenerator.logger.debug('Generated checkpoint', { tabId: tabState.tabId, url: tabState.url, checkpointType: checkpointData.checkpointType });
 
       return {
         event,
@@ -556,7 +540,7 @@ export const EventGeneratorValidation = {
   /**
    * Validates a domain event
    */
-  validateDomainEvent: (event: unknown): DomainEvent => {
-    return DomainEventSchema.parse(event);
+  validateTrackingEvent: (event: unknown): TrackingEvent => {
+    return TrackingEventSchema.parse(event);
   },
 };

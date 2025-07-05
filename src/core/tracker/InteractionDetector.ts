@@ -16,8 +16,8 @@ import {
   InteractionMessageSchema,
   BackgroundMessage,
   BackgroundMessageSchema,
-} from '../types';
-import { SCROLL_THRESHOLD_PIXELS, MOUSEMOVE_THRESHOLD_PIXELS } from '../../../config/constants';
+} from '@/core/tracker/types';
+import { SCROLL_THRESHOLD_PIXELS, MOUSEMOVE_THRESHOLD_PIXELS } from '@/config/constants';
 import { createLogger } from '@/utils/logger';
 
 // ============================================================================

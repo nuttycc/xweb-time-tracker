@@ -6,13 +6,10 @@
  * for hostname filtering (IGNORED_HOSTNAMES_DEFAULT) and additional query parameter
  * filtering (IGNORED_QUERY_PARAMS_DEFAULT). It provides methods for URL validation,
  * normalization, and filtering specifically for time tracking purposes.
- *
- * @author WebTime Tracker Team
- * @version 1.0.0
  */
 
-import { normalizeUrl, isAllowedQueryParam, ALLOWED_QUERY_PARAMS } from '../../db/utils/url-normalizer.util';
-import { IGNORED_HOSTNAMES_DEFAULT } from '../../../config/constants';
+import { normalizeUrl, isAllowedQueryParam, ALLOWED_QUERY_PARAMS } from '@/core/db/utils/url-normalizer.util';
+import { IGNORED_HOSTNAMES_DEFAULT } from '@/config/constants';
 import { z } from 'zod/v4';
 
 // ============================================================================
