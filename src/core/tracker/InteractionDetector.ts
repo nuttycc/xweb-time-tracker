@@ -61,6 +61,12 @@ export class InteractionDetector {
   private isEnabled = true;
   private tabId: number | null = null;
 
+  /** Bound event handlers */
+  private readonly boundHandleScroll: (event: Event) => void;
+  private readonly boundHandleMouseMove: (event: MouseEvent) => void;
+  private readonly boundHandleMouseDown: (event: MouseEvent) => void;
+  private readonly boundHandleKeyDown: (event: KeyboardEvent) => void;
+
   /** Throttle timers for different interaction types */
   private throttleTimers = {
     scroll: null as NodeJS.Timeout | null,
@@ -79,6 +85,12 @@ export class InteractionDetector {
 
   constructor(tabId?: number) {
     this.tabId = tabId || null;
+
+    // Bind event handlers to the class instance
+    this.boundHandleScroll = this.handleScroll.bind(this);
+    this.boundHandleMouseMove = this.handleMouseMove.bind(this);
+    this.boundHandleMouseDown = this.handleMouseDown.bind(this);
+    this.boundHandleKeyDown = this.handleKeyDown.bind(this);
   }
 
   /**
@@ -122,21 +134,21 @@ export class InteractionDetector {
 
   private setupEventListeners(): void {
     // Scroll events
-    document.addEventListener('scroll', this.handleScroll.bind(this), { passive: true });
+    document.addEventListener('scroll', this.boundHandleScroll, { passive: true });
 
     // Mouse events
-    document.addEventListener('mousemove', this.handleMouseMove.bind(this), { passive: true });
-    document.addEventListener('mousedown', this.handleMouseDown.bind(this), { passive: true });
+    document.addEventListener('mousemove', this.boundHandleMouseMove, { passive: true });
+    document.addEventListener('mousedown', this.boundHandleMouseDown, { passive: true });
 
     // Keyboard events
-    document.addEventListener('keydown', this.handleKeyDown.bind(this), { passive: true });
+    document.addEventListener('keydown', this.boundHandleKeyDown, { passive: true });
   }
 
   private removeEventListeners(): void {
-    document.removeEventListener('scroll', this.handleScroll.bind(this));
-    document.removeEventListener('mousemove', this.handleMouseMove.bind(this));
-    document.removeEventListener('mousedown', this.handleMouseDown.bind(this));
-    document.removeEventListener('keydown', this.handleKeyDown.bind(this));
+    document.removeEventListener('scroll', this.boundHandleScroll);
+    document.removeEventListener('mousemove', this.boundHandleMouseMove);
+    document.removeEventListener('mousedown', this.boundHandleMouseDown);
+    document.removeEventListener('keydown', this.boundHandleKeyDown);
   }
 
   // ============================================================================
