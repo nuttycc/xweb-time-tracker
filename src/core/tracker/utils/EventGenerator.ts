@@ -447,11 +447,11 @@ export class EventGenerator {
         return false;
       }
       const activeTimeDuration = currentTimestamp - tabState.activeTimeStart;
-      const thresholdMs = CHECKPOINT_ACTIVE_TIME_THRESHOLD * 60 * 60 * 1000; // Convert hours to ms
+      const thresholdMs = CHECKPOINT_ACTIVE_TIME_THRESHOLD * 60 * 1000; // Convert minutes to ms
       return activeTimeDuration >= thresholdMs;
     } else {
       const openTimeDuration = currentTimestamp - tabState.openTimeStart;
-      const thresholdMs = CHECKPOINT_OPEN_TIME_THRESHOLD * 60 * 60 * 1000; // Convert hours to ms
+      const thresholdMs = CHECKPOINT_OPEN_TIME_THRESHOLD * 60 * 1000; // Convert minutes to ms
       return openTimeDuration >= thresholdMs;
     }
   }

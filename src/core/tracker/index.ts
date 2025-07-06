@@ -155,6 +155,9 @@ export class TimeTracker {
   // Race condition protection for active session creation
   private activeSessionPromises = new Map<number, Promise<void>>();
 
+  // Race condition protection for ending sessions
+  private sessionEndLocks = new Set<number>();
+
   // Callback for audible state changes
   private onAudibleStateChanged?: (tabId: number, isAudible: boolean) => void;
 
@@ -895,18 +898,33 @@ export class TimeTracker {
    * @param timestamp - The timestamp when idle was detected
    */
   async endActiveSessionDueToIdle(tabId: number, timestamp: number): Promise<void> {
+    // Lock to prevent race conditions from multiple idle events
+    if (this.sessionEndLocks.has(tabId)) {
+      TimeTracker.logger.debug('Session end already in progress for tab, skipping', { tabId });
+      return;
+    }
+
     const tabState = this.tabStateManager.getTabState(tabId);
 
-    if (tabState?.activeTimeStart) {
-      await this.generateAndQueueActiveTimeEnd(tabState, timestamp, 'timeout');
+    // If this tab has no active session, do nothing
+    if (!tabState?.activityId || !tabState.activeTimeStart) {
+      TimeTracker.logger.debug('No active session to end for idle tab', { tabId });
+      return;
+    }
 
-      TimeTracker.logger.info('Ended active session due to idle timeout', {
+    try {
+      this.sessionEndLocks.add(tabId);
+
+      TimeTracker.logger.info('Ending active session due to idle timeout', {
         tabId,
         activityId: tabState.activityId,
         duration: timestamp - tabState.activeTimeStart,
       });
-    } else {
-      TimeTracker.logger.debug('No active session to end for idle tab', { tabId });
+
+      // Generate active_time_end event and clear active session state
+      await this.generateAndQueueActiveTimeEnd(tabState, timestamp, 'timeout');
+    } finally {
+      this.sessionEndLocks.delete(tabId);
     }
   }
 }

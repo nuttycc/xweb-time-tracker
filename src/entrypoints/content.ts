@@ -42,7 +42,7 @@ interface TrackerProtocolMap {
 
 const { sendMessage, onMessage } = defineExtensionMessaging<TrackerProtocolMap>();
 
-const logger = createLogger('Content');
+const logger = createLogger('📡 Content');
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -63,13 +63,13 @@ export default defineContentScript({
  * when they exceed configured thresholds.
  */
 class InteractionDetector {
-  private readonly logger = createLogger('InteractionDetector');
+  private static readonly logger = createLogger('📡 Content: InteractionDetector');
   private isInitialized = false;
   private isTracking = false;
   private tabId = 0;
 
-  // Throttling configuration - 500ms as per requirements
-  private readonly THROTTLE_INTERVAL = 500; // 500ms for interaction-detected messages
+  // Throttling configuration 
+  private readonly THROTTLE_INTERVAL = 2000; // in ms for interaction-detected messages
 
   // Accumulator state for threshold-based events
   private scrollAccumulator = 0;
@@ -134,13 +134,13 @@ class InteractionDetector {
       this.setupMessageHandlers();
 
       this.isInitialized = true;
-      this.logger.info('Interaction detector initialized', {
+      InteractionDetector.logger.info('Interaction detector initialized', {
         isTracking: this.isTracking,
         tabId: this.tabId,
         isAudible: this.isAudible,
       });
     } catch (error) {
-      this.logger.error('Failed to initialize interaction detector:', error);
+      InteractionDetector.logger.error('Failed to initialize interaction detector:', error);
     }
   }
 
@@ -162,7 +162,7 @@ class InteractionDetector {
     // Keyboard events
     this.addEventListener(document, 'keydown', this.handleKeyDown.bind(this), { passive: true });
 
-    this.logger.debug('Event listeners set up');
+    InteractionDetector.logger.debug('Event listeners set up');
   }
 
   /**
@@ -175,7 +175,7 @@ class InteractionDetector {
       this.isTracking = data.isTracking;
       this.tabId = data.tabId;
 
-      this.logger.info('Tracking status updated', {
+      InteractionDetector.logger.info('Tracking status updated', {
         isTracking: this.isTracking,
         tabId: this.tabId,
       });
@@ -186,7 +186,7 @@ class InteractionDetector {
       const { data } = message;
 
       if (data.tabId === this.tabId) {
-        this.logger.debug('Focus changed', { isFocused: data.isFocused });
+        InteractionDetector.logger.debug('Focus changed', { isFocused: data.isFocused });
 
         // Reset accumulators when focus changes
         if (data.isFocused) {
@@ -200,7 +200,7 @@ class InteractionDetector {
       const { data } = message;
 
       if (data.tabId === this.tabId) {
-        this.logger.debug('Audible state changed', {
+        InteractionDetector.logger.debug('Audible state changed', {
           isAudible: data.isAudible,
           previousState: this.isAudible,
         });
@@ -320,9 +320,9 @@ class InteractionDetector {
 
       await sendMessage('interaction-detected', interaction);
 
-      this.logger.debug('Interaction sent', { type, tabId: this.tabId });
+      InteractionDetector.logger.debug('Interaction sent', { type, tabId: this.tabId });
     } catch (error) {
-      this.logger.error('Failed to send interaction:', error);
+      InteractionDetector.logger.error('Failed to send interaction:', error);
     }
   }
 
@@ -337,9 +337,13 @@ class InteractionDetector {
         timestamp: Date.now(),
       });
 
-      this.logger.debug('Idle notification sent', { tabId: this.tabId });
+      const timeout = this.isAudible ? INACTIVE_TIMEOUT_MEDIA : INACTIVE_TIMEOUT_DEFAULT;
+      InteractionDetector.logger.debug('Idle notification sent', {
+        tabId: this.tabId,
+        timeout: `${timeout}ms`,
+      });
     } catch (error) {
-      this.logger.error('Failed to send idle notification:', error);
+      InteractionDetector.logger.error('Failed to send idle notification:', error);
     }
   }
 
@@ -359,7 +363,7 @@ class InteractionDetector {
       edges: ['trailing'],
     });
 
-    this.logger.debug('Updated idle timeout', {
+    InteractionDetector.logger.debug('Updated idle timeout', {
       isAudible: this.isAudible,
       timeout: timeout / 1000 + 's',
     });
@@ -419,6 +423,6 @@ class InteractionDetector {
 
     this.isInitialized = false;
 
-    this.logger.info('Interaction detector cleaned up');
+    InteractionDetector.logger.info('Interaction detector cleaned up');
   }
 }
