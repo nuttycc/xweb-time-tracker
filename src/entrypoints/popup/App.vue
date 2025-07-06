@@ -1,8 +1,9 @@
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { browser } from '#imports';
 import { defineExtensionMessaging } from '@webext-core/messaging';
 import { createLogger } from '@/utils/logger';
+import { useIntervalFn } from '@vueuse/core'
 import DebugDataDisplay from '@/components/DebugDataDisplay.vue';
 import type {
   PopupDebugProtocolMap,
@@ -95,6 +96,16 @@ async function refreshData(): Promise<void> {
 }
 
 /**
+ * Handles browser tab activation event by updating the current tab
+ * and fetching its associated data.
+ */
+async function handleTabActivation(): Promise<void> {
+  logger.info('Browser tab activated, refreshing data...');
+  currentTab.value = await getCurrentTab();
+  await fetchTabData();
+}
+
+/**
  * Trigger manual aggregation
  */
 async function triggerAggregation(): Promise<void> {
@@ -152,18 +163,30 @@ async function initialize(): Promise<void> {
 }
 
 // ============================================================================
-// Lifecycle
+// Lifecycle & Auto-Refresh
 // ============================================================================
+
+// Set up a polling mechanism to refresh data every 5 seconds.
+// `useIntervalFn` is managed by Vue's lifecycle, so it will be
+// automatically paused when the popup is closed.
+useIntervalFn(fetchTabData, 3000, { immediate: false });
 
 onMounted(() => {
   initialize();
+  // Listen for tab activation events to refresh data when the user switches tabs.
+  browser.tabs.onActivated.addListener(handleTabActivation);
+});
+
+onUnmounted(() => {
+  // Clean up the listener to prevent memory leaks when the popup is closed.
+  browser.tabs.onActivated.removeListener(handleTabActivation);
 });
 </script>
 
 <template>
-  <div class="animate-zoom-in h-[600px] w-96 bg-white">
+  <div class="flex flex-col overflow-hidden animate-zoom-in h-[600px] w-96 bg-white">
     <!-- Header -->
-    <div class="bg-gradient-to-r from-blue-600 to-blue-700 p-4 text-white shadow-lg">
+    <div class="flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 p-4 text-white shadow-lg">
       <div class="flex items-center justify-between">
         <div class="flex items-center space-x-2">
           <div class="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
@@ -204,12 +227,15 @@ onMounted(() => {
     </div>
 
     <!-- Aggregation Result -->
-    <div v-if="aggregationResult" class="border-l-4 border-yellow-400 bg-yellow-50 p-3 text-sm">
+    <div
+      v-if="aggregationResult"
+      class="flex-shrink-0 border-l-4 border-yellow-400 bg-yellow-50 p-3 text-sm"
+    >
       <div class="text-yellow-800">{{ aggregationResult }}</div>
     </div>
 
     <!-- Content -->
-    <div class="h-full overflow-y-auto">
+    <div class="flex-1 overflow-y-auto">
       <DebugDataDisplay
         :events="tabData?.events || []"
         :stats="tabData?.stats || []"
