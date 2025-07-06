@@ -5,8 +5,6 @@
  * This includes time tracking thresholds, URL filtering rules, checkpoint parameters,
  * and other configuration values from CSPEC.
  *
- * @author WebTime Tracker Team
- * @version 1.0.0
  */
 
 import { z } from 'zod/v4';
@@ -19,13 +17,13 @@ import { z } from 'zod/v4';
  * Inactive timeout threshold for regular content (milliseconds)
  * After this time without interaction, Active Time counting automatically terminates
  */
-export const INACTIVE_TIMEOUT_DEFAULT = 5000; // 5 seconds
+export const INACTIVE_TIMEOUT_DEFAULT = 30000; // in seconds
 
 /**
  * Inactive timeout threshold when audio content is playing (milliseconds)
  * Applies to video learning and other passive consumption scenarios
  */
-export const INACTIVE_TIMEOUT_MEDIA = 300000; // 5 minutes
+export const INACTIVE_TIMEOUT_MEDIA = 300000; // in minutes
 
 /**
  * Minimum scroll distance in pixels required to trigger Active Time
@@ -96,24 +94,24 @@ export const STORAGE_WARNING_THRESHOLD_PERCENT = 80;
 // ============================================================================
 
 /**
- * Active Time threshold (in hours) that triggers checkpoint generation
+ * Active Time threshold (in minutes) that triggers checkpoint generation
  */
-export const CHECKPOINT_ACTIVE_TIME_THRESHOLD = 2;
+export const CHECKPOINT_ACTIVE_TIME_THRESHOLD = 5;
 
 /**
- * Open Time threshold (in hours) that triggers checkpoint generation
+ * Open Time threshold (in minutes) that triggers checkpoint generation
  */
-export const CHECKPOINT_OPEN_TIME_THRESHOLD = 4;
+export const CHECKPOINT_OPEN_TIME_THRESHOLD = 60;
 
 /**
  * Interval (in minutes) for periodic checkpoint checking task
  */
-export const CHECKPOINT_INTERVAL = 30;
+export const CHECKPOINT_INTERVAL = 10;
 
 /**
  * Interval (in minutes) for data aggregation task execution
  */
-export const AGGREGATION_INTERVAL = 60;
+export const AGGREGATION_INTERVAL = 25;
 
 // ============================================================================
 // 4.5 User Interface & Experience Parameters
