@@ -53,14 +53,14 @@ export const TimeTrackerConfigSchema = z.object({
   /** Checkpoint scheduler configuration */
   checkpointScheduler: z
     .object({
-      intervalMinutes: z.number().int().min(5).max(120).default(30),
-      activeTimeThresholdHours: z.number().min(0.5).max(8).default(2),
-      openTimeThresholdHours: z.number().min(1).max(24).default(4),
+      interval: z.number().int().min(300_000).max(7_200_000).default(1_800_000), // 5min to 120min
+      activeTimeThreshold: z.number().int().min(1_800_000).max(28_800_000).default(7_200_000), // 0.5h to 8h
+      openTimeThreshold: z.number().int().min(3_600_000).max(86_400_000).default(14_400_000), // 1h to 24h
     })
     .default({
-      intervalMinutes: 30,
-      activeTimeThresholdHours: 2,
-      openTimeThresholdHours: 4,
+      interval: 1_800_000,
+      activeTimeThreshold: 7_200_000,
+      openTimeThreshold: 14_400_000,
     }),
 
   /** Startup recovery configuration */
@@ -211,9 +211,9 @@ export class TimeTracker {
       this.eventGenerator,
       this.eventQueue,
       {
-        intervalMinutes: this.config.checkpointScheduler.intervalMinutes,
-        activeTimeThresholdHours: this.config.checkpointScheduler.activeTimeThresholdHours,
-        openTimeThresholdHours: this.config.checkpointScheduler.openTimeThresholdHours,
+        interval: this.config.checkpointScheduler.interval,
+        activeTimeThreshold: this.config.checkpointScheduler.activeTimeThreshold,
+        openTimeThreshold: this.config.checkpointScheduler.openTimeThreshold,
         enableDebugLogging: this.config.enableDebugLogging,
       }
     );
@@ -755,11 +755,11 @@ export class TimeTracker {
       activeTimeStart: null,
     });
 
-    TimeTracker.logger.debug('Cleared active session state', {
-      tabId: tabState.tabId,
-      activityId: currentActivityId,
-      reason,
-    });
+    // TimeTracker.logger.debug('Cleared active session state', {
+    //   tabId: tabState.tabId,
+    //   activityId: currentActivityId,
+    //   reason,
+    // });
 
     // Now generate the event using the captured values
     const context = {
@@ -774,13 +774,6 @@ export class TimeTracker {
     const result = this.eventGenerator.generateActiveTimeEnd(context, reason);
     if (result.success && result.event) {
       await this.eventQueue.enqueue(result.event);
-
-      TimeTracker.logger.info('Generated active_time_end event', {
-        tabId: tabState.tabId,
-        activityId: currentActivityId,
-        duration: timestamp - currentActiveTimeStart,
-        reason,
-      });
     } else {
       // If event generation failed, we need to restore the state
       // This is a rare edge case but important for consistency

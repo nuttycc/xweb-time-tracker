@@ -267,7 +267,7 @@ export class EventQueue {
   /**
    * Add an event to the queue
    *
-   * @param event - Domain event to queue
+   * @param event - Tracking event to queue
    * @throws {Error} If queue is shutting down or event validation fails
    */
   async enqueue(event: TrackingEvent): Promise<void> {
@@ -309,7 +309,7 @@ export class EventQueue {
 
     EventQueue.logger.debug(`Enqueued event: ${event.eventType}`, {
       queueSize: this.queue.length,
-      tabId: event.tabId,
+      event,
     });
 
     // Check if we need to flush

@@ -420,11 +420,9 @@ export class EventGenerator {
     if (!tabState.activeTimeStart || !tabState.activityId) {
       return false;
     }
-
     const timeoutThreshold = tabState.isAudible
       ? this.options.timeouts?.inactiveMedia ?? INACTIVE_TIMEOUT_MEDIA
       : this.options.timeouts?.inactiveDefault ?? INACTIVE_TIMEOUT_DEFAULT;
-
     const timeSinceLastInteraction = currentTimestamp - tabState.lastInteractionTimestamp;
     return timeSinceLastInteraction >= timeoutThreshold;
   }
@@ -447,12 +445,10 @@ export class EventGenerator {
         return false;
       }
       const activeTimeDuration = currentTimestamp - tabState.activeTimeStart;
-      const thresholdMs = CHECKPOINT_ACTIVE_TIME_THRESHOLD * 60 * 1000; // Convert minutes to ms
-      return activeTimeDuration >= thresholdMs;
+      return activeTimeDuration >= CHECKPOINT_ACTIVE_TIME_THRESHOLD;
     } else {
       const openTimeDuration = currentTimestamp - tabState.openTimeStart;
-      const thresholdMs = CHECKPOINT_OPEN_TIME_THRESHOLD * 60 * 1000; // Convert minutes to ms
-      return openTimeDuration >= thresholdMs;
+      return openTimeDuration >= CHECKPOINT_OPEN_TIME_THRESHOLD;
     }
   }
 

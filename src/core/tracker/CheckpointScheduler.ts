@@ -35,12 +35,12 @@ import { type Browser } from 'wxt/browser';
 export interface CheckpointSchedulerConfig {
   /** Alarm name for the checkpoint scheduler */
   alarmName: string;
-  /** Interval in minutes between checkpoint checks */
-  intervalMinutes: number;
-  /** Active time threshold in hours */
-  activeTimeThresholdHours: number;
-  /** Open time threshold in hours */
-  openTimeThresholdHours: number;
+  /** Interval in milliseconds between checkpoint checks */
+  interval: number;
+  /** Active time threshold in milliseconds */
+  activeTimeThreshold: number;
+  /** Open time threshold in milliseconds */
+  openTimeThreshold: number;
   /** Whether to enable debug logging */
   enableDebugLogging: boolean;
 }
@@ -50,9 +50,9 @@ export interface CheckpointSchedulerConfig {
  */
 export const DEFAULT_SCHEDULER_CONFIG: CheckpointSchedulerConfig = {
   alarmName: 'webtime-checkpoint-scheduler',
-  intervalMinutes: CHECKPOINT_INTERVAL,
-  activeTimeThresholdHours: CHECKPOINT_ACTIVE_TIME_THRESHOLD,
-  openTimeThresholdHours: CHECKPOINT_OPEN_TIME_THRESHOLD,
+  interval: CHECKPOINT_INTERVAL,
+  activeTimeThreshold: CHECKPOINT_ACTIVE_TIME_THRESHOLD,
+  openTimeThreshold: CHECKPOINT_OPEN_TIME_THRESHOLD,
   enableDebugLogging: false,
 };
 
@@ -146,10 +146,10 @@ export class CheckpointScheduler {
       if (!existingAlarm) {
         // Create the periodic alarm
         await browser.alarms.create(this.config.alarmName, {
-          delayInMinutes: this.config.intervalMinutes,
-          periodInMinutes: this.config.intervalMinutes,
+          delayInMinutes: this.config.interval / 60000,
+          periodInMinutes: this.config.interval / 60000,
         });
-        this.log(`Checkpoint alarm created with ${this.config.intervalMinutes}min interval`);
+        this.log(`Checkpoint alarm created with ${this.config.interval / 60000}min interval`);
       } else {
         this.log('Checkpoint alarm already exists, reusing existing alarm');
       }
@@ -286,12 +286,10 @@ export class CheckpointScheduler {
       : 0;
     const openTimeDuration = currentTime - tabState.openTimeStart;
 
-    // Convert thresholds from hours to milliseconds
-    const activeThresholdMs = this.config.activeTimeThresholdHours * 60 * 60 * 1000;
-    const openThresholdMs = this.config.openTimeThresholdHours * 60 * 60 * 1000;
+    const activeThreshold = this.config.activeTimeThreshold;
+    const openThreshold = this.config.openTimeThreshold;
 
-    // Check active time threshold first (higher priority)
-    if (tabState.activeTimeStart && activeTimeDuration >= activeThresholdMs) {
+    if (tabState.activeTimeStart && activeTimeDuration >= activeThreshold) {
       return {
         tabId,
         needsCheckpoint: true,
@@ -300,9 +298,7 @@ export class CheckpointScheduler {
         tabState,
       };
     }
-
-    // Check open time threshold
-    if (openTimeDuration >= openThresholdMs) {
+    if (openTimeDuration >= openThreshold) {
       return {
         tabId,
         needsCheckpoint: true,
@@ -311,8 +307,6 @@ export class CheckpointScheduler {
         tabState,
       };
     }
-
-    // No checkpoint needed
     return {
       tabId,
       needsCheckpoint: false,

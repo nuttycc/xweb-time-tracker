@@ -191,7 +191,7 @@ export class TabStateManager {
 
     this.setTabStateInMemory(tabId, tabState);
 
-    TabStateManager.logger.debug('Created tab state (memory-only)', tabState);
+    TabStateManager.logger.debug('Created tab state (memory-only)',{tabState, allTabStates: this.getAllTabStates()});
   }
 
   /**

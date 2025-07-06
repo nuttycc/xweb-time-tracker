@@ -385,6 +385,103 @@ export class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id'> {
     }
   }
 
+  /**
+   * Creates "checkpoint" events for all sessions that are currently open.
+   * An open session is defined as a sequence of events sharing a `visitId` or `activityId`
+   * that has a "start" event but no corresponding "end" event among the unprocessed logs.
+   *
+   * This mechanism allows the aggregation engine to calculate time for ongoing activities
+   * without waiting for them to formally close.
+   *
+   * @param checkpointTime - The timestamp to use for the new checkpoint events, typically `Date.now()`.
+   * @param options - Repository operation options.
+   * @returns A promise that resolves when the operation is complete.
+   */
+  async createCheckpointsForOpenSessions(
+    checkpointTime: number,
+    options: RepositoryOptions = {}
+  ): Promise<void> {
+    try {
+      await this.executeWithRetry(
+        async () => {
+          // 1. Fetch all unprocessed events
+          const unprocessedEvents = await this.getUnprocessedEvents({ orderBy: 'id', orderDirection: 'asc' });
+          if (unprocessedEvents.length === 0) {
+            this.logger.debug('No unprocessed events found, skipping checkpoint creation.');
+            return;
+          }
+
+          // 2. Group events by visitId and activityId to track sessions
+          const sessions = new Map<string, { lastEvent: EventsLogRecord; hasEnd: boolean }>();
+
+          for (const event of unprocessedEvents) {
+            // Track open_time sessions by visitId
+            const openTimeKey = `visit-${event.visitId}`;
+            if (!sessions.has(openTimeKey)) {
+              sessions.set(openTimeKey, { lastEvent: event, hasEnd: false });
+            }
+            if (event.eventType === 'open_time_start') {
+              sessions.set(openTimeKey, { lastEvent: event, hasEnd: false });
+            } else if (event.eventType === 'open_time_end') {
+              sessions.get(openTimeKey)!.hasEnd = true;
+            } else {
+              sessions.get(openTimeKey)!.lastEvent = event;
+            }
+
+            // Track active_time sessions by activityId
+            if (event.activityId) {
+              const activeTimeKey = `activity-${event.activityId}`;
+              if (!sessions.has(activeTimeKey)) {
+                sessions.set(activeTimeKey, { lastEvent: event, hasEnd: false });
+              }
+              if (event.eventType === 'active_time_start') {
+                sessions.set(activeTimeKey, { lastEvent: event, hasEnd: false });
+              } else if (event.eventType === 'active_time_end') {
+                sessions.get(activeTimeKey)!.hasEnd = true;
+              } else {
+                sessions.get(activeTimeKey)!.lastEvent = event;
+              }
+            }
+          }
+
+          // 3. Identify open sessions and create checkpoint events
+          const checkpointEvents: Omit<EventsLogRecord, 'id' | 'isProcessed'>[] = [];
+          for (const [key, session] of sessions.entries()) {
+            if (!session.hasEnd) {
+              const { lastEvent } = session;
+              const isActivity = key.startsWith('activity-');
+              
+              const newEvent: Omit<EventsLogRecord, 'id' | 'isProcessed'> = {
+                timestamp: checkpointTime,
+                eventType: 'checkpoint',
+                url: lastEvent.url,
+                tabId: lastEvent.tabId,
+                windowId: lastEvent.windowId,
+                visitId: lastEvent.visitId,
+                // For open_time sessions, activityId is null.
+                // For active_time sessions, it's taken from the last event.
+                activityId: isActivity ? lastEvent.activityId : null,
+              };
+              checkpointEvents.push(newEvent);
+            }
+          }
+
+          // 4. Bulk-add the new checkpoint events to the database
+          if (checkpointEvents.length > 0) {
+            this.logger.debug(`Creating ${checkpointEvents.length} checkpoint events.`, { checkpointEvents });
+            await this.table.bulkAdd(checkpointEvents as EventsLogRecord[]);
+          } else {
+            this.logger.debug('No open sessions found to checkpoint.');
+          }
+        },
+        'createCheckpointsForOpenSessions',
+        options
+      );
+    } catch (error) {
+      throw this.handleError(error, 'createCheckpointsForOpenSessions');
+    }
+  }
+
   // Validation methods implementation
   protected async validateForCreate(entity: InsertType<EventsLogRecord, 'id'>): Promise<void> {
     try {

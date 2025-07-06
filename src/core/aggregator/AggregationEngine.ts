@@ -35,6 +35,9 @@ export class AggregationEngine {
     AggregationEngine.logger.info('Aggregation started');
 
     try {
+      // Create checkpoints for all open sessions before fetching events
+      await this.eventsLogRepo.createCheckpointsForOpenSessions(Date.now());
+
       // this.logger.debug('Fetching unprocessed events');
       // Use ID ordering to preserve logical sequence, not timestamp ordering
       const unprocessedEvents = await this.eventsLogRepo.getUnprocessedEvents({

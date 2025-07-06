@@ -15,15 +15,13 @@ import { z } from 'zod/v4';
 
 /**
  * Inactive timeout threshold for regular content (milliseconds)
- * After this time without interaction, Active Time counting automatically terminates
  */
-export const INACTIVE_TIMEOUT_DEFAULT = 30000; // in seconds
+export const INACTIVE_TIMEOUT_DEFAULT = 30000; // 30s
 
 /**
  * Inactive timeout threshold when audio content is playing (milliseconds)
- * Applies to video learning and other passive consumption scenarios
  */
-export const INACTIVE_TIMEOUT_MEDIA = 300000; // in minutes
+export const INACTIVE_TIMEOUT_MEDIA = 300000; // 5min
 
 /**
  * Minimum scroll distance in pixels required to trigger Active Time
@@ -94,24 +92,24 @@ export const STORAGE_WARNING_THRESHOLD_PERCENT = 80;
 // ============================================================================
 
 /**
- * Active Time threshold (in minutes) that triggers checkpoint generation
+ * Active Time threshold that triggers checkpoint generation (milliseconds)
  */
-export const CHECKPOINT_ACTIVE_TIME_THRESHOLD = 5;
+export const CHECKPOINT_ACTIVE_TIME_THRESHOLD = 1 * 60 * 1000; // 1min
 
 /**
- * Open Time threshold (in minutes) that triggers checkpoint generation
+ * Open Time threshold that triggers checkpoint generation (milliseconds)
  */
-export const CHECKPOINT_OPEN_TIME_THRESHOLD = 60;
+export const CHECKPOINT_OPEN_TIME_THRESHOLD = 3 * 60 * 1000; // 3min
 
 /**
- * Interval (in minutes) for periodic checkpoint checking task
+ * Interval for periodic checkpoint checking task (milliseconds)
  */
-export const CHECKPOINT_INTERVAL = 10;
+export const CHECKPOINT_INTERVAL = 5 * 60 * 1000; // 5min
 
 /**
- * Interval (in minutes) for data aggregation task execution
+ * Interval for data aggregation task execution (milliseconds)
  */
-export const AGGREGATION_INTERVAL = 25;
+export const AGGREGATION_INTERVAL = 10 * 60 * 1000; // 10min
 
 // ============================================================================
 // 4.5 User Interface & Experience Parameters
@@ -169,9 +167,9 @@ export const UrlFilteringConfigSchema = z.object({
  * Schema for checkpoint configuration
  */
 export const CheckpointConfigSchema = z.object({
-  activeTimeThreshold: z.number().min(0.5).max(8),
-  openTimeThreshold: z.number().min(1).max(24),
-  checkpointInterval: z.number().int().min(5).max(120),
+  activeTimeThreshold: z.number().int().min(1_800_000).max(28_800_000), // 0.5h to 8h in ms
+  openTimeThreshold: z.number().int().min(3_600_000).max(86_400_000), // 1h to 24h in ms
+  interval: z.number().int().min(300_000).max(7_200_000), // 5min to 120min in ms
 });
 
 /**
@@ -228,7 +226,7 @@ export const DEFAULT_CONFIG: Config = {
   checkpoint: {
     activeTimeThreshold: CHECKPOINT_ACTIVE_TIME_THRESHOLD,
     openTimeThreshold: CHECKPOINT_OPEN_TIME_THRESHOLD,
-    checkpointInterval: CHECKPOINT_INTERVAL,
+    interval: CHECKPOINT_INTERVAL,
   },
   retentionPolicy: {
     policy: RETENTION_POLICY_DEFAULT,

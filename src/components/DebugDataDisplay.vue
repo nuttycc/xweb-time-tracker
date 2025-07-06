@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { EventsLogRecord, AggregatedStatsRecord } from '@/core/db';
 import { computed, ref } from 'vue';
+import { EVENT_TYPES } from '@/core/db/models/eventslog.model';
 
 // ============================================================================
 // Props Definition
@@ -41,12 +42,6 @@ const props = withDefaults(defineProps<Props>(), {
 const eventFilter = ref<'all' | 'processed' | 'unprocessed'>('all');
 const eventTypeFilter = ref<string>('all');
 
-/** Available event types for filtering */
-const availableEventTypes = computed(() => {
-  const types = new Set(props.events.map(event => event.eventType));
-  return Array.from(types).sort();
-});
-
 // ============================================================================
 // Computed Properties
 // ============================================================================
@@ -64,6 +59,26 @@ const formatDuration = (ms: number) => {
   return `${(ms / 3600000).toFixed(1)}h`;
 };
 
+// 辅助函数：区分 checkpoint 类型
+function getDisplayEventType(event: EventsLogRecord): string {
+  if (event.eventType === 'checkpoint') {
+    return event.activityId ? 'checkpoint_active_time' : 'checkpoint_open_time';
+  }
+  return event.eventType;
+}
+
+// 所有可选类型（含合成类型）
+const ALL_EVENT_TYPE_OPTIONS = [
+  ...EVENT_TYPES.filter(t => t !== 'checkpoint'),
+  'checkpoint_active_time',
+  'checkpoint_open_time',
+];
+
+/** Available event types for filtering */
+const availableEventTypes = computed(() => {
+  return ALL_EVENT_TYPE_OPTIONS;
+});
+
 /** Get event type display color */
 const getEventTypeColor = (eventType: string) => {
   const colors: Record<string, string> = {
@@ -71,7 +86,9 @@ const getEventTypeColor = (eventType: string) => {
     open_time_end: 'text-red-600',
     active_time_start: 'text-blue-600',
     active_time_end: 'text-orange-600',
-    checkpoint: 'text-purple-600',
+    checkpoint_active_time: 'text-purple-700',
+    checkpoint_open_time: 'text-purple-400',
+    checkpoint: 'text-purple-600', // fallback
   };
   return colors[eventType] || 'text-gray-600';
 };
@@ -87,9 +104,11 @@ const sortedEvents = computed(() => {
     filteredEvents = filteredEvents.filter(event => event.isProcessed === 0);
   }
 
-  // Apply event type filter
+  // Apply event type filter (基于 display type)
   if (eventTypeFilter.value !== 'all') {
-    filteredEvents = filteredEvents.filter(event => event.eventType === eventTypeFilter.value);
+    filteredEvents = filteredEvents.filter(
+      event => getDisplayEventType(event) === eventTypeFilter.value
+    );
   }
 
   // Sort by timestamp (newest first)
@@ -131,6 +150,62 @@ const parseUrlDetails = (url: string) => {
     };
   }
 };
+
+/** Group stats by hostname and calculate host summaries */
+const groupedStats = computed(() => {
+  if (props.stats.length === 0) return {};
+
+  const groups: Record<
+    string,
+    {
+      hostname: string;
+      totalOpenTime: number;
+      totalActiveTime: number;
+      visitCount: number;
+      paths: AggregatedStatsRecord[];
+    }
+  > = {};
+
+  // Group by hostname
+  props.stats.forEach(stat => {
+    if (!groups[stat.hostname]) {
+      groups[stat.hostname] = {
+        hostname: stat.hostname,
+        totalOpenTime: 0,
+        totalActiveTime: 0,
+        visitCount: 0,
+        paths: [],
+      };
+    }
+
+    groups[stat.hostname].totalOpenTime += stat.total_open_time;
+    groups[stat.hostname].totalActiveTime += stat.total_active_time;
+    groups[stat.hostname].visitCount += 1;
+    groups[stat.hostname].paths.push(stat);
+  });
+
+  // Sort paths within each group by total time (descending)
+  Object.values(groups).forEach(group => {
+    group.paths.sort(
+      (a, b) => b.total_open_time + b.total_active_time - (a.total_open_time + a.total_active_time)
+    );
+  });
+
+  return groups;
+});
+
+/** Get sorted hostnames by total time */
+const sortedHostnames = computed(() => {
+  return Object.keys(groupedStats.value).sort((a, b) => {
+    const groupA = groupedStats.value[a];
+    const groupB = groupedStats.value[b];
+    return (
+      groupB.totalOpenTime +
+      groupB.totalActiveTime -
+      (groupA.totalOpenTime + groupA.totalActiveTime)
+    );
+  });
+});
 </script>
 
 <template>
@@ -171,24 +246,77 @@ const parseUrlDetails = (url: string) => {
         <div v-if="stats.length === 0" class="text-sm text-gray-500">
           No aggregated data found for this domain.
         </div>
-        <div v-else class="space-y-3">
-          <div v-for="stat in stats" :key="stat.key" class="rounded bg-white p-3 shadow-sm">
-            <div class="space-y-2 text-sm">
-              <!-- Key -->
-              <div>
-                <span class="font-medium text-gray-700">Key:</span>
-                <span class="ml-2 font-mono text-xs break-all">{{ stat.key }}</span>
+        <div v-else class="space-y-4">
+          <!-- Host Groups -->
+          <div v-for="hostname in sortedHostnames" :key="hostname" class="space-y-3">
+            <!-- Host Summary -->
+            <div class="rounded-lg bg-gradient-to-r from-blue-100 to-indigo-100 p-4 shadow-md">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="flex items-center text-lg font-bold text-gray-800">
+                  <span class="mr-2 text-blue-600">🌐</span>
+                  {{ hostname }}
+                </h3>
+                <span class="rounded-full bg-white px-2 py-1 text-sm text-gray-600">
+                  {{ groupedStats[hostname].visitCount }} paths
+                </span>
               </div>
 
-              <!-- Data -->
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <span class="font-medium">Open:</span>
-                  {{ formatDuration(stat.total_open_time) }}
+              <div class="grid grid-cols-2 gap-6 text-sm">
+                <div class="flex items-center">
+                  <span class="mr-2 font-medium text-gray-700">总打开时间:</span>
+                  <span class="text-lg font-bold text-green-600">
+                    {{ formatDuration(groupedStats[hostname].totalOpenTime) }}
+                  </span>
                 </div>
-                <div>
-                  <span class="font-medium">Active:</span>
-                  {{ formatDuration(stat.total_active_time) }}
+                <div class="flex items-center">
+                  <span class="mr-2 font-medium text-gray-700">总活跃时间:</span>
+                  <span class="text-lg font-bold text-blue-600">
+                    {{ formatDuration(groupedStats[hostname].totalActiveTime) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Path Details -->
+            <div class="ml-4 space-y-2">
+              <div
+                v-for="stat in groupedStats[hostname].paths"
+                :key="stat.key"
+                class="rounded border-l-4 border-gray-300 bg-white p-3 shadow-sm transition-colors hover:border-blue-400"
+              >
+                <div class="space-y-2 text-sm">
+                  <!-- Path Info -->
+                  <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                      <div class="mb-1 font-medium text-gray-800">
+                        {{ parseUrlDetails(stat.url).fullPath || '/' }}
+                      </div>
+                      <div class="font-mono text-xs break-all text-gray-500">
+                        {{ stat.url }}
+                      </div>
+                    </div>
+                    <div class="ml-2 text-xs text-gray-400">
+                      {{ stat.date }}
+                    </div>
+                  </div>
+
+                  <!-- Time Data -->
+                  <div class="grid grid-cols-2 gap-4 border-t border-gray-100 pt-2">
+                    <div class="flex items-center">
+                      <span class="mr-2 h-2 w-2 rounded-full bg-green-400"></span>
+                      <span class="font-medium text-gray-600">打开:</span>
+                      <span class="ml-1 font-semibold text-green-600">
+                        {{ formatDuration(stat.total_open_time) }}
+                      </span>
+                    </div>
+                    <div class="flex items-center">
+                      <span class="mr-2 h-2 w-2 rounded-full bg-blue-400"></span>
+                      <span class="font-medium text-gray-600">活跃:</span>
+                      <span class="ml-1 font-semibold text-blue-600">
+                        {{ formatDuration(stat.total_active_time) }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -266,8 +394,11 @@ const parseUrlDetails = (url: string) => {
             :class="event.isProcessed === 1 ? 'border-green-400' : 'border-yellow-400'"
           >
             <div class="mb-1 flex items-center justify-between">
-              <span class="text-sm font-medium" :class="getEventTypeColor(event.eventType)">
-                {{ event.eventType }}
+              <span
+                class="text-sm font-medium"
+                :class="getEventTypeColor(getDisplayEventType(event))"
+              >
+                {{ getDisplayEventType(event) }}
               </span>
               <span class="text-xs text-gray-500">
                 {{ event.isProcessed === 1 ? 'Processed' : 'Unprocessed' }}
@@ -281,9 +412,7 @@ const parseUrlDetails = (url: string) => {
 
               <!-- URL Details for Events -->
               <div class="mt-2 border-t pt-1">
-                <div>
-                  <span class="font-medium">Domain:</span> {{ parseUrlDetails(event.url).hostname }}
-                </div>
+                <div><span class="font-medium">URL:</span> {{ event.url }}</div>
                 <div v-if="parseUrlDetails(event.url).fullPath !== '/'">
                   <span class="font-medium">Path:</span>
                   <span class="font-mono text-xs break-all">{{
