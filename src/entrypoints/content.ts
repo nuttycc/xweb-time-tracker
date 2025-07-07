@@ -10,12 +10,8 @@
 import { defineContentScript } from '#imports';
 import { defineExtensionMessaging } from '@webext-core/messaging';
 import { throttle, debounce } from 'es-toolkit';
-import {
-  SCROLL_THRESHOLD_PIXELS,
-  MOUSEMOVE_THRESHOLD_PIXELS,
-  INACTIVE_TIMEOUT_DEFAULT,
-  INACTIVE_TIMEOUT_MEDIA,
-} from '../config/constants';
+import { DEFAULT_CONFIG } from '../config/constants';
+import type { TimeTrackingConfig } from '../config/constants';
 import type { InteractionMessage } from '../core/tracker/types';
 import { createLogger } from '@/utils/logger';
 
@@ -51,7 +47,7 @@ export default defineContentScript({
     logger.info('WebTime Tracker content script loaded');
 
     // Initialize interaction detector
-    const interactionDetector = new InteractionDetector();
+    const interactionDetector = new InteractionDetector(DEFAULT_CONFIG.timeTracking);
     interactionDetector.initialize();
   },
 });
@@ -67,6 +63,7 @@ class InteractionDetector {
   private isInitialized = false;
   private isTracking = false;
   private tabId = 0;
+  private readonly config: TimeTrackingConfig;
 
   // Throttling configuration 
   private readonly THROTTLE_INTERVAL = 2000; // in ms for interaction-detected messages
@@ -92,7 +89,8 @@ class InteractionDetector {
     handler: EventListener;
   }> = [];
 
-  constructor() {
+  constructor(config: TimeTrackingConfig) {
+    this.config = config;
     // Initialize throttled function for sending interactions
     this.throttledSendInteraction = throttle(
       this.sendInteractionInternal.bind(this),
@@ -104,7 +102,7 @@ class InteractionDetector {
     // Start with default timeout, will be updated based on audible state
     this.debouncedSendIdleNotification = debounce(
       this.sendIdleNotification.bind(this),
-      INACTIVE_TIMEOUT_DEFAULT,
+      this.config.inactiveTimeoutDefault,
       { edges: ['trailing'] }
     );
   }
@@ -230,7 +228,7 @@ class InteractionDetector {
     this.scrollAccumulator += scrollDelta;
 
     // Check if we should send a scroll interaction (threshold check)
-    if (this.scrollAccumulator >= SCROLL_THRESHOLD_PIXELS) {
+    if (this.scrollAccumulator >= this.config.scrollThresholdPixels) {
       // Use throttled function to send interaction
       this.throttledSendInteraction('scroll', {
         scrollDelta: this.scrollAccumulator,
@@ -265,7 +263,7 @@ class InteractionDetector {
     this.lastMouseY = mouseEvent.clientY;
 
     // Check if we should send a mousemove interaction (threshold check)
-    if (this.mouseMoveAccumulator >= MOUSEMOVE_THRESHOLD_PIXELS) {
+    if (this.mouseMoveAccumulator >= this.config.mousemoveThresholdPixels) {
       // Use throttled function to send interaction
       this.throttledSendInteraction('mousemove', {
         movementDelta: this.mouseMoveAccumulator,
@@ -337,7 +335,9 @@ class InteractionDetector {
         timestamp: Date.now(),
       });
 
-      const timeout = this.isAudible ? INACTIVE_TIMEOUT_MEDIA : INACTIVE_TIMEOUT_DEFAULT;
+      const timeout = this.isAudible
+        ? this.config.inactiveTimeoutMedia
+        : this.config.inactiveTimeoutDefault;
       InteractionDetector.logger.debug('Idle notification sent', {
         tabId: this.tabId,
         timeout: `${timeout}ms`,
@@ -356,7 +356,9 @@ class InteractionDetector {
     this.debouncedSendIdleNotification.cancel();
 
     // Choose timeout based on audible state
-    const timeout = this.isAudible ? INACTIVE_TIMEOUT_MEDIA : INACTIVE_TIMEOUT_DEFAULT;
+    const timeout = this.isAudible
+      ? this.config.inactiveTimeoutMedia
+      : this.config.inactiveTimeoutDefault;
 
     // Create new debounced function with updated timeout
     this.debouncedSendIdleNotification = debounce(this.sendIdleNotification.bind(this), timeout, {

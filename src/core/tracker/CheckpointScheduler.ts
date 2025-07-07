@@ -16,14 +16,11 @@ import { TabStateManager } from '@/core/tracker/utils/TabStateManager';
 import { EventGenerator } from '@/core/tracker/utils/EventGenerator';
 import { EventQueue } from '@/core/tracker/utils/EventQueue';
 import { TabState, CheckpointData } from '@/core/tracker/types';
-import {
-  CHECKPOINT_INTERVAL,
-  CHECKPOINT_ACTIVE_TIME_THRESHOLD,
-  CHECKPOINT_OPEN_TIME_THRESHOLD,
-} from '@/config/constants';
+import { DEFAULT_CONFIG, type CheckpointConfig } from '@/config/constants';
 
 // All types can be accessed via WXT's Browser namespace:
 import { type Browser } from 'wxt/browser';
+import { createLogger } from '@/utils/logger';
 
 // ============================================================================
 // Configuration and Types
@@ -35,12 +32,12 @@ import { type Browser } from 'wxt/browser';
 export interface CheckpointSchedulerConfig {
   /** Alarm name for the checkpoint scheduler */
   alarmName: string;
-  /** Interval in minutes between checkpoint checks */
-  intervalMinutes: number;
-  /** Active time threshold in hours */
-  activeTimeThresholdHours: number;
-  /** Open time threshold in hours */
-  openTimeThresholdHours: number;
+  /** Interval in milliseconds between checkpoint checks */
+  interval: number;
+  /** Active time threshold in milliseconds */
+  activeTimeThreshold: number;
+  /** Open time threshold in milliseconds */
+  openTimeThreshold: number;
   /** Whether to enable debug logging */
   enableDebugLogging: boolean;
 }
@@ -50,9 +47,9 @@ export interface CheckpointSchedulerConfig {
  */
 export const DEFAULT_SCHEDULER_CONFIG: CheckpointSchedulerConfig = {
   alarmName: 'webtime-checkpoint-scheduler',
-  intervalMinutes: CHECKPOINT_INTERVAL,
-  activeTimeThresholdHours: CHECKPOINT_ACTIVE_TIME_THRESHOLD,
-  openTimeThresholdHours: CHECKPOINT_OPEN_TIME_THRESHOLD,
+  interval: DEFAULT_CONFIG.checkpoint.interval,
+  activeTimeThreshold: DEFAULT_CONFIG.checkpoint.activeTimeThreshold,
+  openTimeThreshold: DEFAULT_CONFIG.checkpoint.openTimeThreshold,
   enableDebugLogging: false,
 };
 
@@ -103,7 +100,10 @@ export interface SchedulerStats {
  * - Comprehensive logging and statistics
  */
 export class CheckpointScheduler {
-  private readonly config: CheckpointSchedulerConfig;
+  private static readonly logger = createLogger('🔄 CheckpointScheduler');
+  private static readonly ALARM_NAME = 'webtime-checkpoint-scheduler';
+  private readonly checkpointConfig: CheckpointConfig;
+  private readonly enableDebugLogging: boolean;
   private readonly tabStateManager: TabStateManager;
   private readonly eventGenerator: EventGenerator;
   private readonly eventQueue: EventQueue;
@@ -114,9 +114,11 @@ export class CheckpointScheduler {
     tabStateManager: TabStateManager,
     eventGenerator: EventGenerator,
     eventQueue: EventQueue,
-    config: Partial<CheckpointSchedulerConfig> = {}
+    config: CheckpointConfig,
+    enableDebugLogging = false,
   ) {
-    this.config = { ...DEFAULT_SCHEDULER_CONFIG, ...config };
+    this.checkpointConfig = config;
+    this.enableDebugLogging = enableDebugLogging;
     this.tabStateManager = tabStateManager;
     this.eventGenerator = eventGenerator;
     this.eventQueue = eventQueue;
@@ -135,30 +137,32 @@ export class CheckpointScheduler {
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
-      this.log('Scheduler already initialized');
+      CheckpointScheduler.logger.info('Scheduler already initialized');
       return;
     }
 
     try {
       // Check if alarm already exists to avoid duplicates
-      const existingAlarm = await browser.alarms.get(this.config.alarmName);
+      const existingAlarm = await browser.alarms.get(CheckpointScheduler.ALARM_NAME);
 
       if (!existingAlarm) {
         // Create the periodic alarm
-        await browser.alarms.create(this.config.alarmName, {
-          delayInMinutes: this.config.intervalMinutes,
-          periodInMinutes: this.config.intervalMinutes,
+        await browser.alarms.create(CheckpointScheduler.ALARM_NAME, {
+          delayInMinutes: this.checkpointConfig.interval,
+          periodInMinutes: this.checkpointConfig.interval,
         });
-        this.log(`Checkpoint alarm created with ${this.config.intervalMinutes}min interval`);
+        CheckpointScheduler.logger.debug(
+          `Checkpoint alarm created with ${this.checkpointConfig.interval} min interval`,
+        );
       } else {
-        this.log('Checkpoint alarm already exists, reusing existing alarm');
+        CheckpointScheduler.logger.debug('Checkpoint alarm already exists, reusing existing alarm');
       }
 
       // Set up alarm listener
       browser.alarms.onAlarm.addListener(this.handleAlarm.bind(this));
 
       this.isInitialized = true;
-      this.log('Checkpoint scheduler initialized successfully');
+      CheckpointScheduler.logger.info('Checkpoint scheduler initialized successfully');
     } catch (error) {
       console.error('Failed to initialize checkpoint scheduler:', error);
       throw error;
@@ -176,15 +180,15 @@ export class CheckpointScheduler {
 
     try {
       // Clear the alarm
-      await browser.alarms.clear(this.config.alarmName);
+      await browser.alarms.clear(CheckpointScheduler.ALARM_NAME);
 
       // Note: We can't remove specific listeners in Chrome extensions
       // The listener will be cleaned up when the service worker restarts
 
       this.isInitialized = false;
-      this.log('Checkpoint scheduler stopped');
+      CheckpointScheduler.logger.info('Checkpoint scheduler stopped');
     } catch (error) {
-      console.error('Failed to stop checkpoint scheduler:', error);
+      CheckpointScheduler.logger.error('Failed to stop checkpoint scheduler:', error);
       throw error;
     }
   }
@@ -194,7 +198,7 @@ export class CheckpointScheduler {
    * Useful for testing or immediate evaluation
    */
   async triggerCheck(): Promise<CheckpointEvaluation[]> {
-    this.log('Manual checkpoint check triggered');
+    CheckpointScheduler.logger.info('Manual checkpoint check triggered');
     return this.performCheckpointCheck();
   }
 
@@ -220,11 +224,11 @@ export class CheckpointScheduler {
    * Handle alarm events
    */
   private async handleAlarm(alarm: Browser.alarms.Alarm): Promise<void> {
-    if (alarm.name !== this.config.alarmName) {
+    if (alarm.name !== CheckpointScheduler.ALARM_NAME) {
       return;
     }
 
-    this.log('Checkpoint alarm triggered');
+    CheckpointScheduler.logger.info('Checkpoint alarm triggered');
 
     try {
       await this.performCheckpointCheck();
@@ -247,7 +251,7 @@ export class CheckpointScheduler {
       this.stats.activeSessions = allTabStates.size;
 
       if (allTabStates.size === 0) {
-        this.log('No active sessions to check');
+        CheckpointScheduler.logger.info('No active sessions to check');
         return [];
       }
 
@@ -263,12 +267,12 @@ export class CheckpointScheduler {
         }
       }
 
-      const checkpointsGenerated = evaluations.filter(e => e.needsCheckpoint).length;
-      this.log(`Checkpoint check completed: ${checkpointsGenerated} checkpoints generated`);
-
+      const checkpointsGenerated = evaluations.filter(e => e.needsCheckpoint);
+      CheckpointScheduler.logger.debug('Checkpoint check completed', {checkpointsGenerated});
+      
       return evaluations;
     } catch (error) {
-      console.error('Error during checkpoint check:', error);
+      CheckpointScheduler.logger.error('Error during checkpoint check:', error);
       throw error;
     }
   }
@@ -286,12 +290,10 @@ export class CheckpointScheduler {
       : 0;
     const openTimeDuration = currentTime - tabState.openTimeStart;
 
-    // Convert thresholds from hours to milliseconds
-    const activeThresholdMs = this.config.activeTimeThresholdHours * 60 * 60 * 1000;
-    const openThresholdMs = this.config.openTimeThresholdHours * 60 * 60 * 1000;
+    const activeThreshold = this.checkpointConfig.activeTimeThreshold;
+    const openThreshold = this.checkpointConfig.openTimeThreshold;
 
-    // Check active time threshold first (higher priority)
-    if (tabState.activeTimeStart && activeTimeDuration >= activeThresholdMs) {
+    if (tabState.activeTimeStart && activeTimeDuration >= activeThreshold) {
       return {
         tabId,
         needsCheckpoint: true,
@@ -300,9 +302,7 @@ export class CheckpointScheduler {
         tabState,
       };
     }
-
-    // Check open time threshold
-    if (openTimeDuration >= openThresholdMs) {
+    if (openTimeDuration >= openThreshold) {
       return {
         tabId,
         needsCheckpoint: true,
@@ -311,8 +311,6 @@ export class CheckpointScheduler {
         tabState,
       };
     }
-
-    // No checkpoint needed
     return {
       tabId,
       needsCheckpoint: false,
@@ -353,10 +351,10 @@ export class CheckpointScheduler {
             `${evaluation.checkpointType} (${Math.round(evaluation.duration / 1000)}s)`
         );
       } else {
-        console.error('Failed to generate checkpoint:', result.error);
+        CheckpointScheduler.logger.error('Failed to generate checkpoint:', result.error);
       }
     } catch (error) {
-      console.error('Error generating checkpoint:', error);
+      CheckpointScheduler.logger.error('Error generating checkpoint:', error);
     }
   }
 
@@ -364,7 +362,7 @@ export class CheckpointScheduler {
    * Log debug messages if enabled
    */
   private log(message: string): void {
-    if (this.config.enableDebugLogging) {
+    if (this.enableDebugLogging) {
       console.log(`[CheckpointScheduler] ${message}`);
     }
   }
@@ -383,9 +381,16 @@ export function createCheckpointScheduler(
   tabStateManager: TabStateManager,
   eventGenerator: EventGenerator,
   eventQueue: EventQueue,
-  config?: Partial<CheckpointSchedulerConfig>
+  config: CheckpointConfig,
+  enableDebugLogging: boolean,
 ): CheckpointScheduler {
-  return new CheckpointScheduler(tabStateManager, eventGenerator, eventQueue, config);
+  return new CheckpointScheduler(
+    tabStateManager,
+    eventGenerator,
+    eventQueue,
+    config,
+    enableDebugLogging,
+  );
 }
 
 /**
@@ -398,9 +403,13 @@ export function createCheckpointScheduler(
 export function createDebugCheckpointScheduler(
   tabStateManager: TabStateManager,
   eventGenerator: EventGenerator,
-  eventQueue: EventQueue
+  eventQueue: EventQueue,
 ): CheckpointScheduler {
-  return new CheckpointScheduler(tabStateManager, eventGenerator, eventQueue, {
-    enableDebugLogging: true,
-  });
+  return new CheckpointScheduler(
+    tabStateManager,
+    eventGenerator,
+    eventQueue,
+    DEFAULT_CONFIG.checkpoint,
+    true,
+  );
 }

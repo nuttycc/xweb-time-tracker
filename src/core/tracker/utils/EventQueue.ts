@@ -267,7 +267,7 @@ export class EventQueue {
   /**
    * Add an event to the queue
    *
-   * @param event - Domain event to queue
+   * @param event - Tracking event to queue
    * @throws {Error} If queue is shutting down or event validation fails
    */
   async enqueue(event: TrackingEvent): Promise<void> {
@@ -309,7 +309,7 @@ export class EventQueue {
 
     EventQueue.logger.debug(`Enqueued event: ${event.eventType}`, {
       queueSize: this.queue.length,
-      tabId: event.tabId,
+      event,
     });
 
     // Check if we need to flush
@@ -391,7 +391,7 @@ export class EventQueue {
 
     const queueSize = this.queue.length;
     const reason = this.queue.length >= this.config.maxQueueSize ? 'maxQueueSize' : 'scheduled';
-    EventQueue.logger.info(`Flushing queue: ${queueSize} events`, { reason });
+    EventQueue.logger.debug('Flushing queue', { queueSize, reason });
 
     // Clear any pending flush timer
     this.clearFlushTimer();
@@ -517,7 +517,7 @@ export class EventQueue {
     const domainEvents = events.map(qe => qe.event);
 
     const startTime = Date.now();
-    EventQueue.logger.info(`Writing ${events.length} events to database...`, events);
+    EventQueue.logger.debug(`Writing events to database...`, {events});
 
     try {
       // Use Dexie's bulkAdd for efficient batch writing
@@ -535,8 +535,9 @@ export class EventQueue {
       );
 
       const duration = Date.now() - startTime;
-      EventQueue.logger.info(`Bulk write success: ${events.length} events`, {
+      EventQueue.logger.debug(`Bulk write success`, {
         duration: `${duration}ms`,
+        eventsCount: events.length,
       });
 
       this.stats.totalProcessed += events.length;

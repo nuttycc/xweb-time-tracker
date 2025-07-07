@@ -9,6 +9,7 @@
 
 import { browser, defineBackground } from '#imports';
 import { defineExtensionMessaging } from '@webext-core/messaging';
+import { debounce } from 'es-toolkit';
 import { createTimeTracker, type BrowserEventData, type InteractionMessage } from '@/core/tracker';
 import { isProtectedUrl } from '@/core/tracker/utils/URLProcessor';
 import { createLogger } from '@/utils/logger';
@@ -27,6 +28,7 @@ import type {
   ManualAggregationResponse,
 } from '@/types/messaging';
 import { databaseService } from '@/core/db/services/database.service';
+import { LRUCache } from 'lru-cache';
 
 // Define messaging protocol for communication with content scripts and popup
 interface TrackerProtocolMap extends PopupDebugProtocolMap {
@@ -64,6 +66,41 @@ const timeTracker = createTimeTracker({
 
 // Global reference to aggregation scheduler for manual triggering
 let aggregationScheduler: AggregationScheduler | null = null;
+
+/**
+ * Maximum number of tabs to track in navigation cache.
+ * Older entries will be evicted using LRU policy.
+ */
+const MAX_TRACKED_TABS = 100;
+
+/**
+ * Cleanup stale navigation entries older than this threshold.
+ */
+const STALE_ENTRY_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Navigation tracking cache to prevent duplicate event handling.
+ * Uses LRU policy and TTL to limit memory usage.
+ */
+const navigationTracker = new LRUCache<number, { url: string; timestamp: number }>({
+  max: MAX_TRACKED_TABS,
+  ttl: STALE_ENTRY_THRESHOLD_MS,
+});
+
+/**
+ * Debounced navigation handlers for each tab to prevent processing rapid-fire navigation events.
+ * Uses LRU policy and TTL to limit memory usage.
+ */
+const debouncedNavHandlers = new LRUCache<number, ReturnType<typeof debounce>>({
+  max: MAX_TRACKED_TABS,
+  ttl: STALE_ENTRY_THRESHOLD_MS,
+});
+
+/**
+ * Debounce delay in milliseconds for navigation event processing.
+ * This ensures that during rapid URL changes, only the final URL is processed.
+ */
+const NAVIGATION_DEBOUNCE_DELAY_MS = 1000;
 
 export default defineBackground(() => {
   logger.info('WebTime Tracker starting...');
@@ -188,9 +225,79 @@ function shouldTrackUrl(
 }
 
 /**
+ * The core navigation processing function that executes after debounce delay.
+ * This function contains the actual logic for handling navigation events.
+ *
+ * @param tabId - The ID of the tab where navigation occurred
+ * @param url - The final URL after debounce delay
+ */
+async function processNavigation(tabId: number, url: string): Promise<void> {
+  const now = Date.now();
+  const lastNav = navigationTracker.get(tabId);
+
+  // Core URL change detection: Only process if URL has actually changed
+  if (lastNav && lastNav.url === url) {
+    logger.debug('URL unchanged after debounce, ignoring navigation', { tabId, url });
+    return;
+  }
+
+  // This is a valid, new navigation event
+  logger.info('Processing debounced navigation', { tabId, url, previousUrl: lastNav?.url });
+
+  // Update tracker cache
+  navigationTracker.set(tabId, { url, timestamp: now });
+
+  // Forward the event to the core TimeTracker
+  const eventData: BrowserEventData = {
+    type: 'web-navigation-committed',
+    tabId,
+    url,
+    timestamp: now,
+  };
+
+  await timeTracker.handleBrowserEvent(eventData);
+}
+
+/**
+ * Unified navigation event scheduler that manages debounced processing.
+ * All navigation events (onCommitted, onHistoryStateUpdated, onUpdated) go through this function.
+ *
+ * @param tabId - The ID of the tab where navigation occurred
+ * @param url - The new URL
+ * @param frameId - Optional frame ID for filtering main frame events
+ * @param source - The event source (auto-inferred)
+ */
+function scheduleNavigationProcessing(tabId: number, url: string, frameId?: number, source?: string): void {
+  // Only process events for the main frame (frameId === 0 or undefined for onUpdated)
+  if (frameId !== undefined && frameId !== 0) {
+    return;
+  }
+
+  // Filter protected URLs at entry point
+  if (!shouldTrackUrl(url, { tabId, source: source || 'navigation-scheduler' })) {
+    return;
+  }
+
+  logger.debug('Scheduling navigation processing', { tabId, url, frameId, source });
+
+  // Get or create debounced handler for this tab
+  let handler = debouncedNavHandlers.get(tabId);
+  if (!handler) {
+    // Create a new debounced handler specifically for this tab
+    handler = debounce(processNavigation, NAVIGATION_DEBOUNCE_DELAY_MS);
+    debouncedNavHandlers.set(tabId, handler);
+    logger.debug('Created new debounced handler for tab', { tabId });
+  }
+
+  // Schedule the navigation processing (this will reset the debounce timer)
+  handler(tabId, url);
+}
+
+/**
  * Sets up browser event listeners to capture tab, window, navigation, and runtime events, forwarding them to the time tracker.
  *
- * Registers handlers for tab activation, updates (including URL and audible state changes), removal, window focus changes, main frame navigation commits, and runtime suspension. Notifies content scripts when a page load completes and ensures the time tracker is stopped gracefully during runtime suspension.
+ * Uses a unified debounced navigation processing approach to handle traditional page loads, SPA navigations,
+ * and tab updates. Ensures no duplicate navigation events and handles rapid URL changes gracefully.
  */
 function setupBrowserEventListeners(): void {
   // Tab activation events
@@ -213,17 +320,16 @@ function setupBrowserEventListeners(): void {
     }
   });
 
-  // Tab update events
+  // Tab update events - unified navigation and audible state handling
   browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    // Check if any trackable changes occurred
-    const hasUrlChange = changeInfo.url || changeInfo.status === 'complete';
-    const hasAudibleChange = changeInfo.audible !== undefined;
+    if (changeInfo.url) {
+      scheduleNavigationProcessing(tabId, changeInfo.url, undefined, 'tabs.onUpdated');
+    }
 
-    if (hasUrlChange || hasAudibleChange) {
-      const currentUrl = changeInfo.url || tab.url;
-
+    // Handle audible state changes separately (non-navigation events)
+    if (changeInfo.audible !== undefined) {
       // Filter protected URLs at entry point
-      if (!shouldTrackUrl(currentUrl, { tabId, source: 'tab-update' })) {
+      if (!shouldTrackUrl(tab.url, { tabId, source: 'tab-update-audible' })) {
         return;
       }
 
@@ -231,27 +337,27 @@ function setupBrowserEventListeners(): void {
         type: 'tab-updated',
         tabId,
         windowId: tab.windowId,
-        url: currentUrl,
+        url: tab.url,
         changeInfo,
         timestamp: Date.now(),
       };
 
       await timeTracker.handleBrowserEvent(eventData);
+    }
 
-      // Notify content script if page is complete
-      if (changeInfo.status === 'complete' && currentUrl) {
-        try {
-          await sendMessage(
-            'page-status-update',
-            {
-              isTracking: true,
-              tabId,
-            },
-            tabId
-          );
-        } catch {
-          // Content script might not be ready yet, ignore
-        }
+    // Notify content script if page is complete
+    if (changeInfo.status === 'complete' && tab.url) {
+      try {
+        await sendMessage(
+          'page-status-update',
+          {
+            isTracking: true,
+            tabId,
+          },
+          tabId
+        );
+      } catch {
+        // Content script might not be ready yet, ignore
       }
     }
   });
@@ -266,6 +372,14 @@ function setupBrowserEventListeners(): void {
     };
 
     await timeTracker.handleBrowserEvent(eventData);
+
+    // Clean up debounced handlers and tracking data for removed tabs
+    const handler = debouncedNavHandlers.get(tabId);
+    if (handler) {
+      handler.cancel(); // Cancel any pending debounced navigation
+      debouncedNavHandlers.delete(tabId);
+    }
+    navigationTracker.delete(tabId);
   });
 
   // Window focus change events
@@ -279,24 +393,14 @@ function setupBrowserEventListeners(): void {
     await timeTracker.handleBrowserEvent(eventData);
   });
 
-  // Web navigation events (for SPA detection)
+  // Traditional page navigation events (full page loads, refreshes)
   browser.webNavigation.onCommitted.addListener(async details => {
-    // Only handle main frame navigation
-    if (details.frameId === 0) {
-      // Filter protected URLs at entry point
-      if (!shouldTrackUrl(details.url, { tabId: details.tabId, source: 'web-navigation' })) {
-        return;
-      }
+    scheduleNavigationProcessing(details.tabId, details.url, details.frameId, 'webNavigation.onCommitted');
+  });
 
-      const eventData: BrowserEventData = {
-        type: 'web-navigation-committed',
-        tabId: details.tabId,
-        url: details.url,
-        timestamp: Date.now(),
-      };
-
-      await timeTracker.handleBrowserEvent(eventData);
-    }
+  // SPA navigation events (History API: pushState, replaceState)
+  browser.webNavigation.onHistoryStateUpdated.addListener(async details => {
+    scheduleNavigationProcessing(details.tabId, details.url, details.frameId, 'webNavigation.onHistoryStateUpdated');
   });
 
   // Runtime suspend events (for graceful shutdown)
@@ -520,3 +624,9 @@ function setupIdleStateListener(): void {
 
   logger.info('System idle state listener set up');
 }
+
+// Optionally, periodically call .purgeStale() to force cleanup (not strictly needed, but can be added for safety):
+setInterval(() => {
+  navigationTracker.purgeStale();
+  debouncedNavHandlers.purgeStale();
+}, 10 * 60 * 1000); // every 10 minutes

@@ -169,7 +169,7 @@ async function initialize(): Promise<void> {
 // Set up a polling mechanism to refresh data every 5 seconds.
 // `useIntervalFn` is managed by Vue's lifecycle, so it will be
 // automatically paused when the popup is closed.
-useIntervalFn(fetchTabData, 3000, { immediate: false });
+useIntervalFn(fetchTabData, 3000, { immediate: true });
 
 onMounted(() => {
   initialize();
