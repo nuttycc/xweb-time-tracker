@@ -18,6 +18,7 @@ import {
   URLProcessor,
   createDefaultURLProcessor,
 } from '@/core/tracker/utils/URLProcessor';
+import { merge } from 'es-toolkit/object';
 
 /**
  * Time tracker initialization result
@@ -125,23 +126,7 @@ export class TimeTracker {
     databaseService?: DatabaseService
   ) {
     // Merge provided config with defaults and validate
-    const mergedConfig = {
-      ...DEFAULT_CONFIG,
-      ...config,
-      // Deep merge nested objects
-      timeTracking: { ...DEFAULT_CONFIG.timeTracking, ...config.timeTracking },
-      urlFiltering: { ...DEFAULT_CONFIG.urlFiltering, ...config.urlFiltering },
-      checkpoint: { ...DEFAULT_CONFIG.checkpoint, ...config.checkpoint },
-      retentionPolicy: {
-        ...DEFAULT_CONFIG.retentionPolicy,
-        ...config.retentionPolicy,
-      },
-      eventQueue: { ...DEFAULT_CONFIG.eventQueue, ...config.eventQueue },
-      startupRecovery: {
-        ...DEFAULT_CONFIG.startupRecovery,
-        ...config.startupRecovery,
-      },
-    };
+    const mergedConfig = merge(DEFAULT_CONFIG, config);
     this.config = validateConfig(mergedConfig);
 
     // Use provided database or default global instance
