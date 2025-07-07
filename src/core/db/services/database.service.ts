@@ -13,7 +13,8 @@ import type {
   RepositoryOptions,
   EventsLogQueryOptions,
 } from '../repositories';
-import type { EventsLogRecord, CreateEventsLogRecord } from '../models/eventslog.model';
+import type { EventsLogRecord } from '../models/eventslog.model';
+import { CreateEventsLogSchema } from '../models/eventslog.model';
 import type { AggregatedStatsRecord } from '../models/aggregatedstats.model';
 import type { WebTimeTrackerDB } from '../schemas';
 import { getUtcDateString } from '../schemas/aggregatedstats.schema';
@@ -83,12 +84,25 @@ export class DatabaseService {
    * @throws {RepositoryError} If database operation fails
    */
   async addEvent(
-    event: Omit<CreateEventsLogRecord, 'id' | 'isProcessed'>,
+    event: Omit<EventsLogRecord, 'id' | 'isProcessed'>,
     options: RepositoryOptions = {}
   ): Promise<number> {
+    const eventWithProcessed = { ...event, isProcessed: 0 as const };
+
+    try {
+      // Validate the event data structure before writing to the database
+      CreateEventsLogSchema.parse(eventWithProcessed);
+    } catch (error) {
+      DatabaseService.logger.error('Event validation failed. Aborting database write.', {
+        eventType: event.eventType,
+        error, // Zod provides detailed error information
+      });
+      // Re-throw the error to notify the caller of the invalid data
+      throw new Error('Database write aborted due to invalid event data.');
+    }
+
     // Add isProcessed: 0 for new events
     DatabaseService.logger.info('💾 Added single event to eventsLogRepo', { eventType: event.eventType, tabId: event.tabId });
-    const eventWithProcessed = { ...event, isProcessed: 0 as const };
     return this.eventsLogRepo.createEvent(eventWithProcessed, options);
   }
 

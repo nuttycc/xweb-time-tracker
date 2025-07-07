@@ -211,7 +211,7 @@ const sortedHostnames = computed(() => {
 <template>
   <div class="space-y-4 p-4">
     <!-- Loading State -->
-    <div v-if="loading" class="flex items-center justify-center py-8">
+    <div v-if="loading && !events.length && !stats.length" class="flex items-center justify-center py-8">
       <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-500"></div>
       <span class="ml-2 text-gray-600">Loading data...</span>
     </div>

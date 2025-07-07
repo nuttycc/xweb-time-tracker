@@ -1,10 +1,9 @@
 import {
   AGGREGATION_ALARM_NAME,
   AGGREGATION_LOCK_KEY,
-  AGGREGATION_LOCK_TTL_MS,
+  DEFAULT_CONFIG,
   SCHEDULER_PERIOD_MINUTES_KEY,
-  DEFAULT_AGGREGATION_INTERVAL_MINUTES,
-} from './constants';
+} from '@/config/constants';
 import type { AggregationEngine } from './AggregationEngine';
 import type { DataPruner } from './DataPruner';
 import { createLogger, type Logger } from '@/utils/logger';
@@ -39,7 +38,7 @@ export class AggregationScheduler {
     AggregationScheduler.logger.info('Start aggregation scheduler');
     let periodInMinutes =
       (await storage.getItem<number>(SCHEDULER_PERIOD_MINUTES_KEY)) ??
-      DEFAULT_AGGREGATION_INTERVAL_MINUTES;
+      DEFAULT_CONFIG.aggregation.interval / 60000;
 
     // In development mode, use a shorter interval for faster testing
     // Note: Chrome alarms API minimum is 1 minute
@@ -69,7 +68,6 @@ export class AggregationScheduler {
   }
 
   public async stop(): Promise<boolean> {
-
     const cleared = await browser.alarms.clear(AGGREGATION_ALARM_NAME);
     if (this.isListenerRegistered) {
       AggregationScheduler.logger.debug('Remove alarm listener');
@@ -110,9 +108,15 @@ export class AggregationScheduler {
    * Runs the aggregation task, ensuring that only one instance runs at a time.
    */
   private async runTask(): Promise<void> {
-    const lock = await storage.getItem<{ timestamp: number }>(AGGREGATION_LOCK_KEY);
-    if (lock && Date.now() - lock.timestamp < AGGREGATION_LOCK_TTL_MS) {
-      AggregationScheduler.logger.warn('Skip aggregation task (already running)');
+    const lock =
+      await storage.getItem<{ timestamp: number }>(AGGREGATION_LOCK_KEY);
+    if (
+      lock &&
+      Date.now() - lock.timestamp < DEFAULT_CONFIG.aggregation.lockTtlMs
+    ) {
+      AggregationScheduler.logger.warn(
+        'Skip aggregation task (already running)',
+      );
       return;
     }
     AggregationScheduler.logger.info('Run scheduled aggregation task');
@@ -135,7 +139,9 @@ export class AggregationScheduler {
     } finally {
       await storage.removeItem(AGGREGATION_LOCK_KEY);
       const duration = Date.now() - startTime;
-      AggregationScheduler.logger.info('Finish aggregation task', { duration: `${duration}ms` });
+      AggregationScheduler.logger.info('Finish aggregation task', {
+        duration: `${duration}ms`,
+      });
     }
   }
 }

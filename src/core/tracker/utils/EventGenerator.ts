@@ -12,12 +12,7 @@ import { z } from 'zod/v4';
 import { TrackingEvent, TrackingEventSchema, TabState, TabStateSchema, CheckpointData } from '@/core/tracker/types';
 import { URLProcessor, createDefaultURLProcessor } from '@/core/tracker/utils/URLProcessor';
 import { ResolutionType } from '@/core/db/models/eventslog.model';
-import {
-  INACTIVE_TIMEOUT_DEFAULT,
-  INACTIVE_TIMEOUT_MEDIA,
-  CHECKPOINT_ACTIVE_TIME_THRESHOLD,
-  CHECKPOINT_OPEN_TIME_THRESHOLD,
-} from '@/config/constants';
+import { DEFAULT_CONFIG } from '@/config/constants';
 import { createLogger } from '@/utils/logger';
 
 // ============================================================================
@@ -98,8 +93,8 @@ export class EventGenerator {
     this.options = {
       validateEvents: true,
       timeouts: {
-        inactiveDefault: INACTIVE_TIMEOUT_DEFAULT,
-        inactiveMedia: INACTIVE_TIMEOUT_MEDIA,
+        inactiveDefault: DEFAULT_CONFIG.timeTracking.inactiveTimeoutDefault,
+        inactiveMedia: DEFAULT_CONFIG.timeTracking.inactiveTimeoutMedia,
       },
       ...options,
     };
@@ -421,8 +416,9 @@ export class EventGenerator {
       return false;
     }
     const timeoutThreshold = tabState.isAudible
-      ? this.options.timeouts?.inactiveMedia ?? INACTIVE_TIMEOUT_MEDIA
-      : this.options.timeouts?.inactiveDefault ?? INACTIVE_TIMEOUT_DEFAULT;
+      ? this.options.timeouts?.inactiveMedia ?? DEFAULT_CONFIG.timeTracking.inactiveTimeoutMedia
+      : this.options.timeouts?.inactiveDefault ??
+        DEFAULT_CONFIG.timeTracking.inactiveTimeoutDefault;
     const timeSinceLastInteraction = currentTimestamp - tabState.lastInteractionTimestamp;
     return timeSinceLastInteraction >= timeoutThreshold;
   }
@@ -445,10 +441,10 @@ export class EventGenerator {
         return false;
       }
       const activeTimeDuration = currentTimestamp - tabState.activeTimeStart;
-      return activeTimeDuration >= CHECKPOINT_ACTIVE_TIME_THRESHOLD;
+      return activeTimeDuration >= DEFAULT_CONFIG.checkpoint.activeTimeThreshold;
     } else {
       const openTimeDuration = currentTimestamp - tabState.openTimeStart;
-      return openTimeDuration >= CHECKPOINT_OPEN_TIME_THRESHOLD;
+      return openTimeDuration >= DEFAULT_CONFIG.checkpoint.openTimeThreshold;
     }
   }
 

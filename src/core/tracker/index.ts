@@ -1,16 +1,3 @@
-/**
- * Main Time Tracker Module
- *
- * Provides a clean TimeTracker API that orchestrates all components of the time tracking system.
- * This is the primary interface used by the background script to manage time tracking functionality.
- * Integrates FocusStateManager, EventGenerator, EventQueue, CheckpointScheduler, and StartupRecovery
- * to provide a unified time tracking experience.
- *
- * @author WebTime Tracker Team
- * @version 1.0.0
- */
-
-import { z } from 'zod/v4';
 import { browser } from '#imports';
 import { type Browser } from 'wxt/browser';
 import { EventGenerator } from '@/core/tracker/utils/EventGenerator';
@@ -18,62 +5,19 @@ import { EventQueue } from '@/core/tracker/utils/EventQueue';
 import { CheckpointScheduler } from '@/core/tracker/CheckpointScheduler';
 import { StartupRecovery } from '@/core/tracker/StartupRecovery';
 import { createLogger } from '@/utils/logger';
-import { InteractionDetector } from '@/core/tracker/InteractionDetector';
 import { DatabaseService } from '@/core/db/services/database.service';
 import { db, type WebTimeTrackerDB } from '@/core/db/schemas';
 import { TabState, InteractionMessage } from '@/core/tracker/types';
 import { TabStateManager } from '@/core/tracker/utils/TabStateManager';
-
-/**
- * Time tracker configuration schema
- */
-export const TimeTrackerConfigSchema = z.object({
-  /** Whether to enable debug logging */
-  enableDebugLogging: z.boolean().default(false),
-
-  /** Whether to perform startup recovery */
-  enableStartupRecovery: z.boolean().default(true),
-
-  /** Whether to enable checkpoint scheduling */
-  enableCheckpoints: z.boolean().default(true),
-
-  /** Event queue configuration */
-  eventQueue: z
-    .object({
-      maxQueueSize: z.number().int().min(10).max(1000).default(100),
-      maxWaitTime: z.number().int().min(1000).max(30000).default(5000),
-      maxRetries: z.number().int().min(1).max(10).default(3),
-    })
-    .default({
-      maxQueueSize: 100,
-      maxWaitTime: 5000,
-      maxRetries: 3,
-    }),
-
-  /** Checkpoint scheduler configuration */
-  checkpointScheduler: z
-    .object({
-      interval: z.number().int().min(300_000).max(7_200_000).default(1_800_000), // 5min to 120min
-      activeTimeThreshold: z.number().int().min(1_800_000).max(28_800_000).default(7_200_000), // 0.5h to 8h
-      openTimeThreshold: z.number().int().min(3_600_000).max(86_400_000).default(14_400_000), // 1h to 24h
-    })
-    .default({
-      interval: 1_800_000,
-      activeTimeThreshold: 7_200_000,
-      openTimeThreshold: 14_400_000,
-    }),
-
-  /** Startup recovery configuration */
-  startupRecovery: z
-    .object({
-      maxSessionAge: z.number().int().min(3600000).max(86400000).default(86400000), // 1-24 hours
-    })
-    .default({
-      maxSessionAge: 86400000,
-    }),
-});
-
-export type TimeTrackerConfig = z.infer<typeof TimeTrackerConfigSchema>;
+import {
+  type Config,
+  DEFAULT_CONFIG,
+  validateConfig,
+} from '@/config/constants';
+import {
+  URLProcessor,
+  createDefaultURLProcessor,
+} from '@/core/tracker/utils/URLProcessor';
 
 /**
  * Time tracker initialization result
@@ -139,7 +83,7 @@ export interface BrowserEventData {
  */
 export class TimeTracker {
   private static readonly logger = createLogger('⏱️ TimeTracker');
-  private config: TimeTrackerConfig;
+  private config: Config;
   private isInitialized = false;
   private isStarted = false;
 
@@ -149,8 +93,8 @@ export class TimeTracker {
   private eventQueue: EventQueue;
   private checkpointScheduler: CheckpointScheduler;
   private startupRecovery: StartupRecovery;
-  private interactionDetector: InteractionDetector;
   private databaseService: DatabaseService;
+  private readonly urlProcessor: URLProcessor;
 
   // Race condition protection for active session creation
   private activeSessionPromises = new Map<number, Promise<void>>();
@@ -176,11 +120,29 @@ export class TimeTracker {
   ]);
 
   constructor(
-    config: Partial<TimeTrackerConfig> = {},
+    config: Partial<Config> = {},
     database?: WebTimeTrackerDB,
     databaseService?: DatabaseService
   ) {
-    this.config = TimeTrackerConfigSchema.parse(config);
+    // Merge provided config with defaults and validate
+    const mergedConfig = {
+      ...DEFAULT_CONFIG,
+      ...config,
+      // Deep merge nested objects
+      timeTracking: { ...DEFAULT_CONFIG.timeTracking, ...config.timeTracking },
+      urlFiltering: { ...DEFAULT_CONFIG.urlFiltering, ...config.urlFiltering },
+      checkpoint: { ...DEFAULT_CONFIG.checkpoint, ...config.checkpoint },
+      retentionPolicy: {
+        ...DEFAULT_CONFIG.retentionPolicy,
+        ...config.retentionPolicy,
+      },
+      eventQueue: { ...DEFAULT_CONFIG.eventQueue, ...config.eventQueue },
+      startupRecovery: {
+        ...DEFAULT_CONFIG.startupRecovery,
+        ...config.startupRecovery,
+      },
+    };
+    this.config = validateConfig(mergedConfig);
 
     // Use provided database or default global instance
     const dbInstance = database || db;
@@ -195,9 +157,14 @@ export class TimeTracker {
     }
 
     // Initialize core components
+    this.urlProcessor = createDefaultURLProcessor({
+      ignoredHostnames: this.config.urlFiltering.ignoredHostnames,
+      ignoredQueryParams: this.config.urlFiltering.ignoredQueryParams,
+    });
     this.tabStateManager = new TabStateManager();
     this.eventGenerator = new EventGenerator({
       validateEvents: true,
+      urlProcessor: this.urlProcessor,
     });
 
     this.eventQueue = new EventQueue(dbInstance, {
@@ -210,20 +177,18 @@ export class TimeTracker {
       this.tabStateManager,
       this.eventGenerator,
       this.eventQueue,
+      this.config.checkpoint,
+      this.config.enableDebugLogging,
+    );
+
+    this.startupRecovery = new StartupRecovery(
+      this.eventGenerator,
+      this.databaseService,
       {
-        interval: this.config.checkpointScheduler.interval,
-        activeTimeThreshold: this.config.checkpointScheduler.activeTimeThreshold,
-        openTimeThreshold: this.config.checkpointScheduler.openTimeThreshold,
+        maxSessionAge: this.config.startupRecovery.maxSessionAge,
         enableDebugLogging: this.config.enableDebugLogging,
       }
     );
-
-    this.startupRecovery = new StartupRecovery(this.eventGenerator, this.databaseService, {
-      maxSessionAge: this.config.startupRecovery.maxSessionAge,
-      enableDebugLogging: this.config.enableDebugLogging,
-    });
-
-    this.interactionDetector = new InteractionDetector();
   }
 
   /**
@@ -276,9 +241,6 @@ export class TimeTracker {
       for (const event of recoveryResult.events) {
         await this.eventQueue.enqueue(event);
       }
-
-      // Initialize interaction detector
-      this.interactionDetector.initialize();
 
       this.isInitialized = true;
       const initializationTime = Date.now() - startTime;
@@ -841,12 +803,23 @@ export class TimeTracker {
       return;
     }
 
+    // Proactive URL Filtering
+    const urlValidation = this.urlProcessor.processUrl(tab.url);
+    if (!urlValidation.isValid) {
+      TimeTracker.logger.debug('URL is filtered, skip create tab state', {
+        tabId: tab.id,
+        url: tab.url,
+        reason: urlValidation.reason,
+      });
+      return;
+    }
+
     try {
       const timestamp = Date.now();
 
       // Create basic tab state (no visitId yet - will be set by session starter)
       const initialTabState = {
-        url: tab.url,
+        url: urlValidation.normalizedUrl!, // Use normalized URL
         visitId: '', // Will be set when session is actually started
         activityId: null,
         isAudible: tab.audible || false,
@@ -930,7 +903,7 @@ export class TimeTracker {
  * @returns A new TimeTracker instance
  */
 export function createTimeTracker(
-  config: Partial<TimeTrackerConfig> = {},
+  config: Partial<Config> = {},
   database?: WebTimeTrackerDB
 ): TimeTracker {
   return new TimeTracker(config, database);
@@ -943,5 +916,4 @@ export * from '@/core/tracker/utils/EventGenerator';
 export * from '@/core/tracker/utils/EventQueue';
 export * from '@/core/tracker/CheckpointScheduler';
 export * from '@/core/tracker/StartupRecovery';
-export * from '@/core/tracker/InteractionDetector';
 export * from '@/core/tracker/utils/URLProcessor';

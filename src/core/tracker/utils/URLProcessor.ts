@@ -9,7 +9,7 @@
  */
 
 import { normalizeUrl, isAllowedQueryParam, ALLOWED_QUERY_PARAMS } from '@/core/db/utils/url-normalizer.util';
-import { IGNORED_HOSTNAMES_DEFAULT } from '@/config/constants';
+import { DEFAULT_CONFIG } from '@/config/constants';
 import { z } from 'zod/v4';
 
 // ============================================================================
@@ -20,15 +20,14 @@ import { z } from 'zod/v4';
  * URL processing options
  */
 export interface URLProcessingOptions {
-  /** Additional hostnames to ignore beyond defaults */
-  additionalIgnoredHostnames?: string[];
-
+  /** Hostnames to ignore */
+  ignoredHostnames?: string[];
+  /** Query parameters to remove during normalization */
+  ignoredQueryParams?: string[];
   /** Additional query parameters to allow beyond the default whitelist */
   additionalAllowedParams?: string[];
-
   /** Whether to preserve fragment (hash) in URLs */
   preserveFragment?: boolean;
-
   /** Whether to sort query parameters for consistency */
   sortParams?: boolean;
 }
@@ -57,7 +56,8 @@ export interface URLValidationResult {
  * Schema for URL processing options
  */
 export const URLProcessingOptionsSchema = z.object({
-  additionalIgnoredHostnames: z.array(z.string()).optional(),
+  ignoredHostnames: z.array(z.string()).optional(),
+  ignoredQueryParams: z.array(z.string()).optional(),
   additionalAllowedParams: z.array(z.string()).optional(),
   preserveFragment: z.boolean().optional(),
   sortParams: z.boolean().optional(),
@@ -75,16 +75,15 @@ export const URLProcessingOptionsSchema = z.object({
  */
 export class URLProcessor {
   private ignoredHostnamesSet: Set<string>;
+  private ignoredQueryParamsSet: Set<string>;
   private options: URLProcessingOptions;
 
   constructor(options: URLProcessingOptions = {}) {
     this.options = URLProcessingOptionsSchema.parse(options);
 
     // Build ignored hostnames set
-    this.ignoredHostnamesSet = new Set([
-      ...IGNORED_HOSTNAMES_DEFAULT,
-      ...(this.options.additionalIgnoredHostnames || []),
-    ]);
+    this.ignoredHostnamesSet = new Set(this.options.ignoredHostnames || []);
+    this.ignoredQueryParamsSet = new Set(this.options.ignoredQueryParams || []);
   }
 
   // ============================================================================
@@ -162,9 +161,8 @@ export class URLProcessor {
 
       // Remove ignored query parameters
       const filteredParams = new URLSearchParams();
-
       for (const [key, value] of parsedUrl.searchParams) {
-        if (!this.shouldIgnoreQueryParam(key)) {
+        if (!this.ignoredQueryParamsSet.has(key) && !this.shouldIgnoreQueryParam(key)) {
           filteredParams.append(key, value);
         }
       }
@@ -225,11 +223,12 @@ export class URLProcessor {
     this.options = { ...this.options, ...newOptions };
 
     // Rebuild hostname set if changed
-    if (newOptions.additionalIgnoredHostnames) {
-      this.ignoredHostnamesSet = new Set([
-        ...IGNORED_HOSTNAMES_DEFAULT,
-        ...newOptions.additionalIgnoredHostnames,
-      ]);
+    if (newOptions.ignoredHostnames) {
+      this.ignoredHostnamesSet = new Set(newOptions.ignoredHostnames);
+    }
+    // Rebuild query param set if changed
+    if (newOptions.ignoredQueryParams) {
+      this.ignoredQueryParamsSet = new Set(newOptions.ignoredQueryParams);
     }
 
     // Note: additionalAllowedParams are used directly from options,
@@ -246,6 +245,7 @@ export class URLProcessor {
     const ignoredProtocols = [
       'chrome:',
       'chrome-extension:',
+      'devtools:',
       'moz-extension:',
       'safari-extension:',
       'edge-extension:',
@@ -254,6 +254,7 @@ export class URLProcessor {
       'blob:',
       'about:',
       'javascript:',
+      'view-source:',
     ];
 
     return ignoredProtocols.includes(protocol.toLowerCase());
@@ -303,9 +304,12 @@ export class URLProcessor {
 export function createDefaultURLProcessor(
   additionalOptions: URLProcessingOptions = {}
 ): URLProcessor {
+  const { urlFiltering } = DEFAULT_CONFIG;
   return new URLProcessor({
     preserveFragment: false,
     sortParams: true,
+    ignoredHostnames: urlFiltering.ignoredHostnames,
+    ignoredQueryParams: urlFiltering.ignoredQueryParams,
     ...additionalOptions,
   });
 }

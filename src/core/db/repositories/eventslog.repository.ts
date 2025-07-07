@@ -456,7 +456,6 @@ export class EventsLogRepository extends BaseRepository<EventsLogRecord, 'id'> {
                 eventType: 'checkpoint',
                 url: lastEvent.url,
                 tabId: lastEvent.tabId,
-                windowId: lastEvent.windowId,
                 visitId: lastEvent.visitId,
                 // For open_time sessions, activityId is null.
                 // For active_time sessions, it's taken from the last event.
