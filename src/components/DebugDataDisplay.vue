@@ -263,13 +263,13 @@ const sortedHostnames = computed(() => {
 
               <div class="grid grid-cols-2 gap-6 text-sm">
                 <div class="flex items-center">
-                  <span class="mr-2 font-medium text-gray-700">总打开时间:</span>
+                  <span class="mr-2 font-medium text-gray-700">Total Open Time:</span>
                   <span class="text-lg font-bold text-green-600">
                     {{ formatDuration(groupedStats[hostname].totalOpenTime) }}
                   </span>
                 </div>
                 <div class="flex items-center">
-                  <span class="mr-2 font-medium text-gray-700">总活跃时间:</span>
+                  <span class="mr-2 font-medium text-gray-700">Total Active Time:</span>
                   <span class="text-lg font-bold text-blue-600">
                     {{ formatDuration(groupedStats[hostname].totalActiveTime) }}
                   </span>
@@ -304,14 +304,14 @@ const sortedHostnames = computed(() => {
                   <div class="grid grid-cols-2 gap-4 border-t border-gray-100 pt-2">
                     <div class="flex items-center">
                       <span class="mr-2 h-2 w-2 rounded-full bg-green-400"></span>
-                      <span class="font-medium text-gray-600">打开:</span>
+                      <span class="font-medium text-gray-600">Open Time:</span>
                       <span class="ml-1 font-semibold text-green-600">
                         {{ formatDuration(stat.total_open_time) }}
                       </span>
                     </div>
                     <div class="flex items-center">
                       <span class="mr-2 h-2 w-2 rounded-full bg-blue-400"></span>
-                      <span class="font-medium text-gray-600">活跃:</span>
+                      <span class="font-medium text-gray-600">Active Time:</span>
                       <span class="ml-1 font-semibold text-blue-600">
                         {{ formatDuration(stat.total_active_time) }}
                       </span>

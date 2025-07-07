@@ -100,7 +100,7 @@ const debouncedNavHandlers = new LRUCache<number, ReturnType<typeof debounce>>({
  * Debounce delay in milliseconds for navigation event processing.
  * This ensures that during rapid URL changes, only the final URL is processed.
  */
-const NAVIGATION_DEBOUNCE_DELAY_MS = 5000;
+const NAVIGATION_DEBOUNCE_DELAY_MS = 1000;
 
 export default defineBackground(() => {
   logger.info('WebTime Tracker starting...');
