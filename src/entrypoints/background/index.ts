@@ -28,6 +28,7 @@ import type {
   ManualAggregationResponse,
 } from '@/types/messaging';
 import { databaseService } from '@/core/db/services/database.service';
+import { LRUCache } from 'lru-cache';
 
 // Define messaging protocol for communication with content scripts and popup
 interface TrackerProtocolMap extends PopupDebugProtocolMap {
@@ -67,16 +68,33 @@ const timeTracker = createTimeTracker({
 let aggregationScheduler: AggregationScheduler | null = null;
 
 /**
- * Navigation tracking cache to prevent duplicate event handling.
- * Stores the last processed navigation URL and timestamp for each tab.
+ * Maximum number of tabs to track in navigation cache.
+ * Older entries will be evicted using LRU policy.
  */
-const navigationTracker = new Map<number, { url: string; timestamp: number }>();
+const MAX_TRACKED_TABS = 100;
+
+/**
+ * Cleanup stale navigation entries older than this threshold.
+ */
+const STALE_ENTRY_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Navigation tracking cache to prevent duplicate event handling.
+ * Uses LRU policy and TTL to limit memory usage.
+ */
+const navigationTracker = new LRUCache<number, { url: string; timestamp: number }>({
+  max: MAX_TRACKED_TABS,
+  ttl: STALE_ENTRY_THRESHOLD_MS,
+});
 
 /**
  * Debounced navigation handlers for each tab to prevent processing rapid-fire navigation events.
- * Each tab gets its own debounced handler instance.
+ * Uses LRU policy and TTL to limit memory usage.
  */
-const debouncedNavHandlers = new Map<number, ReturnType<typeof debounce>>();
+const debouncedNavHandlers = new LRUCache<number, ReturnType<typeof debounce>>({
+  max: MAX_TRACKED_TABS,
+  ttl: STALE_ENTRY_THRESHOLD_MS,
+});
 
 /**
  * Debounce delay in milliseconds for navigation event processing.
@@ -606,3 +624,9 @@ function setupIdleStateListener(): void {
 
   logger.info('System idle state listener set up');
 }
+
+// Optionally, periodically call .purgeStale() to force cleanup (not strictly needed, but can be added for safety):
+setInterval(() => {
+  navigationTracker.purgeStale();
+  debouncedNavHandlers.purgeStale();
+}, 10 * 60 * 1000); // every 10 minutes
