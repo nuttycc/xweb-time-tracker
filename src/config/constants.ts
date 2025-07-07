@@ -1,4 +1,5 @@
 import { z } from 'zod/v4';
+import { getDefaults } from '../utils/zod-defaults';
 
 // ============================================================================
 // System Static Constants
@@ -86,16 +87,16 @@ export const RetentionPolicyConfigSchema = z.object({
  * Schema for event queue configuration
  */
 export const EventQueueConfigSchema = z.object({
-  maxQueueSize: z.number().int(),
-  maxWaitTime: z.number().int(),
-  maxRetries: z.number().int(),
+  maxQueueSize: z.number().int().default(100),
+  maxWaitTime: z.number().int().default(5000),
+  maxRetries: z.number().int().default(3),
 });
 
 /**
  * Schema for startup recovery configuration
  */
 export const StartupRecoveryConfigSchema = z.object({
-  maxSessionAge: z.number().int(),
+  maxSessionAge: z.number().int().default(86_400_000), // 24 hours
 });
 
 /**
@@ -139,28 +140,10 @@ export type UITheme = z.infer<typeof UIConfigSchema>['defaultTheme'];
 // ============================================================================
 
 /**
- * Default configuration object with all CSPEC values
+ * Default configuration object with all CSPEC values,
+ * safely derived from the Zod schemas.
  */
-export const DEFAULT_CONFIG: Config = {
-  enableDebugLogging: false,
-  enableStartupRecovery: true,
-  enableCheckpoints: true,
-  timeTracking: TimeTrackingConfigSchema.parse({}),
-  urlFiltering: UrlFilteringConfigSchema.parse({}),
-  checkpoint: CheckpointConfigSchema.parse({}),
-  aggregation: AggregationConfigSchema.parse({}),
-  ui: UIConfigSchema.parse({}),
-  retentionPolicy: RetentionPolicyConfigSchema.parse({}),
-  eventQueue: {
-    maxQueueSize: 100,
-    maxWaitTime: 5000,
-    maxRetries: 3,
-  },
-  startupRecovery: {
-    maxSessionAge: 86_400_000, // 24 hours
-  },
-  storageWarningThresholdPercent: 80,
-};
+export const DEFAULT_CONFIG: Config = getDefaults(ConfigSchema);
 
 /**
  * Validates and parses a configuration object using the CSPEC configuration schema.
