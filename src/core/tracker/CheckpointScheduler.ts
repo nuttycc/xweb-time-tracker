@@ -148,11 +148,11 @@ export class CheckpointScheduler {
       if (!existingAlarm) {
         // Create the periodic alarm
         await browser.alarms.create(CheckpointScheduler.ALARM_NAME, {
-          delayInMinutes: this.checkpointConfig.interval / 60000,
-          periodInMinutes: this.checkpointConfig.interval / 60000,
+          delayInMinutes: this.checkpointConfig.interval,
+          periodInMinutes: this.checkpointConfig.interval,
         });
         CheckpointScheduler.logger.debug(
-          `Checkpoint alarm created with ${this.checkpointConfig.interval / 60000} min interval`,
+          `Checkpoint alarm created with ${this.checkpointConfig.interval} min interval`,
         );
       } else {
         CheckpointScheduler.logger.debug('Checkpoint alarm already exists, reusing existing alarm');

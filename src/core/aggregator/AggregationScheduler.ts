@@ -38,7 +38,7 @@ export class AggregationScheduler {
     AggregationScheduler.logger.info('Start aggregation scheduler');
     let periodInMinutes =
       (await storage.getItem<number>(SCHEDULER_PERIOD_MINUTES_KEY)) ??
-      DEFAULT_CONFIG.aggregation.interval / 60000;
+      DEFAULT_CONFIG.aggregation.interval;
 
     // In development mode, use a shorter interval for faster testing
     // Note: Chrome alarms API minimum is 1 minute

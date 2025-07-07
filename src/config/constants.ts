@@ -49,16 +49,16 @@ export const UrlFilteringConfigSchema = z.object({
  * Schema for checkpoint configuration
  */
 export const CheckpointConfigSchema = z.object({
-  activeTimeThreshold: z.number().int().default(1 * 60 * 1000), // 1min
-  openTimeThreshold: z.number().int().default(2 * 60 * 1000), // 2min
-  interval: z.number().int().default(3 * 60 * 1000), // 3min
+  activeTimeThreshold: z.number().int().default(1 * 60 * 1000), // 1min, ms
+  openTimeThreshold: z.number().int().default(2 * 60 * 1000), // 2min, ms
+  interval: z.number().int().default(3), // 3min (chrome alarm interval)
 });
 
 /**
  * Schema for aggregation configuration
  */
 export const AggregationConfigSchema = z.object({
-  interval: z.number().int().default(5 * 60 * 1000), // 5min
+  interval: z.number().int().default(5), // 5min (chrome alarm interval)
   /** Data retention period for processed events (in days). */
   retentionDays: z.number().int().min(1).max(365).default(30),
   /** TTL for the aggregation lock to prevent concurrent runs (in milliseconds). */
