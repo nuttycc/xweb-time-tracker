@@ -6,49 +6,16 @@
  * Format time duration in milliseconds to human readable format
  *
  * @param milliseconds - Duration in milliseconds
- * @returns Formatted duration string in Chinese
+ * @returns Formatted duration string, e.g., 1h1m, 1m30s, 30s
  *
  * @example
  * ```typescript
- * formatDuration(30000) // "30秒"
- * formatDuration(90000) // "1分30秒"
- * formatDuration(3661000) // "1小时1分"
+ * formatDuration(30000) // "30s"
+ * formatDuration(90000) // "1m30s"
+ * formatDuration(3661000) // "1h1m"
  * ```
  */
 export function formatDuration(milliseconds: number): string {
-  if (milliseconds < 1000) {
-    return '0s';
-  }
-
-  const seconds = Math.floor(milliseconds / 1000);
-
-  if (seconds < 60) {
-    return `${seconds}s`;
-  } else if (seconds < 3600) {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return remainingSeconds > 0 ? `${minutes}m${remainingSeconds}s` : `${minutes}m`;
-  } else {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return minutes > 0 ? `${hours}h${minutes}m` : `${hours}h`;
-  }
-}
-
-/**
- * Format time duration in milliseconds to compact format
- *
- * @param milliseconds - Duration in milliseconds
- * @returns Compact formatted duration string
- *
- * @example
- * ```typescript
- * formatDurationCompact(30000) // "30s"
- * formatDurationCompact(90000) // "1m30s"
- * formatDurationCompact(3661000) // "1h1m"
- * ```
- */
-export function formatDurationCompact(milliseconds: number): string {
   if (milliseconds < 1000) {
     return '0s';
   }
