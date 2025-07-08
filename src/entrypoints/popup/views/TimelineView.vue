@@ -1,4 +1,4 @@
-<script lang="ts" setup>
+<script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { createLogger } from '@/utils/logger';
 import { formatDuration, getDateRange, type DateRange } from '@/utils/time-formatter';

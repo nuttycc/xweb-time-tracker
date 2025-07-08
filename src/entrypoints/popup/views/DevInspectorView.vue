@@ -503,34 +503,4 @@ button:disabled {
 .animate-pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
-
-/* 自定义滚动条样式 - 域名分组视图 */
-.flex-1.overflow-y-auto {
-  /* Firefox 滚动条 */
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 #f1f5f9;
-}
-
-.flex-1.overflow-y-auto::-webkit-scrollbar {
-  width: 8px;
-}
-
-.flex-1.overflow-y-auto::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
-}
-
-.flex-1.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
-}
-
-.flex-1.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-.flex-1.overflow-y-auto::-webkit-scrollbar-thumb:active {
-  background: #64748b;
-}
 </style>
