@@ -3,17 +3,15 @@
  */
 
 /**
- * Format time duration in milliseconds to human readable format
+ * Converts a duration in milliseconds to a concise, human-readable string using hours, minutes, and seconds.
  *
- * @param milliseconds - Duration in milliseconds
- * @returns Formatted duration string, e.g., 1h1m, 1m30s, 30s
+ * @param milliseconds - The duration to format, in milliseconds
+ * @returns The formatted duration string (e.g., "1h1m", "1m30s", "30s", or "0s" for durations under 1 second)
  *
  * @example
- * ```typescript
  * formatDuration(30000) // "30s"
  * formatDuration(90000) // "1m30s"
  * formatDuration(3661000) // "1h1m"
- * ```
  */
 export function formatDuration(milliseconds: number): string {
   if (milliseconds < 1000) {
@@ -36,21 +34,21 @@ export function formatDuration(milliseconds: number): string {
 }
 
 /**
- * Format percentage with one decimal place
+ * Formats a numeric value as a percentage string with one decimal place.
  *
- * @param value - Percentage value (0-100)
- * @returns Formatted percentage string
+ * @param value - The numeric value to format as a percentage
+ * @returns The formatted percentage string (e.g., "42.5%")
  */
 export function formatPercentage(value: number): string {
   return `${value.toFixed(1)}%`;
 }
 
 /**
- * Calculate percentage of active time vs open time
+ * Calculates the percentage of active time relative to open time, capped at 100%.
  *
- * @param activeTime - Active time in milliseconds
- * @param openTime - Open time in milliseconds
- * @returns Percentage of active time
+ * @param activeTime - Duration of active time in milliseconds
+ * @param openTime - Total open time in milliseconds
+ * @returns The percentage of active time, or 0 if open time is zero
  */
 export function calculateActivePercentage(activeTime: number, openTime: number): number {
   if (openTime === 0) return 0;
@@ -66,10 +64,12 @@ export interface DateRange {
 }
 
 /**
- * Get date range for different time periods
+ * Returns a date range object for a specified time period identifier.
  *
- * @param timeRange - Time range identifier
- * @returns Date range in YYYY-MM-DD format
+ * Supported identifiers are "today", "yesterday", "week" (Monday to Sunday of the current week), "month" (current calendar month), and "all" (from 2020-01-01 to today). Any unrecognized identifier defaults to the "all" range.
+ *
+ * @param timeRange - Identifier for the desired time period ("today", "yesterday", "week", "month", or "all")
+ * @returns An object with `startDate` and `endDate` in YYYY-MM-DD format
  */
 export function getDateRange(timeRange: string): DateRange {
   const now = new Date();
