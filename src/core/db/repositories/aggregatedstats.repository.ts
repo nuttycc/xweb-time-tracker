@@ -18,7 +18,6 @@ import { generateAggregatedStatsKey, getUtcDateString } from '../schemas/aggrega
 import { AggregatedStatsValidation } from '../models/aggregatedstats.model';
 import { createLogger } from '@/utils/logger';
 
-
 /**
  * Query options for AggregatedStats operations
  *
@@ -101,17 +100,24 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
 
             if (existing) {
               // Update existing record by adding time values
-              AggregatedStatsRepository.logger.info('Update existing aggregated stats record', { key });
+              AggregatedStatsRepository.logger.info('Update existing aggregated stats record', {
+                key,
+              });
 
               const updatedRecord: Partial<AggregatedStatsRecord> = {
-                total_open_time: existing.total_open_time + data.openTimeToAdd,
-                total_active_time: existing.total_active_time + data.activeTimeToAdd,
+                // Convert milliseconds to seconds for storage
+                total_open_time: existing.total_open_time + Math.round(data.openTimeToAdd / 1000),
+                total_active_time:
+                  existing.total_active_time + Math.round(data.activeTimeToAdd / 1000),
                 // last_updated will be automatically set by the updating hook
               };
 
               await this.table.update(key, updatedRecord);
 
-              AggregatedStatsRepository.logger.info('Successfully updated existing aggregated stats record', { key, updatedRecord });
+              AggregatedStatsRepository.logger.info(
+                'Successfully updated existing aggregated stats record',
+                { key, updatedRecord }
+              );
 
               return key;
             } else {
@@ -133,7 +139,10 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
               await this.validateForCreate(newRecord);
               await this.table.add(newRecord);
 
-              AggregatedStatsRepository.logger.info('Successfully created new aggregated stats record', { key, newRecord });
+              AggregatedStatsRepository.logger.info(
+                'Successfully created new aggregated stats record',
+                { key, newRecord }
+              );
 
               return key;
             }
@@ -144,7 +153,10 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
       );
 
       const executionTime = performance.now() - startTime;
-      AggregatedStatsRepository.logger.info('Completed upsert time aggregation', { key, executionTime: `${executionTime.toFixed(2)}ms` });
+      AggregatedStatsRepository.logger.info('Completed upsert time aggregation', {
+        key,
+        executionTime: `${executionTime.toFixed(2)}ms`,
+      });
 
       return result;
     } catch (error) {
@@ -199,15 +211,25 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
           if (orderBy === 'date') {
             collection = orderDirection === 'desc' ? collection.reverse() : collection;
 
-            AggregatedStatsRepository.logger.debug('Use database-level sorting for date field', { orderDirection });
+            AggregatedStatsRepository.logger.debug('Use database-level sorting for date field', {
+              orderDirection,
+            });
           } else {
             // For other fields, we need to sort after retrieval
-            AggregatedStatsRepository.logger.debug('Use memory sorting for non-indexed field', { orderBy, orderDirection });
+            AggregatedStatsRepository.logger.debug('Use memory sorting for non-indexed field', {
+              orderBy,
+              orderDirection,
+            });
 
             const results = await collection.toArray();
             const sorted = this.sortRecords(results, orderBy, orderDirection);
 
-            AggregatedStatsRepository.logger.debug('Apply memory sorting and pagination', { recordCount: results.length, sortedCount: sorted.length, offset, limit });
+            AggregatedStatsRepository.logger.debug('Apply memory sorting and pagination', {
+              recordCount: results.length,
+              sortedCount: sorted.length,
+              offset,
+              limit,
+            });
 
             // Apply pagination manually for sorted results
             const start = offset;
@@ -223,7 +245,10 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
             collection = collection.limit(limit);
           }
 
-          AggregatedStatsRepository.logger.debug('Apply database-level pagination', { offset, limit });
+          AggregatedStatsRepository.logger.debug('Apply database-level pagination', {
+            offset,
+            limit,
+          });
 
           return collection.toArray();
         },
@@ -290,15 +315,25 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
           if (orderBy === 'date') {
             collection = orderDirection === 'desc' ? collection.reverse() : collection;
 
-            AggregatedStatsRepository.logger.debug('Using database-level sorting for date field', { hostname, orderDirection });
+            AggregatedStatsRepository.logger.debug('Using database-level sorting for date field', {
+              hostname,
+              orderDirection,
+            });
           } else {
             // For other fields, we need to sort after retrieval
-            AggregatedStatsRepository.logger.debug('Using memory sorting for non-indexed field', { hostname, orderBy, orderDirection });
+            AggregatedStatsRepository.logger.debug('Using memory sorting for non-indexed field', {
+              hostname,
+              orderBy,
+              orderDirection,
+            });
 
             const results = await collection.toArray();
             const sorted = this.sortRecords(results, orderBy, orderDirection);
 
-            AggregatedStatsRepository.logger.debug('Applied memory sorting and pagination for hostname query', { hostname, recordCount: results.length, sortedCount: sorted.length, offset, limit });
+            AggregatedStatsRepository.logger.debug(
+              'Applied memory sorting and pagination for hostname query',
+              { hostname, recordCount: results.length, sortedCount: sorted.length, offset, limit }
+            );
 
             // Apply pagination manually for sorted results
             const start = offset;
@@ -314,7 +349,10 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
             collection = collection.limit(limit);
           }
 
-          AggregatedStatsRepository.logger.debug('Applied database-level pagination for hostname query', { hostname, offset, limit });
+          AggregatedStatsRepository.logger.debug(
+            'Applied database-level pagination for hostname query',
+            { hostname, offset, limit }
+          );
 
           return collection.toArray();
         },
@@ -379,21 +417,31 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
           if (orderBy === 'date') {
             collection = orderDirection === 'desc' ? collection.reverse() : collection;
 
-            AggregatedStatsRepository.logger.debug('Using database-level sorting for date field', { parentDomain, orderDirection });
+            AggregatedStatsRepository.logger.debug('Using database-level sorting for date field', {
+              parentDomain,
+              orderDirection,
+            });
           } else {
             // For other fields, we need to sort after retrieval
-            AggregatedStatsRepository.logger.debug('Using memory sorting for non-indexed field', { parentDomain, orderBy, orderDirection });
+            AggregatedStatsRepository.logger.debug('Using memory sorting for non-indexed field', {
+              parentDomain,
+              orderBy,
+              orderDirection,
+            });
 
             const results = await collection.toArray();
             const sorted = this.sortRecords(results, orderBy, orderDirection);
 
-            AggregatedStatsRepository.logger.debug('Applied memory sorting and pagination for parent domain query', {
-              parentDomain,
-              recordCount: results.length,
-              sortedCount: sorted.length,
-              offset,
-              limit,
-            });
+            AggregatedStatsRepository.logger.debug(
+              'Applied memory sorting and pagination for parent domain query',
+              {
+                parentDomain,
+                recordCount: results.length,
+                sortedCount: sorted.length,
+                offset,
+                limit,
+              }
+            );
 
             // Apply pagination manually for sorted results
             const start = offset;
@@ -409,7 +457,10 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
             collection = collection.limit(limit);
           }
 
-          AggregatedStatsRepository.logger.debug('Applied database-level pagination for parent domain query', { parentDomain, offset, limit });
+          AggregatedStatsRepository.logger.debug(
+            'Applied database-level pagination for parent domain query',
+            { parentDomain, offset, limit }
+          );
 
           return collection.toArray();
         },
@@ -453,7 +504,11 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
     const startTime = performance.now();
     const key = generateAggregatedStatsKey(date, url);
 
-    AggregatedStatsRepository.logger.debug('Starting stats query by date and URL', { date, url, key });
+    AggregatedStatsRepository.logger.debug('Starting stats query by date and URL', {
+      date,
+      url,
+      key,
+    });
 
     try {
       const result = await this.findById(key, options);
@@ -496,19 +551,29 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
   ): Promise<{ totalOpenTime: number; totalActiveTime: number; recordCount: number }> {
     const startTime = performance.now();
 
-    AggregatedStatsRepository.logger.debug('Starting total time calculation by date range', { startDate, endDate });
+    AggregatedStatsRepository.logger.debug('Starting total time calculation by date range', {
+      startDate,
+      endDate,
+    });
 
     try {
       const result = await this.executeWithRetry(
         async () => {
-          AggregatedStatsRepository.logger.debug('Fetching stats for total time calculation', { startDate, endDate });
+          AggregatedStatsRepository.logger.debug('Fetching stats for total time calculation', {
+            startDate,
+            endDate,
+          });
 
           const stats = await this.table
             .where('date')
             .between(startDate, endDate, true, true)
             .toArray();
 
-          AggregatedStatsRepository.logger.debug('Processing stats for total time calculation', { recordCount: stats.length, startDate, endDate });
+          AggregatedStatsRepository.logger.debug('Processing stats for total time calculation', {
+            recordCount: stats.length,
+            startDate,
+            endDate,
+          });
 
           const totals = stats.reduce(
             (
@@ -522,7 +587,10 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
             { totalOpenTime: 0, totalActiveTime: 0, recordCount: 0 }
           );
 
-          AggregatedStatsRepository.logger.debug('Completed total time calculation', { totals, processedRecords: stats.length });
+          AggregatedStatsRepository.logger.debug('Completed total time calculation', {
+            totals,
+            processedRecords: stats.length,
+          });
 
           return totals;
         },

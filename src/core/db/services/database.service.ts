@@ -148,6 +148,23 @@ export class DatabaseService {
     return this.eventsLogRepo.deleteEventsByIds(eventIds, options);
   }
 
+  /**
+   * Get processed events older than a given timestamp.
+   *
+   * @param timestamp - The timestamp to compare against.
+   * @param options - Query options for filtering and pagination.
+   * @returns Promise resolving to an array of processed events.
+   * @throws {RepositoryError} If the database query fails.
+   */
+  async getProcessedEvents(
+    timestamp: number,
+    options: EventsLogQueryOptions = {},
+  ): Promise<EventsLogRecord[]> {
+    const events = await this.eventsLogRepo.getProcessedEventsOlderThan(timestamp, options);
+    DatabaseService.logger.debug(`🔍 Found ${events.length} processed events older than ${new Date(timestamp).toISOString()}`);
+    return events;
+  }
+
   // ==================== STATS CRUD OPERATIONS ====================
 
   /**

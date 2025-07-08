@@ -18,8 +18,8 @@ import { normalizeUrl } from '../utils/url-normalizer.util';
  * @property {string} url - Complete URL as minimum aggregation granularity.
  * @property {string} hostname - URL hostname for mid-level aggregation. Indexed field for hostname-based queries.
  * @property {string} parentDomain - URL parent domain based on PSL (Public Suffix List) calculation. Indexed field for top-level aggregation.
- * @property {number} total_open_time - Accumulated open time in seconds.
- * @property {number} total_active_time - Accumulated active time in seconds.
+ * @property {number} total_open_time - Accumulated open time in milliseconds.
+ * @property {number} total_active_time - Accumulated active time in milliseconds.
  * @property {number} last_updated - Last update timestamp (Unix timestamp in milliseconds). Key dependency for FR-4C smart merge logic implementation.
  */
 export interface AggregatedStatsRecord {
@@ -57,12 +57,12 @@ export interface AggregatedStatsRecord {
   parentDomain: string;
 
   /**
-   * Accumulated open time in seconds
+   * Accumulated open time in milliseconds
    */
   total_open_time: number;
 
   /**
-   * Accumulated active time in seconds
+   * Accumulated active time in milliseconds
    */
   total_active_time: number;
 

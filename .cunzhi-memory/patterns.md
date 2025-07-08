@@ -1,3 +1,5 @@
 # Common Patterns and Best Practices  
 
-- Run `pnpm check` after code changes.
+- Run `pnpm check` after code changes.- DevInspectorView已成功移除分页逻辑并实现虚拟滚动：1. 移除了currentPage、pageSize、paginatedEvents、paginationInfo等分页相关状态和计算属性；2. 使用@vueuse/core的useVirtualList实现虚拟滚动；3. 创建VirtualListItem类型支持hostname-header和event两种项目类型；4. 虚拟列表支持域名分组显示，域名头部高度60px，事件项高度120px；5. 保持了原有的过滤、搜索、分组切换功能；6. 移除了所有分页UI组件和相关函数。
+- 成功修复虚拟滚动突然偏移问题：1. 问题根因是将虚拟滚动错误地应用到混合列表（域名头部+事件项），导致展开/折叠时列表项数量变化引起偏移；2. 重构为正确架构：域名分组正常渲染，虚拟滚动只应用到每个域名组内的事件列表；3. 创建了三个新组件：EventItem（单个事件渲染）、HostnameEventsList（域名组内事件虚拟滚动）、UngroupedEventsList（非分组模式虚拟滚动）；4. 小列表（≤10或≤20项）使用正常渲染，大列表才启用虚拟滚动，平衡性能和复杂度。
+- 为虚拟滚动添加了自定义滚动条样式：1. 在HostnameEventsList、UngroupedEventsList和DevInspectorView中添加了统一的自定义滚动条样式；2. 使用:deep()选择器穿透组件样式边界；3. 支持WebKit（Chrome/Safari）和Firefox浏览器；4. 滚动条宽度8px，圆角4px，使用Tailwind灰色调色板；5. 包含hover和active状态的交互效果，提升用户体验。
