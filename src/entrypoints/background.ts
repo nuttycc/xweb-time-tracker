@@ -1,12 +1,3 @@
-/**
- * Background Script for WebTime Tracker
- *
- * Integrates the TimeTracker system with browser events and manages the complete
- * time tracking lifecycle. Sets up all necessary browser event listeners and
- * handles communication with content scripts.
- *
- */
-
 import { browser, defineBackground } from '#imports';
 import { defineExtensionMessaging } from '@webext-core/messaging';
 import { debounce } from 'es-toolkit';

@@ -1,4 +1,4 @@
-<script lang="ts" setup>
+<script setup lang="ts">
 import type { EventsLogRecord, AggregatedStatsRecord } from '@/core/db';
 import { computed, ref } from 'vue';
 import { EVENT_TYPES } from '@/core/db/models/eventslog.model';

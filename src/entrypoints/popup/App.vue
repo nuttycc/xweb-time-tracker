@@ -1,282 +1,85 @@
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-import { browser } from '#imports';
-import { defineExtensionMessaging } from '@webext-core/messaging';
+import { useRouter, useRoute } from 'vue-router';
 import { createLogger } from '@/utils/logger';
-import { useIntervalFn } from '@vueuse/core'
-import DebugDataDisplay from '@/components/DebugDataDisplay.vue';
-import type {
-  PopupDebugProtocolMap,
-  CompleteTabDataResponse,
-  ManualAggregationRequest,
-} from '@/types/messaging';
-import { isTabDataErrorResponse } from '@/types/messaging';
-import type { Browser } from 'wxt/browser';
-
-// ============================================================================
-// Setup and State Management
-// ============================================================================
 
 const logger = createLogger('PopupApp');
-
-// Initialize messaging
-const { sendMessage } = defineExtensionMessaging<PopupDebugProtocolMap>();
-
-// Reactive state
-const loading = ref(false);
-const error = ref<string | null>(null);
-const tabData = ref<CompleteTabDataResponse | null>(null);
-const currentTab = ref<Browser.tabs.Tab | null>(null);
-
-// Aggregation state
-const aggregationLoading = ref(false);
-const aggregationResult = ref<string | null>(null);
-
-// ============================================================================
-// Methods
-// ============================================================================
+const router = useRouter();
+const route = useRoute();
 
 /**
- * Get current active tab
+ * Navigation items for the header
  */
-async function getCurrentTab(): Promise<Browser.tabs.Tab | null> {
-  try {
-    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-    return tabs[0] || null;
-  } catch (err) {
-    logger.error('Failed to get current tab:', err);
-    return null;
+const navigationItems = [
+  {
+    path: '/focus',
+    name: 'FocusView',
+    title: '当前域洞察',
+    icon: '🎯',
+  },
+  {
+    path: '/timeline',
+    name: 'TimelineView',
+    title: '历史活动总览',
+    icon: '📊',
+  },
+  {
+    path: '/dev',
+    name: 'DevInspectorView',
+    title: '开发者视图',
+    icon: '🔧',
+  },
+];
+
+/**
+ * Navigate to a specific route
+ */
+function navigateTo(path: string): void {
+  if (route.path !== path) {
+    router.push(path);
+    logger.info('Navigated to', { path });
   }
 }
-
-/**
- * Fetch tab data from background script
- */
-async function fetchTabData(): Promise<void> {
-  if (!currentTab.value?.id) {
-    error.value = 'No active tab found';
-    return;
-  }
-
-  loading.value = true;
-  error.value = null;
-
-  try {
-    logger.debug('Requesting tab data', { tabId: currentTab.value.id });
-
-    const response = await sendMessage('getTabDataRequest', {
-      tabId: currentTab.value.id,
-    });
-
-    if (isTabDataErrorResponse(response)) {
-      error.value = `${response.code}: ${response.error}`;
-      tabData.value = null;
-    } else {
-      tabData.value = response as CompleteTabDataResponse;
-      logger.debug('Received tab data', {
-        eventsCount: response.events.length,
-        statsCount: response.stats.length,
-      });
-    }
-  } catch (err) {
-    logger.error('Failed to fetch tab data:', err);
-    error.value = err instanceof Error ? err.message : 'Unknown error occurred';
-    tabData.value = null;
-  } finally {
-    loading.value = false;
-  }
-}
-
-/**
- * Refresh data manually
- */
-async function refreshData(): Promise<void> {
-  logger.info('Manual refresh requested');
-  await fetchTabData();
-}
-
-/**
- * Handles browser tab activation event by updating the current tab
- * and fetching its associated data.
- */
-async function handleTabActivation(): Promise<void> {
-  logger.info('Browser tab activated, refreshing data...');
-  currentTab.value = await getCurrentTab();
-  await fetchTabData();
-}
-
-/**
- * Trigger manual aggregation
- */
-async function triggerAggregation(): Promise<void> {
-  aggregationLoading.value = true;
-  aggregationResult.value = null;
-
-  try {
-    logger.info('Manual aggregation requested');
-
-    const response = await sendMessage('triggerManualAggregation', {
-      force: false,
-    } as ManualAggregationRequest);
-
-    if (response.success) {
-      aggregationResult.value = `Success! Duration: ${response.duration}ms`;
-      logger.info('Manual aggregation completed', { duration: response.duration });
-
-      // Auto-refresh data after successful aggregation
-      setTimeout(() => {
-        fetchTabData();
-      }, 500);
-    } else {
-      aggregationResult.value = `Failed: ${response.error}`;
-      logger.error('Manual aggregation failed:', response.error);
-    }
-  } catch (err) {
-    logger.error('Failed to trigger aggregation:', err);
-    aggregationResult.value = `Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
-  } finally {
-    aggregationLoading.value = false;
-
-    // Clear result message after 3 seconds
-    setTimeout(() => {
-      aggregationResult.value = null;
-    }, 3000);
-  }
-}
-
-/**
- * Initialize popup
- */
-async function initialize(): Promise<void> {
-  logger.info('Initializing popup');
-
-  // Get current tab
-  currentTab.value = await getCurrentTab();
-
-  if (!currentTab.value) {
-    error.value = 'Unable to access current tab';
-    return;
-  }
-
-  // Fetch initial data
-  await fetchTabData();
-}
-
-// ============================================================================
-// Lifecycle & Auto-Refresh
-// ============================================================================
-
-// Set up a polling mechanism to refresh data every 5 seconds.
-// `useIntervalFn` is managed by Vue's lifecycle, so it will be
-// automatically paused when the popup is closed.
-useIntervalFn(fetchTabData, 3000, { immediate: true });
-
-onMounted(() => {
-  initialize();
-  // Listen for tab activation events to refresh data when the user switches tabs.
-  browser.tabs.onActivated.addListener(handleTabActivation);
-});
-
-onUnmounted(() => {
-  // Clean up the listener to prevent memory leaks when the popup is closed.
-  browser.tabs.onActivated.removeListener(handleTabActivation);
-});
 </script>
 
 <template>
-  <div class="flex flex-col overflow-hidden animate-zoom-in h-[600px] w-96 bg-white">
-    <!-- Header -->
-    <div class="flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 p-4 text-white shadow-lg">
-      <div class="flex items-center justify-between">
+  <div class="animate-zoom-in flex h-[600px] w-96 flex-col overflow-hidden bg-white">
+    <!-- Header with Navigation -->
+    <div class="flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg">
+      <!-- App Title -->
+      <div class="flex items-center justify-center border-b border-blue-500/30 p-3">
         <div class="flex items-center space-x-2">
-          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
+          <div class="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
             <span class="text-sm">⏱️</span>
           </div>
-          <div>
-            <h1 class="text-lg font-semibold">WebTime Debug</h1>
-            <p class="text-xs text-blue-100">Development Tools</p>
-          </div>
+          <h1 class="text-base font-semibold">WebTime Tracker</h1>
         </div>
+      </div>
 
-        <div class="flex items-center space-x-2">
-          <!-- Aggregation Button -->
-          <button
-            @click="triggerAggregation"
-            :disabled="aggregationLoading || loading"
-            class="group relative flex items-center space-x-1 rounded-lg bg-green-500 px-3 py-2 text-sm font-medium transition-all hover:bg-green-400 disabled:cursor-not-allowed disabled:bg-green-400/50"
-            title="Trigger manual aggregation"
-          >
-            <span v-if="aggregationLoading" class="animate-pulse">⚡</span>
-            <span v-else>🔧</span>
-            <span class="hidden sm:inline">Aggregate</span>
-          </button>
-
-          <!-- Refresh Button -->
-          <button
-            @click="refreshData"
-            :disabled="loading || aggregationLoading"
-            class="group relative flex items-center space-x-1 rounded-lg bg-blue-500 px-3 py-2 text-sm font-medium transition-all hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-400/50"
-            title="Refresh data"
-          >
-            <span v-if="loading" class="animate-spin">⟳</span>
-            <span v-else>🔄</span>
-            <span class="hidden sm:inline">Refresh</span>
-          </button>
-        </div>
+      <!-- Navigation Tabs -->
+      <div class="flex border-t border-blue-500/20">
+        <button
+          v-for="item in navigationItems"
+          :key="item.path"
+          @click="navigateTo(item.path)"
+          :class="[
+            'flex flex-1 items-center justify-center space-x-1 px-2 py-2 text-xs font-medium transition-all',
+            route.path === item.path
+              ? 'border-b-2 border-white bg-white/20 text-white shadow-sm'
+              : 'border-b-2 border-transparent text-blue-100 hover:bg-white/10 hover:text-white',
+          ]"
+          :title="item.title"
+        >
+          <span class="text-sm">{{ item.icon }}</span>
+          <span class="hidden text-xs sm:inline">{{
+            item.title.split('').slice(0, 2).join('')
+          }}</span>
+        </button>
       </div>
     </div>
 
-    <!-- Aggregation Result -->
-    <div
-      v-if="aggregationResult"
-      class="flex-shrink-0 border-l-4 border-yellow-400 bg-yellow-50 p-3 text-sm"
-    >
-      <div class="text-yellow-800">{{ aggregationResult }}</div>
-    </div>
-
-    <!-- Content -->
-    <div class="flex-1 overflow-y-auto">
-      <DebugDataDisplay
-        :events="tabData?.events || []"
-        :stats="tabData?.stats || []"
-        :tab-info="tabData?.tabInfo || { id: 0, url: '', hostname: '' }"
-        :loading="loading"
-        :error="error || undefined"
-      />
+    <!-- Main Content Area -->
+    <div class="flex-1 overflow-hidden">
+      <router-view />
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Custom scrollbar for the main content */
-.overflow-y-auto::-webkit-scrollbar {
-  width: 6px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Refresh button animation */
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-button:disabled span {
-  animation: spin 1s linear infinite;
-}
-</style>

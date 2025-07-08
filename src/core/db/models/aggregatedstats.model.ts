@@ -45,12 +45,12 @@ export const AggregatedStatsSchema = z.object({
   parentDomain: z.string().min(1),
 
   /**
-   * Accumulated open time in seconds (integer values only)
+   * Accumulated open time in milliseconds (integer values only)
    */
   total_open_time: z.number().int().nonnegative(),
 
   /**
-   * Accumulated active time in seconds (integer values only)
+   * Accumulated active time in milliseconds (integer values only)
    */
   total_active_time: z.number().int().nonnegative(),
 
