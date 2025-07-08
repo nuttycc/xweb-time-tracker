@@ -202,24 +202,16 @@ function handleFilterChange(): void {
 /**
  * Clear all filters
  */
-function clearFilters(): void {
+function handleClearFilters(): void {
   urlFilter.value = '';
   eventTypeFilter.value = '';
   logger.info('Filters cleared');
 }
 
 /**
- * Toggle grouping by hostname
- */
-function toggleGrouping(): void {
-  groupByHost.value = !groupByHost.value;
-  logger.info('Grouping toggled', { groupByHost: groupByHost.value });
-}
-
-/**
  * Refresh data
  */
-async function refreshData(): Promise<void> {
+async function handleRefreshData(): Promise<void> {
   logger.info('Refreshing events data');
   await loadAllEvents();
 }
@@ -283,7 +275,7 @@ onMounted(() => {
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <button
-              @click="refreshData"
+              @click="handleRefreshData"
               :disabled="loading"
               class="flex items-center space-x-1 rounded bg-blue-500 px-2 py-1 text-xs text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-blue-300"
             >
@@ -292,23 +284,10 @@ onMounted(() => {
               <span v-if="loading">Refreshing...</span>
               <span v-else>Refresh</span>
             </button>
-
-            <button
-              @click="toggleGrouping"
-              :class="[
-                'flex items-center space-x-1 rounded px-2 py-1 text-xs transition-colors',
-                groupByHost
-                  ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
-              ]"
-            >
-              <span>{{ groupByHost ? '📊' : '📋' }}</span>
-              <span>{{ groupByHost ? 'Grouped' : 'List' }}</span>
-            </button>
           </div>
 
           <button
-            @click="clearFilters"
+            @click="handleClearFilters"
             class="rounded px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-800"
           >
             Clear
