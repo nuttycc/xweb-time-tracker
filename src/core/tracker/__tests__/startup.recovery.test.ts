@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mock, type MockProxy } from 'vitest-mock-extended';
 import { fakeBrowser } from 'wxt/testing';
 import { v4 as uuidv4 } from 'uuid';
-import { browser } from '#imports';
+import { browser, type Browser } from '#imports';
 
 import { StartupRecovery } from '../StartupRecovery';
 import type { EventGenerator } from '../utils/EventGenerator';
@@ -44,12 +43,35 @@ function buildEventsLogRecord(partial: Partial<EventsLogRecord>): EventsLogRecor
   } as EventsLogRecord;
 }
 
-// Minimal tab type for mocking browser.tabs.query
-interface MockTab {
-  id: number;
-  url: string;
-  windowId: number;
-  audible: boolean;
+/**
+ * Helper: Build a mock Tab object for test use.
+ * This function creates a complete Tab object with sensible defaults,
+ * allowing tests to override only the necessary properties.
+ */
+function buildMockTab(partial: Partial<Browser.tabs.Tab>): Browser.tabs.Tab {
+  return {
+    id: partial.id ?? 1,
+    url: partial.url ?? 'https://example.com',
+    windowId: partial.windowId ?? 1,
+    audible: partial.audible ?? false,
+    active: partial.active ?? true,
+    autoDiscardable: partial.autoDiscardable ?? true,
+    discarded: partial.discarded ?? false,
+    favIconUrl: partial.favIconUrl,
+    groupId: partial.groupId ?? -1,
+    height: partial.height ?? 768,
+    highlighted: partial.highlighted ?? true,
+    incognito: partial.incognito ?? false,
+    index: partial.index ?? 0,
+    mutedInfo: partial.mutedInfo,
+    pinned: partial.pinned ?? false,
+    selected: partial.selected ?? true,
+    status: partial.status ?? 'complete',
+    title: partial.title,
+    width: partial.width ?? 1024,
+    frozen: false,
+    ...partial,
+  };
 }
 
 /**
@@ -91,8 +113,8 @@ describe('StartupRecovery', () => {
     vi.spyOn(browser.storage.local, 'remove').mockResolvedValue();
 
     // Mock browser.tabs.query to return one open tab
-    const fakeTab: MockTab = { id: 1, url: 'https://example.com', windowId: 1, audible: false };
-    vi.spyOn(browser.tabs, 'query').mockResolvedValue([fakeTab] as unknown as any);
+    const fakeTab = buildMockTab({ id: 1, url: 'https://example.com' });
+    vi.spyOn(browser.tabs, 'query').mockResolvedValue([fakeTab]);
 
     // Mock event generator to always succeed for open_time_start
     const openStartEvent = buildTrackingEvent({ eventType: 'open_time_start' });
@@ -158,11 +180,11 @@ describe('StartupRecovery', () => {
    */
   it('should create new sessions for all currently open tabs', async () => {
     // ---------------- Setup current browser tabs ----------------
-    const currentTabs: MockTab[] = [
-      { id: 1, url: 'https://example.com/page1', windowId: 1, audible: false },
-      { id: 2, url: 'https://example.com/page2', windowId: 1, audible: false },
+    const currentTabs: Browser.tabs.Tab[] = [
+      buildMockTab({ id: 1, url: 'https://example.com/page1' }),
+      buildMockTab({ id: 2, url: 'https://example.com/page2' }),
     ];
-    (browser.tabs.query as any).mockResolvedValue(currentTabs as unknown as any);
+    vi.spyOn(browser.tabs, 'query').mockResolvedValue(currentTabs);
 
     // Mock event generator for both tabs
     const openStartForTab1 = buildTrackingEvent({ eventType: 'open_time_start', tabId: 1 });

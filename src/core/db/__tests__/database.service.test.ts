@@ -291,8 +291,9 @@ describe('DatabaseService - Core CRUD Operations', () => {
         url,
         hostname: 'stat.test',
         parentDomain: 'test',
-        openTimeToAdd: 60,
-        activeTimeToAdd: 30,
+        // Use explicit milliseconds for clarity, e.g., 60 seconds
+        openTimeToAdd: 60000,
+        activeTimeToAdd: 30000,
       };
 
       // Act 1 – create
@@ -301,22 +302,25 @@ describe('DatabaseService - Core CRUD Operations', () => {
       // Assert after creation
       const createdStats = await service.getStatsByDateRange(date, date);
       expect(createdStats).toHaveLength(1);
-      expect(createdStats[0].total_open_time).toBe(60);
-      expect(createdStats[0].total_active_time).toBe(30);
+      expect(createdStats[0].total_open_time).toBe(60000);
+      expect(createdStats[0].total_active_time).toBe(30000);
 
       // Act 2 – update same key
       await service.upsertStat({
         ...baseData,
-        openTimeToAdd: 40,
-        activeTimeToAdd: 20,
+        // Add 40 more seconds
+        openTimeToAdd: 40000,
+        activeTimeToAdd: 20000,
       });
 
       // Assert after update
       const updatedStats = await service.getStatsByDateRange(date, date);
       expect(updatedStats).toHaveLength(1);
       expect(updatedStats[0].key).toBe(key);
-      expect(updatedStats[0].total_open_time).toBe(100); // 60 + 40
-      expect(updatedStats[0].total_active_time).toBe(50); // 30 + 20
+      // Assert the sum in milliseconds: 60000 + 40000
+      expect(updatedStats[0].total_open_time).toBe(100000);
+      // Assert the sum in milliseconds: 30000 + 20000
+      expect(updatedStats[0].total_active_time).toBe(50000);
     });
 
     it('should query stats by hostname and parent domain', async () => {

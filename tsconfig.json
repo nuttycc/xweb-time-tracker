@@ -3,9 +3,6 @@
   "exclude": [
     ".output",
     "node_modules",
-    "src/__tests__",
-    "**/*.test.ts",
-    "**/*.spec.ts",
     "vitest.config.ts",
     "vitest.setup.ts"
   ]

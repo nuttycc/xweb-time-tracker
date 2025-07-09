@@ -105,10 +105,10 @@ export class AggregatedStatsRepository extends BaseRepository<AggregatedStatsRec
               });
 
               const updatedRecord: Partial<AggregatedStatsRecord> = {
-                // Convert milliseconds to seconds for storage
-                total_open_time: existing.total_open_time + Math.round(data.openTimeToAdd / 1000),
-                total_active_time:
-                  existing.total_active_time + Math.round(data.activeTimeToAdd / 1000),
+                // BUGFIX: The incoming data is in milliseconds, as is the stored value.
+                // Remove the incorrect conversion to seconds.
+                total_open_time: existing.total_open_time + data.openTimeToAdd,
+                total_active_time: existing.total_active_time + data.activeTimeToAdd,
                 // last_updated will be automatically set by the updating hook
               };
 
