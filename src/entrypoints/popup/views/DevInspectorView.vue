@@ -148,7 +148,7 @@ async function loadAllEvents(): Promise<void> {
     const [unprocessedEvents, processedEvents] = await Promise.all([
       // Get unprocessed events (recent activity)
       dbService.getUnprocessedEvents({
-        limit: 1000,
+        limit: 100,
         orderBy: 'timestamp',
         orderDirection: 'desc',
       }),
@@ -156,7 +156,7 @@ async function loadAllEvents(): Promise<void> {
       dbService.getProcessedEvents(
         Date.now(), // All processed events
         {
-          limit: 1000,
+          limit: 100,
           orderBy: 'timestamp',
           orderDirection: 'desc',
         }
@@ -338,30 +338,20 @@ onMounted(() => {
 
         <!-- Data Stats -->
         <div class="rounded-lg border border-green-200 bg-green-50 p-4">
-          <div class="flex flex-col">
-            <div>
-              <div class="flex items-center space-x-6 text-sm text-green-700">
-                <div class="text-center">
-                  <div class="font-semibold text-green-800">{{ allEvents.length }}</div>
-                  <div class="text-xs">Total Events</div>
-                </div>
-                <div class="text-center">
-                  <div class="font-semibold text-green-800">{{ filteredEvents.length }}</div>
-                  <div class="text-xs">Filtered</div>
-                </div>
-                <div class="text-center" v-if="groupByHost">
-                  <div class="font-semibold text-green-800">
-                    {{ Object.keys(groupedEvents).length }}
-                  </div>
-                  <div class="text-xs">Hosts</div>
-                </div>
-                <div class="text-center">
-                  <div class="font-semibold text-green-800">
-                    {{ filteredEvents.length }}
-                  </div>
-                  <div class="text-xs">Events</div>
-                </div>
+          <div class="flex items-center justify-around text-sm text-green-700">
+            <div class="text-center">
+              <div class="font-semibold text-green-800">{{ allEvents.length }}</div>
+              <div class="text-xs">Latest Events</div>
+            </div>
+            <div class="text-center">
+              <div class="font-semibold text-green-800">{{ filteredEvents.length }}</div>
+              <div class="text-xs">Filtered</div>
+            </div>
+            <div class="text-center" v-if="groupByHost">
+              <div class="font-semibold text-green-800">
+                {{ Object.keys(groupedEvents).length }}
               </div>
+              <div class="text-xs">Hosts</div>
             </div>
           </div>
         </div>

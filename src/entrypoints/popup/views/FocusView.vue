@@ -17,6 +17,16 @@ const currentUrl = ref<string>('');
 const currentHostname = ref<string>('');
 const currentParentDomain = ref<string>('');
 const aggregatedStats = ref<AggregatedStatsRecord[]>([]);
+const expandedItems = ref(new Set<string>());
+
+// Function to toggle accordion items
+function toggleExpand(key: string) {
+  if (expandedItems.value.has(key)) {
+    expandedItems.value.delete(key);
+  } else {
+    expandedItems.value.add(key);
+  }
+}
 
 // Computed properties for data aggregation
 const totalStats = computed(() => {
@@ -29,30 +39,68 @@ const totalStats = computed(() => {
       totalOpenTime: acc.totalOpenTime + stat.total_open_time,
       totalActiveTime: acc.totalActiveTime + stat.total_active_time,
     }),
-    { totalOpenTime: 0, totalActiveTime: 0 }
+    { totalOpenTime: 0, totalActiveTime: 0 },
   );
 });
 
-// Group stats by hostname for hierarchical display
-const statsByHostname = computed(() => {
-  const grouped = new Map<string, AggregatedStatsRecord[]>();
+// Group stats by date for hierarchical display
+const statsByDate = computed(() => {
+  const groupedByDate = new Map<string, AggregatedStatsRecord[]>();
 
+  // Group all stats by date
   for (const stat of aggregatedStats.value) {
-    if (!grouped.has(stat.hostname)) {
-      grouped.set(stat.hostname, []);
+    const date = stat.date; // Assuming 'date' field exists and is in 'YYYY-MM-DD' format
+    if (!groupedByDate.has(date)) {
+      groupedByDate.set(date, []);
     }
-    grouped.get(stat.hostname)!.push(stat);
+    groupedByDate.get(date)!.push(stat);
   }
 
-  // Convert to array and sort by total time
-  return Array.from(grouped.entries())
-    .map(([hostname, stats]) => ({
-      hostname,
-      stats,
-      totalOpenTime: stats.reduce((sum, s) => sum + s.total_open_time, 0),
-      totalActiveTime: stats.reduce((sum, s) => sum + s.total_active_time, 0),
-    }))
-    .sort((a, b) => b.totalOpenTime - a.totalOpenTime);
+  // Process each date group
+  return Array.from(groupedByDate.entries())
+    .map(([date, dateStats]) => {
+      const groupedByHostname = new Map<string, AggregatedStatsRecord[]>();
+      let totalActiveTimeForDate = 0;
+
+      // Group stats within the date by hostname
+      for (const stat of dateStats) {
+        totalActiveTimeForDate += stat.total_active_time;
+        if (!groupedByHostname.has(stat.hostname)) {
+          groupedByHostname.set(stat.hostname, []);
+        }
+        groupedByHostname.get(stat.hostname)!.push(stat);
+      }
+
+      // Process each hostname group for the date
+      const hostnames = Array.from(groupedByHostname.entries())
+        .map(([hostname, hostnameStats]) => {
+          const totalActiveTimeForHostname = hostnameStats.reduce(
+            (sum, s) => sum + s.total_active_time,
+            0,
+          );
+          const totalOpenTimeForHostname = hostnameStats.reduce(
+            (sum, s) => sum + s.total_open_time,
+            0,
+          );
+          return {
+            hostname,
+            stats: hostnameStats.sort((a, b) => b.total_open_time - a.total_open_time),
+            totalActiveTime: totalActiveTimeForHostname,
+            totalOpenTime: totalOpenTimeForHostname,
+            pageCount: hostnameStats.length,
+          };
+        })
+        .sort((a, b) => b.totalOpenTime - a.totalOpenTime);
+
+      return {
+        date,
+        totalActiveTime: totalActiveTimeForDate,
+        hostnameCount: hostnames.length,
+        pageCount: dateStats.length,
+        hostnames,
+      };
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 });
 
 /**
@@ -233,42 +281,90 @@ onMounted(() => {
             <span class="mb-2 block text-2xl">🌳</span>
             <p class="text-sm">No hierarchical data available</p>
           </div>
-          <div v-else class="space-y-3">
-            <!-- Hostname Groups -->
+          <div v-else class="space-y-2">
+            <!-- Date Groups (Level 1 Accordion) -->
             <div
-              v-for="hostnameGroup in statsByHostname"
-              :key="hostnameGroup.hostname"
+              v-for="dateGroup in statsByDate"
+              :key="dateGroup.date"
               class="rounded border border-gray-300 bg-white"
             >
-              <!-- Hostname Header -->
-              <div class="flex items-center justify-between bg-gray-100 px-3 py-2">
-                <div class="flex items-center space-x-2">
-                  <span class="text-sm font-medium text-gray-800">{{
-                    hostnameGroup.hostname
-                  }}</span>
-                  <span class="rounded bg-gray-200 px-2 py-1 text-xs text-gray-600">
-                    {{ hostnameGroup.stats.length }} pages
-                  </span>
+              <!-- Date Tile Header -->
+              <div
+                class="flex cursor-pointer items-center justify-between bg-gray-100 px-3 py-2 hover:bg-gray-200"
+                @click="toggleExpand(`date_${dateGroup.date}`)"
+              >
+                <div class="flex items-center space-x-3">
+                  <svg
+                    class="h-4 w-4 transform text-gray-600 transition-transform"
+                    :class="{ 'rotate-90': expandedItems.has(`date_${dateGroup.date}`) }"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                  <div>
+                    <div class="font-medium text-gray-800">{{ dateGroup.date }}</div>
+                    <div class="text-xs text-gray-500">
+                      {{ dateGroup.pageCount }} {{ dateGroup.pageCount > 1 ? 'pages' : 'page' }}
+                    </div>
+                  </div>
                 </div>
-                <div class="text-xs text-gray-600">
-                  {{ formatDuration(hostnameGroup.totalOpenTime) }}
+                <div class="text-right text-sm font-semibold text-gray-700">
+                  {{ formatDuration(dateGroup.totalActiveTime) }}
                 </div>
               </div>
 
-              <!-- URL Details -->
-              <div class="divide-y divide-gray-200">
-                <div v-for="stat in hostnameGroup.stats" :key="stat.key" class="px-3 py-2">
-                  <div class="flex items-center justify-between">
-                    <div class="min-w-0 flex-1">
-                      <div :title="stat.url" class="truncate text-sm text-gray-900">{{ stat.url }}</div>
-                      <div class="text-xs text-gray-500">{{ stat.date }}</div>
+              <!-- Expanded Content: Hostname List -->
+              <div
+                v-if="expandedItems.has(`date_${dateGroup.date}`)"
+                class="border-t border-gray-200 p-2"
+              >
+                <!-- Hostname Group (Static visual group, not a collapsible accordion) -->
+                <div
+                  v-for="hostnameGroup in dateGroup.hostnames"
+                  :key="hostnameGroup.hostname"
+                  class="py-2"
+                >
+                  <!-- Static Hostname Header -->
+                  <div class="mb-1 flex items-center justify-between px-2">
+                    <div class="truncate text-sm font-medium text-gray-700">
+                      {{ hostnameGroup.hostname }}
                     </div>
-                    <div class="ml-2 text-right">
-                      <div class="text-sm font-medium text-gray-900">
-                        {{ formatDuration(stat.total_open_time) }}
-                      </div>
-                      <div class="text-xs text-gray-500">
-                        Active: {{ formatDuration(stat.total_active_time) }}
+                    <div class="ml-2 flex-shrink-0 text-right text-xs font-semibold text-gray-600">
+                      {{ formatDuration(hostnameGroup.totalOpenTime) }}
+                    </div>
+                  </div>
+
+                  <!-- URL Details List -->
+                  <div
+                    class="ml-2 divide-y divide-gray-100 border-l-2 border-gray-200 pl-2"
+                  >
+                    <div
+                      v-for="stat in hostnameGroup.stats"
+                      :key="stat.key"
+                      class="py-2 pl-1"
+                    >
+                      <div class="flex items-center justify-between">
+                        <div class="min-w-0 flex-1">
+                          <div :title="stat.url" class="truncate text-sm text-gray-900">
+                            {{ stat.url }}
+                          </div>
+                        </div>
+                        <div class="ml-2 flex-shrink-0 text-right">
+                          <div class="text-sm font-medium text-gray-900">
+                            {{ formatDuration(stat.total_open_time) }}
+                          </div>
+                          <div class="text-xs text-gray-500">
+                            Active: {{ formatDuration(stat.total_active_time) }}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
