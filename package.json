@@ -22,7 +22,6 @@
     "@webext-core/messaging": "^2.3.0",
     "chart.js": "^4.5.0",
     "date-fns": "^4.1.0",
-    "dayjs": "^1.11.13",
     "dexie": "^4.0.11",
     "es-toolkit": "^1.39.6",
     "iconify-icon": "^3.0.0",

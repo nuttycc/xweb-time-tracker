@@ -6,6 +6,7 @@ import { formatDuration } from '@/utils/time-formatter';
 import { databaseService } from '@/core/db/services';
 import type { AggregatedStatsRecord } from '@/core/db/schemas';
 import * as psl from 'psl';
+import { groupBy } from 'es-toolkit';
 
 const logger = createLogger('FocusView');
 
@@ -20,7 +21,7 @@ const aggregatedStats = ref<AggregatedStatsRecord[]>([]);
 const expandedItems = ref(new Set<string>());
 
 // Function to toggle accordion items
-function toggleExpand(key: string) {
+function handleToggleExpand(key: string) {
   if (expandedItems.value.has(key)) {
     expandedItems.value.delete(key);
   } else {
@@ -45,46 +46,33 @@ const totalStats = computed(() => {
 
 // Group stats by date for hierarchical display
 const statsByDate = computed(() => {
-  const groupedByDate = new Map<string, AggregatedStatsRecord[]>();
+  if (aggregatedStats.value.length === 0) return [];
 
-  // Group all stats by date
-  for (const stat of aggregatedStats.value) {
-    const date = stat.date; // Assuming 'date' field exists and is in 'YYYY-MM-DD' format
-    if (!groupedByDate.has(date)) {
-      groupedByDate.set(date, []);
-    }
-    groupedByDate.get(date)!.push(stat);
-  }
+  const groupedByDate = groupBy(aggregatedStats.value, stat => stat.date);
 
-  // Process each date group
-  return Array.from(groupedByDate.entries())
+  return Object.entries(groupedByDate)
     .map(([date, dateStats]) => {
-      const groupedByHostname = new Map<string, AggregatedStatsRecord[]>();
-      let totalActiveTimeForDate = 0;
+      const groupedByHostname = groupBy(dateStats, stat => stat.hostname);
 
-      // Group stats within the date by hostname
-      for (const stat of dateStats) {
-        totalActiveTimeForDate += stat.total_active_time;
-        if (!groupedByHostname.has(stat.hostname)) {
-          groupedByHostname.set(stat.hostname, []);
-        }
-        groupedByHostname.get(stat.hostname)!.push(stat);
-      }
+      const totalActiveTimeForDate = dateStats.reduce(
+        (sum, s) => sum + s.total_active_time,
+        0
+      );
 
-      // Process each hostname group for the date
-      const hostnames = Array.from(groupedByHostname.entries())
+      const hostnames = Object.entries(groupedByHostname)
         .map(([hostname, hostnameStats]) => {
           const totalActiveTimeForHostname = hostnameStats.reduce(
             (sum, s) => sum + s.total_active_time,
-            0,
+            0
           );
           const totalOpenTimeForHostname = hostnameStats.reduce(
             (sum, s) => sum + s.total_open_time,
-            0,
+            0
           );
+
           return {
             hostname,
-            stats: hostnameStats.sort((a, b) => b.total_open_time - a.total_open_time),
+            stats: [...hostnameStats].sort((a, b) => b.total_open_time - a.total_open_time),
             totalActiveTime: totalActiveTimeForHostname,
             totalOpenTime: totalOpenTimeForHostname,
             pageCount: hostnameStats.length,
@@ -291,7 +279,7 @@ onMounted(() => {
               <!-- Date Tile Header -->
               <div
                 class="flex cursor-pointer items-center justify-between bg-gray-100 px-3 py-2 hover:bg-gray-200"
-                @click="toggleExpand(`date_${dateGroup.date}`)"
+                @click="handleToggleExpand(`date_${dateGroup.date}`)"
               >
                 <div class="flex items-center space-x-3">
                   <svg
