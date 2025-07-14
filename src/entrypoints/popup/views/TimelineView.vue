@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { createLogger } from '@/utils/logger';
-import { formatDuration, getDateRange, type DateRange } from '@/utils/time-formatter';
+import { formatDuration, getDateRange, type DateRange, formatLocalDate } from '@/utils/time-formatter';
 import { databaseService } from '@/core/db/services';
 import type { AggregatedStatsRecord } from '@/core/db/schemas';
 
@@ -207,7 +207,7 @@ onMounted(() => {
             <div class="flex items-center justify-between">
               <span class="text-sm text-blue-700">Date Range:</span>
               <span class="font-mono text-xs text-blue-600">
-                {{ currentDateRange.startDate }} ~ {{ currentDateRange.endDate }}
+                {{ formatLocalDate(currentDateRange.startDate) }} ~ {{ formatLocalDate(currentDateRange.endDate) }}
               </span>
             </div>
           </div>
@@ -300,7 +300,7 @@ onMounted(() => {
                     >
                       <div class="min-w-0 flex-1">
                         <div class="truncate text-xs text-gray-600">{{ stat.url }}</div>
-                        <div class="text-xs text-gray-400">{{ stat.date }}</div>
+                        <div class="text-xs text-gray-400">{{ formatLocalDate(stat.date) }}</div>
                       </div>
                       <div class="ml-2 text-right">
                         <div class="text-xs font-medium text-gray-700">
