@@ -2,6 +2,8 @@
  * Time formatting utilities for the popup interface
  */
 
+import { format, parseISO, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays } from 'date-fns';
+
 /**
  * Converts a duration in milliseconds to a concise, human-readable string using hours, minutes, and seconds.
  *
@@ -73,55 +75,45 @@ export interface DateRange {
  */
 export function getDateRange(timeRange: string): DateRange {
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   switch (timeRange) {
     case 'today': {
-      const dateStr = today.toISOString().split('T')[0];
-      return { startDate: dateStr, endDate: dateStr };
+      const localStart = startOfDay(now);
+      const localEnd = endOfDay(now);
+      return { startDate: format(localStart, 'yyyy-MM-dd'), endDate: format(localEnd, 'yyyy-MM-dd') };
     }
 
     case 'yesterday': {
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const dateStr = yesterday.toISOString().split('T')[0];
-      return { startDate: dateStr, endDate: dateStr };
+      const yesterday = subDays(now, 1);
+      const localStart = startOfDay(yesterday);
+      const localEnd = endOfDay(yesterday);
+      return { startDate: format(localStart, 'yyyy-MM-dd'), endDate: format(localEnd, 'yyyy-MM-dd') };
     }
 
     case 'week': {
-      // Get start of current week (Monday)
-      const startOfWeek = new Date(today);
-      const dayOfWeek = startOfWeek.getDay();
-      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday = 0, Monday = 1
-      startOfWeek.setDate(startOfWeek.getDate() - daysToMonday);
-
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(endOfWeek.getDate() + 6); // Sunday
-
-      return {
-        startDate: startOfWeek.toISOString().split('T')[0],
-        endDate: endOfWeek.toISOString().split('T')[0],
-      };
+      const localStart = startOfWeek(now, { weekStartsOn: 1 });
+      const localEnd = endOfWeek(now, { weekStartsOn: 1 });
+      return { startDate: format(localStart, 'yyyy-MM-dd'), endDate: format(localEnd, 'yyyy-MM-dd') };
     }
 
     case 'month': {
-      // Get start and end of current month
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-      return {
-        startDate: startOfMonth.toISOString().split('T')[0],
-        endDate: endOfMonth.toISOString().split('T')[0],
-      };
+      const localStart = startOfMonth(now);
+      const localEnd = endOfMonth(now);
+      return { startDate: format(localStart, 'yyyy-MM-dd'), endDate: format(localEnd, 'yyyy-MM-dd') };
     }
 
     case 'all':
     default: {
-      // Return a very wide range for "all" data
       return {
         startDate: '2020-01-01',
-        endDate: new Date().toISOString().split('T')[0],
+        endDate: format(now, 'yyyy-MM-dd'),
       };
     }
   }
+}
+
+// Helper to format UTC date string to local YYYY-MM-DD
+export function formatLocalDate(utcDateStr: string): string {
+  const date = parseISO(utcDateStr);
+  return format(date, 'yyyy-MM-dd');
 }
