@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { createLogger } from '@/utils/logger';
 import { formatDuration, getDateRange, type DateRange, formatLocalDate } from '@/utils/time-formatter';
 import { databaseService } from '@/core/db/services';
+import { storage } from '#imports';
 import type { AggregatedStatsRecord } from '@/core/db/schemas';
 
 const logger = createLogger('TimelineView');
@@ -10,7 +11,7 @@ const logger = createLogger('TimelineView');
 // Reactive state
 const loading = ref(false);
 const error = ref<string | null>(null);
-const selectedTimeRange = ref<string>('today');
+const selectedTimeRange = ref<string>('week');
 const aggregatedStats = ref<AggregatedStatsRecord[]>([]);
 
 // Time range options
@@ -133,10 +134,15 @@ async function loadTimelineData(): Promise<void> {
 async function handleTimeRangeChange(): Promise<void> {
   logger.info('Time range changed', { selectedTimeRange: selectedTimeRange.value });
   await loadTimelineData();
+  await storage.setItem('local:selectedTimeRange', selectedTimeRange.value);  
 }
 
-onMounted(() => {
+onMounted(async () => {
   logger.info('TimelineView mounted');
+  const localSelectedTimeRange = await storage.getItem('local:selectedTimeRange');
+  if (localSelectedTimeRange) {
+    selectedTimeRange.value = localSelectedTimeRange as string;
+  }
   loadTimelineData();
 });
 </script>
@@ -249,17 +255,19 @@ onMounted(() => {
           </div>
           <div v-else class="space-y-3">
             <!-- Parent Domain Groups -->
-            <div
+            <details
               v-for="domainGroup in statsByParentDomain"
               :key="domainGroup.parentDomain"
+              name="domainGroup"
               class="rounded border border-gray-300 bg-white"
             >
               <!-- Parent Domain Header -->
-              <div class="flex items-center justify-between bg-gray-100 px-3 py-2">
+              <summary class="flex cursor-pointer items-center justify-between bg-gray-100 px-3 py-2 hover:bg-gray-200">
                 <div class="flex items-center space-x-2">
-                  <span class="text-sm font-medium text-gray-800">{{
-                    domainGroup.parentDomain
-                  }}</span>
+                  <span class="flex items-center text-sm font-medium text-gray-800">
+                    <iconify-icon icon="gg:expand" width="16" height="16" class="mr-2"></iconify-icon>
+                    {{ domainGroup.parentDomain }}
+                  </span>
                   <span class="rounded bg-gray-200 px-2 py-1 text-xs text-gray-600">
                     {{ domainGroup.hostnameCount }} hosts / {{ domainGroup.urlCount }} pages
                   </span>
@@ -267,7 +275,7 @@ onMounted(() => {
                 <div class="text-xs text-gray-600">
                   {{ formatDuration(domainGroup.totalOpenTime) }}
                 </div>
-              </div>
+              </summary>
 
               <!-- Hostname Groups -->
               <div class="divide-y divide-gray-200">
@@ -314,7 +322,7 @@ onMounted(() => {
                   </div>
                 </div>
               </div>
-            </div>
+            </details>
           </div>
         </div>
       </div>
