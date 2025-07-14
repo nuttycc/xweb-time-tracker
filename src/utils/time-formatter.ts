@@ -66,12 +66,18 @@ export interface DateRange {
 }
 
 /**
- * Returns a date range object for a specified time period identifier.
+ * Returns the start and end dates for a given time range identifier.
  *
- * Supported identifiers are "today", "yesterday", "week" (Monday to Sunday of the current week), "month" (current calendar month), and "all" (from 2020-01-01 to today). Any unrecognized identifier defaults to the "all" range.
+ * Supported identifiers are:
+ * - "today": current local day
+ * - "yesterday": previous local day
+ * - "week": Monday to Sunday of the current week
+ * - "month": current calendar month
+ * - "all": from 2020-01-01 to today
+ * Unrecognized identifiers default to the "all" range.
  *
- * @param timeRange - Identifier for the desired time period ("today", "yesterday", "week", "month", or "all")
- * @returns An object with `startDate` and `endDate` in YYYY-MM-DD format
+ * @param timeRange - The time period identifier to calculate the date range for
+ * @returns An object with `startDate` and `endDate` as YYYY-MM-DD strings
  */
 export function getDateRange(timeRange: string): DateRange {
   const now = new Date();
@@ -112,7 +118,12 @@ export function getDateRange(timeRange: string): DateRange {
   }
 }
 
-// Helper to format UTC date string to local YYYY-MM-DD
+/**
+ * Converts a UTC date string to a local date string in YYYY-MM-DD format.
+ *
+ * @param utcDateStr - The UTC date string to convert
+ * @returns The local date formatted as YYYY-MM-DD
+ */
 export function formatLocalDate(utcDateStr: string): string {
   const date = parseISO(utcDateStr);
   return format(date, 'yyyy-MM-dd');
