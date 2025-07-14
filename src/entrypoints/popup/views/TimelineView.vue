@@ -121,7 +121,7 @@ async function loadTimelineData(): Promise<void> {
     });
   } catch (err) {
     logger.error('Failed to load timeline data:', err);
-    error.value = err instanceof Error ? err.message : '加载数据失败';
+    error.value = err instanceof Error ? err.message : 'Failed to load data';
   } finally {
     loading.value = false;
   }
@@ -215,37 +215,37 @@ onMounted(() => {
 
         <!-- Overall Statistics -->
         <div class="rounded-lg border border-green-200 bg-green-50 p-4">
-          <h3 class="mb-3 font-medium text-green-900">总体统计</h3>
+          <h3 class="mb-3 font-medium text-green-900">Overall Statistics</h3>
           <div v-if="aggregatedStats.length === 0" class="py-4 text-center text-green-600">
             <span class="mb-2 block text-2xl">📊</span>
-            <p class="text-sm">该时间范围内暂无活动记录</p>
+            <p class="text-sm">No activity records in this time range</p>
           </div>
           <div v-else class="grid grid-cols-3 gap-4 text-center">
             <div>
               <div class="text-lg font-bold text-green-800">
                 {{ formatDuration(totalStats.totalOpenTime) }}
               </div>
-              <div class="text-xs text-green-600">总访问时长</div>
+              <div class="text-xs text-green-600">Total Open Time</div>
             </div>
             <div>
               <div class="text-lg font-bold text-green-800">
                 {{ formatDuration(totalStats.totalActiveTime) }}
               </div>
-              <div class="text-xs text-green-600">总活跃时长</div>
+              <div class="text-xs text-green-600">Total Active Time</div>
             </div>
             <div>
               <div class="text-lg font-bold text-green-800">{{ statsByParentDomain.length }}</div>
-              <div class="text-xs text-green-600">访问域名</div>
+              <div class="text-xs text-green-600">Domains</div>
             </div>
           </div>
         </div>
 
         <!-- Domain Activity List -->
         <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <h3 class="mb-3 font-medium text-gray-900">域名活动列表</h3>
+          <h3 class="mb-3 font-medium text-gray-900">Domain Activity List</h3>
           <div v-if="aggregatedStats.length === 0" class="py-4 text-center text-gray-500">
             <span class="mb-2 block text-2xl">🌐</span>
-            <p class="text-sm">暂无域名活动数据</p>
+            <p class="text-sm">No domain activity data</p>
           </div>
           <div v-else class="space-y-3">
             <!-- Parent Domain Groups -->
@@ -261,7 +261,7 @@ onMounted(() => {
                     domainGroup.parentDomain
                   }}</span>
                   <span class="rounded bg-gray-200 px-2 py-1 text-xs text-gray-600">
-                    {{ domainGroup.hostnameCount }} 主机 / {{ domainGroup.urlCount }} 页面
+                    {{ domainGroup.hostnameCount }} hosts / {{ domainGroup.urlCount }} pages
                   </span>
                 </div>
                 <div class="text-xs text-gray-600">
@@ -283,7 +283,7 @@ onMounted(() => {
                         hostnameGroup.hostname
                       }}</span>
                       <span class="rounded bg-blue-100 px-2 py-1 text-xs text-blue-600">
-                        {{ hostnameGroup.stats.length }} 页面
+                        {{ hostnameGroup.stats.length }} pages
                       </span>
                     </div>
                     <div class="text-xs text-gray-600">
@@ -307,7 +307,7 @@ onMounted(() => {
                           {{ formatDuration(stat.total_open_time) }}
                         </div>
                         <div class="text-xs text-gray-500">
-                          活跃: {{ formatDuration(stat.total_active_time) }}
+                          Active: {{ formatDuration(stat.total_active_time) }}
                         </div>
                       </div>
                     </div>
