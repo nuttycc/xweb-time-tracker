@@ -254,13 +254,14 @@ async function processNavigation(tabId: number, url: string): Promise<void> {
 }
 
 /**
- * Unified navigation event scheduler that manages debounced processing.
- * All navigation events (onCommitted, onHistoryStateUpdated, onUpdated) go through this function.
+ * Schedules debounced processing of navigation events for a tab, ensuring only main-frame and trackable URLs are handled.
+ *
+ * All navigation events (such as committed, history state updates, and tab updates) are funneled through this function to prevent redundant processing and to debounce rapid navigation changes.
  *
  * @param tabId - The ID of the tab where navigation occurred
- * @param url - The new URL
- * @param frameId - Optional frame ID for filtering main frame events
- * @param source - The event source (auto-inferred)
+ * @param url - The navigated URL
+ * @param frameId - Optional frame ID; only main-frame events (frameId 0 or undefined) are processed
+ * @param source - Optional event source identifier
  */
 function scheduleNavigationProcessing(
   tabId: number,
@@ -294,10 +295,9 @@ function scheduleNavigationProcessing(
 }
 
 /**
- * Sets up browser event listeners to capture tab, window, navigation, and runtime events, forwarding them to the time tracker.
+ * Registers browser event listeners to monitor tab, window, navigation, and runtime events, forwarding relevant activity to the time tracker.
  *
- * Uses a unified debounced navigation processing approach to handle traditional page loads, SPA navigations,
- * and tab updates. Ensures no duplicate navigation events and handles rapid URL changes gracefully.
+ * Handles tab activations, updates (including navigation and audible state changes), removals, window focus changes, traditional and SPA navigations, and runtime suspension. Ensures navigation events are debounced and deduplicated to accurately track user browsing activity.
  */
 function setupBrowserEventListeners(): void {
   // Tab activation events
@@ -592,10 +592,9 @@ function setupMessagingHandlers(): void {
 }
 
 /**
- * Sets up chrome.idle API listener to detect system-wide idle state changes.
+ * Initializes a listener for system idle and locked state changes to end active time tracking sessions for the currently focused tab.
  *
- * When the system enters idle or locked state, ends active time sessions for
- * the currently focused tab to ensure accurate time tracking.
+ * Ensures that user inactivity or system lock events are accurately reflected in tracked browsing sessions by terminating the active session when such states are detected.
  */
 function setupIdleStateListener(): void {
   // Set idle detection interval to 60 seconds
