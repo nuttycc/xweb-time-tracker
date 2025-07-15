@@ -3,6 +3,7 @@
 [![Built with WXT](https://img.shields.io/badge/Built%20with-WXT-purple.svg)](https://wxt.dev)
 [![Vue.js](https://img.shields.io/badge/Vue.js-3-green.svg)](https://vuejs.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/nuttycc/xweb-time-tracker?utm_source=oss&utm_medium=github&utm_campaign=nuttycc%2Fxweb-time-tracker&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/nuttycc/xweb-time-tracker)
 
 Web Time Tracker is a browser extension that helps you understand how you spend your time online. It automatically tracks the time spent on different websites and provides detailed, privacy-focused reports right in your browser.
