@@ -19,6 +19,7 @@ import type {
   ManualAggregationResponse,
 } from '@/types/messaging';
 import { databaseService } from '@/core/db/services/database.service';
+import { ConfigMigration } from '@/config/migration';
 import { LRUCache } from 'lru-cache';
 
 // Define messaging protocol for communication with content scripts and popup
@@ -105,6 +106,9 @@ export default defineBackground(() => {
   // Use IIAFE to handle async initialization without making main function async
   (async () => {
     try {
+      // Run configuration migration before initializing other components
+      await ConfigMigration.runMigration();
+
       // Initialize the time tracker
       const initResult = await timeTracker.initialize();
 
@@ -250,15 +254,21 @@ async function processNavigation(tabId: number, url: string): Promise<void> {
 }
 
 /**
- * Unified navigation event scheduler that manages debounced processing.
- * All navigation events (onCommitted, onHistoryStateUpdated, onUpdated) go through this function.
+ * Schedules debounced processing of navigation events for a tab, ensuring only main-frame and trackable URLs are handled.
+ *
+ * All navigation events (such as committed, history state updates, and tab updates) are funneled through this function to prevent redundant processing and to debounce rapid navigation changes.
  *
  * @param tabId - The ID of the tab where navigation occurred
- * @param url - The new URL
- * @param frameId - Optional frame ID for filtering main frame events
- * @param source - The event source (auto-inferred)
+ * @param url - The navigated URL
+ * @param frameId - Optional frame ID; only main-frame events (frameId 0 or undefined) are processed
+ * @param source - Optional event source identifier
  */
-function scheduleNavigationProcessing(tabId: number, url: string, frameId?: number, source?: string): void {
+function scheduleNavigationProcessing(
+  tabId: number,
+  url: string,
+  frameId?: number,
+  source?: string
+): void {
   // Only process events for the main frame (frameId === 0 or undefined for onUpdated)
   if (frameId !== undefined && frameId !== 0) {
     return;
@@ -285,10 +295,9 @@ function scheduleNavigationProcessing(tabId: number, url: string, frameId?: numb
 }
 
 /**
- * Sets up browser event listeners to capture tab, window, navigation, and runtime events, forwarding them to the time tracker.
+ * Registers browser event listeners to monitor tab, window, navigation, and runtime events, forwarding relevant activity to the time tracker.
  *
- * Uses a unified debounced navigation processing approach to handle traditional page loads, SPA navigations,
- * and tab updates. Ensures no duplicate navigation events and handles rapid URL changes gracefully.
+ * Handles tab activations, updates (including navigation and audible state changes), removals, window focus changes, traditional and SPA navigations, and runtime suspension. Ensures navigation events are debounced and deduplicated to accurately track user browsing activity.
  */
 function setupBrowserEventListeners(): void {
   // Tab activation events
@@ -386,12 +395,22 @@ function setupBrowserEventListeners(): void {
 
   // Traditional page navigation events (full page loads, refreshes)
   browser.webNavigation.onCommitted.addListener(async details => {
-    scheduleNavigationProcessing(details.tabId, details.url, details.frameId, 'webNavigation.onCommitted');
+    scheduleNavigationProcessing(
+      details.tabId,
+      details.url,
+      details.frameId,
+      'webNavigation.onCommitted'
+    );
   });
 
   // SPA navigation events (History API: pushState, replaceState)
   browser.webNavigation.onHistoryStateUpdated.addListener(async details => {
-    scheduleNavigationProcessing(details.tabId, details.url, details.frameId, 'webNavigation.onHistoryStateUpdated');
+    scheduleNavigationProcessing(
+      details.tabId,
+      details.url,
+      details.frameId,
+      'webNavigation.onHistoryStateUpdated'
+    );
   });
 
   // Runtime suspend events (for graceful shutdown)
@@ -573,10 +592,9 @@ function setupMessagingHandlers(): void {
 }
 
 /**
- * Sets up chrome.idle API listener to detect system-wide idle state changes.
+ * Initializes a listener for system idle and locked state changes to end active time tracking sessions for the currently focused tab.
  *
- * When the system enters idle or locked state, ends active time sessions for
- * the currently focused tab to ensure accurate time tracking.
+ * Ensures that user inactivity or system lock events are accurately reflected in tracked browsing sessions by terminating the active session when such states are detected.
  */
 function setupIdleStateListener(): void {
   // Set idle detection interval to 60 seconds
@@ -617,7 +635,10 @@ function setupIdleStateListener(): void {
 }
 
 // Optionally, periodically call .purgeStale() to force cleanup (not strictly needed, but can be added for safety):
-setInterval(() => {
-  navigationTracker.purgeStale();
-  debouncedNavHandlers.purgeStale();
-}, 10 * 60 * 1000); // every 10 minutes
+setInterval(
+  () => {
+    navigationTracker.purgeStale();
+    debouncedNavHandlers.purgeStale();
+  },
+  10 * 60 * 1000
+); // every 10 minutes

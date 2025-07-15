@@ -2,7 +2,7 @@
  * Database Connection Manager
  *
  * This file implements the database connection management layer for Dexie,
- * providing health checks, error handling, and connection lifecycle management.
+ * providing error handling and connection lifecycle management.
  */
 
 import { retry } from 'es-toolkit/function';
@@ -44,17 +44,6 @@ export enum ConnectionState {
   OPEN = 'open',
   FAILED = 'failed',
   BLOCKED = 'blocked',
-}
-
-/**
- * Database health check result
- */
-export interface HealthCheckResult {
-  isHealthy: boolean;
-  state: ConnectionState;
-  version: number | null;
-  lastError: Error | null;
-  lastChecked: number; // Unix timestamp in milliseconds
 }
 
 /**
@@ -246,40 +235,6 @@ export class DatabaseConnectionManager {
 
     return this.db;
   }
-
-  /**
-   * Perform health check on database connection
-   */
-  async performHealthCheck(): Promise<HealthCheckResult> {
-    const result: HealthCheckResult = {
-      isHealthy: false,
-      state: this.state,
-      version: null,
-      lastError: this.lastError,
-      lastChecked: Date.now(),
-    };
-
-    try {
-      if (this.state === ConnectionState.OPEN) {
-        // Check if database is actually accessible
-        result.version = this.db.verno;
-
-        // Perform a simple read operation to verify connectivity
-        await this.db.transaction('r', [], () => {
-          // Empty transaction just to test database accessibility
-        });
-
-        result.isHealthy = true;
-      }
-    } catch (error) {
-      result.lastError = error as Error;
-      this.lastError = error as Error;
-      this.state = ConnectionState.FAILED;
-    }
-
-    return result;
-  }
-
 
 
   /**

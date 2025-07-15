@@ -1,0 +1,59 @@
+---
+alwaysApply: true
+---
+# Technology Stack
+
+## Framework & Build System
+- **WXT**: Browser extension framework for development and building
+- **Vue 3**: Frontend framework with Composition API
+- **TypeScript**: Primary language for type safety
+- **Vite**: Build tool and dev server (via WXT)
+- **pnpm**: Package manager (required - see packageManager field)
+
+## Key Libraries
+- **Dexie**: IndexedDB wrapper for local data storage
+- **Vue Router**: Client-side routing
+- **Vue i18n**: Internationalization
+- **Chart.js**: Data visualization for reports
+- **Zod 4**: Runtime type validation and schema parsing
+- **date-fns**: Date manipulation utilities
+- **@vueuse/core**: Vue composition utilities
+- **@webext-core/messaging**: Extension messaging system
+
+## Code Quality & Testing
+- **Vitest**: Testing framework with coverage
+- **ESLint + TypeScript ESLint**: Linting with Vue plugin
+- **Oxlint**: Fast linter for additional checks
+- **Prettier**: Code formatting with Tailwind plugin
+- **Husky**: Git hooks for pre-commit checks
+- **vue-tsc**: TypeScript checking for Vue files
+
+## Styling
+- **Tailwind CSS v4**: Utility-first CSS framework
+- **@midudev/tailwind-animations**: Animation utilities
+
+## Common Commands
+```bash
+# Development
+pnpm dev              # Start development server
+pnpm build            # Build for production
+pnpm postinstall      # Prepare WXT (auto-runs after install)
+
+# Code Quality
+pnpm check            # Type check + lint
+pnpm fix              # Auto-fix linting issues
+
+# Testing
+pnpm test             # Run all tests
+pnpm test:ci          # Run tests with coverage
+pnpm test:unit        # Run unit tests only
+pnpm test:integration # Run integration tests only
+```
+
+## Browser Extension Permissions
+- `tabs`, `activeTab`, `scripting`: Tab access and content injection
+- `alarms`: Background scheduling
+- `storage`: Extension storage API
+- `webNavigation`: Navigation event tracking
+- `idle`: User activity detection
+- `<all_urls>`: Universal host permissions for tracking

@@ -1,0 +1,36 @@
+name: Create Release Zip
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-zip:
+    name: Build and Zip Extension
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and Zip for Chrome
+        run: pnpm wxt zip --browser chrome --name xweb-time-tracker --version "${{ github.ref_name }}"
+
+      - name: Upload Zip Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xweb-time-tracker-${{ github.ref_name }}
+          path: ./.output/xweb-time-tracker-*.zip 
