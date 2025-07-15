@@ -2,14 +2,10 @@
  * Database Utils Module
  *
  * This module provides utility functions and classes for database operations,
- * including health checks, version management, and other common utilities.
+ * including version management, and other common utilities.
  *
  * @module db/utils
  */
-
-// Health Check Utilities
-export { HealthCheckUtil } from './health-check.util';
-export type { HealthCheckOptions } from './health-check.util';
 
 // Version Management Utilities
 export { VersionManagerUtil } from './version-manager.util';
@@ -26,11 +22,9 @@ export type { UrlNormalizationOptions } from './url-normalizer.util';
 
 // Re-export common types and interfaces
 export type {
-  HealthCheckResult,
   VersionInfo,
   VersionComparison,
   UtilityOptions,
-  HealthStatus,
   UtilityErrorType,
 } from './types';
 export { UtilityError } from './types';

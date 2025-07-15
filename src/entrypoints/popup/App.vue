@@ -28,6 +28,12 @@ const navigationItems = [
     title: '开发者视图',
     icon: '🔧',
   },
+  {
+    path: '/settings',
+    name: 'SettingsView',
+    title: '设置',
+    icon: '⚙️',
+  },
 ];
 
 /**

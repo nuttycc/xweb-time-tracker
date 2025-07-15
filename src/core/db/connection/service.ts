@@ -6,7 +6,7 @@
  */
 
 import type { Transaction } from 'dexie';
-import { connectionManager, type HealthCheckResult } from './manager';
+import { connectionManager } from './manager';
 import type { WebTimeTrackerDB } from '../schemas';
 
 /**
@@ -132,23 +132,14 @@ export class ConnectionService {
   }
 
   /**
-   * Get database health status
-   *
-   * @returns Promise with health check result
-   */
-  async getHealthStatus(): Promise<HealthCheckResult> {
-    return connectionManager.performHealthCheck();
-  }
-
-  /**
    * Check if database is ready for operations
    *
-   * @returns Promise that resolves to true if database is healthy
+   * @returns Promise that resolves to true if database is ready
    */
   async isReady(): Promise<boolean> {
     try {
-      const health = await this.getHealthStatus();
-      return health.isHealthy;
+      const db = await connectionManager.getDatabase();
+      return db.isOpen();
     } catch {
       return false;
     }

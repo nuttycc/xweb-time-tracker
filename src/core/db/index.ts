@@ -17,10 +17,10 @@
  * import { EventsLogRepository, AggregatedStatsRepository } from '@/core/db';
  *
  * // For utilities:
- * import { HealthCheckUtil, VersionManagerUtil } from '@/core/db';
+ * import { VersionManagerUtil } from '@/core/db';
  *
  * // For types only:
- * import type { EventsLogRecord, HealthCheckResult } from '@/core/db';
+ * import type { EventsLogRecord } from '@/core/db';
  *
  * // For advanced use cases:
  * import { DatabaseConnectionManager, createBusinessDatabaseService } from '@/core/db';
@@ -58,16 +58,13 @@ export type {
 export {
   DatabaseService,
   createDatabaseService,
-  createDatabaseServiceWithHealthChecker,
   databaseService,
   ErrorHandlerService,
-  ConnectionServiceHealthChecker,
 } from './services';
 
 // Export service types and interfaces
 export type {
   DatabaseHealthInfo,
-  HealthChecker,
   ErrorInfo,
   ErrorHandlingOptions,
   RecoveryResult,
@@ -87,12 +84,10 @@ export {
 // ============================================================================
 
 // Export utility classes
-export { HealthCheckUtil, VersionManagerUtil } from './utils';
+export { VersionManagerUtil } from './utils';
 
 // Export utility types and interfaces
 export type {
-  HealthCheckResult,
-  HealthCheckOptions,
   VersionInfo,
   VersionManagerOptions,
   VersionComparison,
@@ -100,7 +95,7 @@ export type {
 } from './utils';
 
 // Export utility enums and errors
-export { HealthStatus, UtilityError, UtilityErrorType } from './utils';
+export { UtilityError, UtilityErrorType } from './utils';
 
 // ============================================================================
 // MODEL TYPES
@@ -126,7 +121,6 @@ export { DatabaseConnectionManager, DefaultDatabaseFactory } from './connection'
 // Export connection types
 export type {
   ConnectionState,
-  HealthCheckResult as ConnectionHealthResult,
   ConnectionManagerOptions,
   DatabaseFactory,
   DatabaseOperationOptions,

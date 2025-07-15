@@ -33,25 +33,6 @@ export interface DatabaseHealthInfo {
 }
 
 /**
- * Health checker interface for dependency injection
- */
-export interface HealthChecker {
-  getHealthStatus(): Promise<{ isHealthy: boolean }>;
-}
-
-/**
- * Connection service health checker adapter
- */
-export class ConnectionServiceHealthChecker implements HealthChecker {
-  constructor(private connectionService: ConnectionService) {}
-
-  async getHealthStatus(): Promise<{ isHealthy: boolean }> {
-    const health = await this.connectionService.getHealthStatus();
-    return { isHealthy: health.isHealthy };
-  }
-}
-
-/**
  * Database Service Class
  *
  * Provides pure CRUD operations for database access, strictly following
@@ -64,13 +45,11 @@ export class ConnectionServiceHealthChecker implements HealthChecker {
 export class DatabaseService {
   private eventsLogRepo: EventsLogRepository;
   private aggregatedStatsRepo: AggregatedStatsRepository;
-  private healthChecker?: HealthChecker;
   private static readonly logger = createLogger('DB');
 
-  constructor(db: WebTimeTrackerDB, healthChecker?: HealthChecker) {
+  constructor(db: WebTimeTrackerDB) {
     this.eventsLogRepo = new EventsLogRepository(db);
     this.aggregatedStatsRepo = new AggregatedStatsRepository(db);
-    this.healthChecker = healthChecker;
   }
 
   // ==================== EVENT CRUD OPERATIONS ====================
@@ -320,20 +299,13 @@ export class DatabaseService {
     let totalStats = 0;
 
     try {
-      // Get database operation results first
+      // Get database operation results
       unprocessedCount = await this.eventsLogRepo.getUnprocessedEventsCount();
       totalEvents = await this.eventsLogRepo.count();
       totalStats = await this.aggregatedStatsRepo.count();
 
-      // Check health using injected health checker
-      if (this.healthChecker) {
-        const connectionHealth = await this.healthChecker.getHealthStatus();
-        isHealthy = connectionHealth.isHealthy;
-      } else {
-        // No health checker provided - perform basic health check
-        // If database operations succeeded, consider it healthy
-        isHealthy = true;
-      }
+      // If database operations succeeded, consider it healthy
+      isHealthy = true;
     } catch (error) {
       console.warn('Database health check failed:', error);
       isHealthy = false;
@@ -351,26 +323,12 @@ export class DatabaseService {
 }
 
 /**
- * Instantiates a DatabaseService with the specified database and optional health checker.
+ * Instantiates a DatabaseService with the specified database.
  *
- * If a health checker is provided, it will be used for health status checks; otherwise, the service performs basic health checks internally.
- *
- * @returns A DatabaseService instance configured with the provided database and optional health checker.
+ * @returns A DatabaseService instance configured with the provided database.
  */
-export function createDatabaseService(db: WebTimeTrackerDB, healthChecker?: HealthChecker): DatabaseService {
-  return new DatabaseService(db, healthChecker);
-}
-
-/**
- * Creates a `DatabaseService` instance with health checks delegated to the specified connection service.
- *
- * The resulting service uses the provided connection service to determine database health status.
- *
- * @returns A `DatabaseService` instance with connection-based health monitoring.
- */
-export function createDatabaseServiceWithHealthChecker(db: WebTimeTrackerDB, connectionService: ConnectionService): DatabaseService {
-  const healthChecker = new ConnectionServiceHealthChecker(connectionService);
-  return new DatabaseService(db, healthChecker);
+export function createDatabaseService(db: WebTimeTrackerDB): DatabaseService {
+  return new DatabaseService(db);
 }
 
 /**
@@ -383,8 +341,7 @@ export const databaseService = {
   async getInstance(): Promise<DatabaseService> {
     if (!_databaseServiceInstance) {
       const { db } = await import('../schemas');
-      const { connectionService } = await import('../connection');
-      _databaseServiceInstance = createDatabaseServiceWithHealthChecker(db, connectionService);
+      _databaseServiceInstance = createDatabaseService(db);
     }
     return _databaseServiceInstance;
   },

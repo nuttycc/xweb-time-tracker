@@ -11,7 +11,6 @@ export {
   DefaultDatabaseFactory,
   ConnectionState,
   connectionManager,
-  type HealthCheckResult,
   type ConnectionManagerOptions,
   type DatabaseFactory,
 } from './manager';

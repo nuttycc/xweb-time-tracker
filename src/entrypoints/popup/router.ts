@@ -5,6 +5,7 @@ import type { RouteRecordRaw } from 'vue-router';
 import FocusView from './views/FocusView.vue';
 import TimelineView from './views/TimelineView.vue';
 import DevInspectorView from './views/DevInspectorView.vue';
+import SettingsView from './views/SettingsView.vue';
 
 /**
  * Route definitions for the popup application
@@ -42,6 +43,16 @@ const routes: RouteRecordRaw[] = [
       title: '开发者视图',
       icon: '🔧',
       description: '查看原始事件日志数据',
+    },
+  },
+  {
+    path: '/settings',
+    name: 'SettingsView',
+    component: SettingsView,
+    meta: {
+      title: '设置',
+      icon: '⚙️',
+      description: '配置数据存储和清理选项',
     },
   },
 ];

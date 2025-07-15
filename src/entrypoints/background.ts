@@ -19,6 +19,7 @@ import type {
   ManualAggregationResponse,
 } from '@/types/messaging';
 import { databaseService } from '@/core/db/services/database.service';
+import { ConfigMigration } from '@/config/migration';
 import { LRUCache } from 'lru-cache';
 
 // Define messaging protocol for communication with content scripts and popup
@@ -105,6 +106,9 @@ export default defineBackground(() => {
   // Use IIAFE to handle async initialization without making main function async
   (async () => {
     try {
+      // Run configuration migration before initializing other components
+      await ConfigMigration.runMigration();
+
       // Initialize the time tracker
       const initResult = await timeTracker.initialize();
 
@@ -258,7 +262,12 @@ async function processNavigation(tabId: number, url: string): Promise<void> {
  * @param frameId - Optional frame ID for filtering main frame events
  * @param source - The event source (auto-inferred)
  */
-function scheduleNavigationProcessing(tabId: number, url: string, frameId?: number, source?: string): void {
+function scheduleNavigationProcessing(
+  tabId: number,
+  url: string,
+  frameId?: number,
+  source?: string
+): void {
   // Only process events for the main frame (frameId === 0 or undefined for onUpdated)
   if (frameId !== undefined && frameId !== 0) {
     return;
@@ -386,12 +395,22 @@ function setupBrowserEventListeners(): void {
 
   // Traditional page navigation events (full page loads, refreshes)
   browser.webNavigation.onCommitted.addListener(async details => {
-    scheduleNavigationProcessing(details.tabId, details.url, details.frameId, 'webNavigation.onCommitted');
+    scheduleNavigationProcessing(
+      details.tabId,
+      details.url,
+      details.frameId,
+      'webNavigation.onCommitted'
+    );
   });
 
   // SPA navigation events (History API: pushState, replaceState)
   browser.webNavigation.onHistoryStateUpdated.addListener(async details => {
-    scheduleNavigationProcessing(details.tabId, details.url, details.frameId, 'webNavigation.onHistoryStateUpdated');
+    scheduleNavigationProcessing(
+      details.tabId,
+      details.url,
+      details.frameId,
+      'webNavigation.onHistoryStateUpdated'
+    );
   });
 
   // Runtime suspend events (for graceful shutdown)
@@ -617,7 +636,10 @@ function setupIdleStateListener(): void {
 }
 
 // Optionally, periodically call .purgeStale() to force cleanup (not strictly needed, but can be added for safety):
-setInterval(() => {
-  navigationTracker.purgeStale();
-  debouncedNavHandlers.purgeStale();
-}, 10 * 60 * 1000); // every 10 minutes
+setInterval(
+  () => {
+    navigationTracker.purgeStale();
+    debouncedNavHandlers.purgeStale();
+  },
+  10 * 60 * 1000
+); // every 10 minutes

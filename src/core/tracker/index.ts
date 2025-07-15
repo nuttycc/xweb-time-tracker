@@ -136,8 +136,7 @@ export class TimeTracker {
     if (databaseService) {
       this.databaseService = databaseService;
     } else {
-      // Create database service without health checker for backward compatibility
-      // In production, use the singleton with health checker
+      // Create database service for this tracker instance
       this.databaseService = new DatabaseService(dbInstance);
     }
 
