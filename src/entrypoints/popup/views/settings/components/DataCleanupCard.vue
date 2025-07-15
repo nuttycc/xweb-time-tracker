@@ -43,7 +43,7 @@ const retentionDaysDisplay = computed(() => {
 });
 
 // Load Config
-const loadConfig = async (): Promise<void> => {
+const handleLoadConfig = async (): Promise<void> => {
   try {
     isLoading.value = true;
     error.value = null;
@@ -67,7 +67,7 @@ const loadConfig = async (): Promise<void> => {
 };
 
 // Save Config
-const saveConfig = async (): Promise<void> => {
+const handleSaveConfig = async (): Promise<void> => {
   try {
     isSaving.value = true;
     error.value = null;
@@ -82,7 +82,7 @@ const saveConfig = async (): Promise<void> => {
     });
 
     // Reload config to ensure sync
-    await loadConfig();
+    await handleLoadConfig();
 
     logger.info('Config saved successfully');
   } catch (err) {
@@ -94,7 +94,7 @@ const saveConfig = async (): Promise<void> => {
 };
 
 // Reset Config
-const resetConfig = (): void => {
+const handleResetConfig = (): void => {
   if (config.value) {
     formData.value = {
       retentionPolicy: config.value.retentionPolicy.policy,
@@ -104,7 +104,7 @@ const resetConfig = (): void => {
 };
 
 onMounted(() => {
-  loadConfig();
+  handleLoadConfig();
 });
 </script>
 
@@ -153,7 +153,7 @@ onMounted(() => {
       </div>
       <p class="text-sm text-red-600">{{ error }}</p>
       <button
-        @click="loadConfig"
+        @click="handleLoadConfig"
         class="mt-2 rounded bg-red-50 px-3 py-1 text-sm text-red-600 hover:bg-red-100"
       >
         Retry
@@ -197,14 +197,14 @@ onMounted(() => {
       <!-- Action Buttons -->
       <div class="flex justify-end space-x-2 pt-2">
         <button
-          @click="resetConfig"
+          @click="handleResetConfig"
           :disabled="isSaving"
           class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
         >
           Reset
         </button>
         <button
-          @click="saveConfig"
+          @click="handleSaveConfig"
           :disabled="isSaving"
           class="flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
