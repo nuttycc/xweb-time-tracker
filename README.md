@@ -1,27 +1,9 @@
 # Web Time Tracker
 
-<p align="center">
-  <a href="https://wxt.dev"
-    ><img
-      src="https://img.shields.io/badge/Built%20with-WXT-purple.svg"
-      alt="Built with WXT"
-  /></a>
-  <a href="https://vuejs.org/"
-    ><img
-      src="https://img.shields.io/badge/Vue.js-3-green.svg"
-      alt="Vue.js"
-  /></a>
-  <a href="https://tailwindcss.com/"
-    ><img
-      src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white"
-      alt="Tailwind CSS"
-  /></a>
-  <a href="https://deepwiki.com/nuttycc/xweb-time-tracker"
-    ><img
-      src="https://deepwiki.com/badge.svg"
-      alt="Ask DeepWiki"
-  /></a>
-</p>
+[![Built with WXT](https://img.shields.io/badge/Built%20with-WXT-purple.svg)](https://wxt.dev)
+[![Vue.js](https://img.shields.io/badge/Vue.js-3-green.svg)](https://vuejs.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/nuttycc/xweb-time-tracker)
 
 Web Time Tracker is a browser extension that helps you understand how you spend your time online. It automatically tracks the time spent on different websites and provides detailed, privacy-focused reports right in your browser.
 
