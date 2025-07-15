@@ -23,58 +23,58 @@ import {
 // SYNC STORAGE (synced across user's devices)
 // ============================================================================
 
-export const timeTrackingConfig = storage.defineItem(`sync:${'timeTracking'}`, {
+export const timeTrackingConfig = storage.defineItem(`sync:timeTracking`, {
   fallback: getDefaults(TimeTrackingConfigSchema),
 });
 
-export const urlFilteringConfig = storage.defineItem(`sync:${'urlFiltering'}`, {
+export const urlFilteringConfig = storage.defineItem(`sync:urlFiltering`, {
   fallback: getDefaults(UrlFilteringConfigSchema),
 });
 
-export const checkpointConfig = storage.defineItem(`sync:${'checkpoint'}`, {
+export const checkpointConfig = storage.defineItem(`sync:checkpoint`, {
   fallback: getDefaults(CheckpointConfigSchema),
 });
 
-export const aggregationConfig = storage.defineItem(`sync:${'aggregation'}`, {
+export const aggregationConfig = storage.defineItem(`sync:aggregation`, {
   fallback: getDefaults(AggregationConfigSchema),
 });
 
-export const uiConfig = storage.defineItem(`sync:${'ui'}`, {
+export const uiConfig = storage.defineItem(`sync:ui`, {
   fallback: getDefaults(UIConfigSchema),
 });
 
-export const retentionPolicyConfig = storage.defineItem(`sync:${'retentionPolicy'}`, {
+export const retentionPolicyConfig = storage.defineItem(`sync:retentionPolicy`, {
   fallback: getDefaults(RetentionPolicyConfigSchema),
 });
 
-export const eventQueueConfig = storage.defineItem(`sync:${'eventQueue'}`, {
+export const eventQueueConfig = storage.defineItem(`sync:eventQueue`, {
   fallback: getDefaults(EventQueueConfigSchema),
 });
 
-export const startupRecoveryConfig = storage.defineItem(`sync:${'startupRecovery'}`, {
+export const startupRecoveryConfig = storage.defineItem(`sync:startupRecovery`, {
   fallback: getDefaults(StartupRecoveryConfigSchema),
 });
 
-export const enableStartupRecovery = storage.defineItem(`sync:${'enableStartupRecovery'}`, {
-  fallback: ConfigSchema.shape.enableStartupRecovery.parse(undefined),
+export const enableStartupRecovery = storage.defineItem(`sync:enableStartupRecovery`, {
+  fallback: getDefaults(ConfigSchema.shape.enableStartupRecovery),
 });
 
-export const enableCheckpoints = storage.defineItem(`sync:${'enableCheckpoints'}`, {
-  fallback: ConfigSchema.shape.enableCheckpoints.parse(undefined),
+export const enableCheckpoints = storage.defineItem(`sync:enableCheckpoints`, {
+  fallback: getDefaults(ConfigSchema.shape.enableCheckpoints),
 });
 
 // ============================================================================
 // LOCAL STORAGE (specific to this device)
 // ============================================================================
 
-export const enableDebugLogging = storage.defineItem(`local:${'enableDebugLogging'}`, {
-  fallback: ConfigSchema.shape.enableDebugLogging.parse(undefined),
+export const enableDebugLogging = storage.defineItem(`local:enableDebugLogging`, {
+  fallback: getDefaults(ConfigSchema.shape.enableDebugLogging),
 });
 
 export const storageWarningThresholdPercent = storage.defineItem(
-  `local:${'storageWarningThresholdPercent'}`,
+  `local:storageWarningThresholdPercent`,
   {
-    fallback: ConfigSchema.shape.storageWarningThresholdPercent.parse(undefined),
+    fallback: getDefaults(ConfigSchema.shape.storageWarningThresholdPercent),
   },
 );
 
