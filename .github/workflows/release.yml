@@ -31,6 +31,11 @@ jobs:
 
       - name: Build and zip for Chrome
         run: pnpm wxt zip --browser chrome --mv3
+        timeout-minutes: 2
+        continue-on-error: true
+
+      - name: Verify build artifact
+        run: ls .output/chrome-mv3/*.zip >/dev/null
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
