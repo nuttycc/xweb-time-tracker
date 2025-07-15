@@ -27,7 +27,10 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run postinstall scripts
+        run: pnpm run postinstall
 
       - name: Build and zip for Chrome
         run: pnpm wxt zip --browser chrome --mv3
