@@ -18,7 +18,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -26,6 +25,7 @@ jobs:
           version: 10.12.4
           run_install: true
           install_args: --frozen-lockfile
+          cache: true
 
       - name: Build and Zip for Chrome
         run: pnpm wxt zip --browser chrome --name xweb-time-tracker --version "${{ github.ref_name }}"
