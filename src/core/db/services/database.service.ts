@@ -323,9 +323,9 @@ export class DatabaseService {
 }
 
 /**
- * Instantiates a DatabaseService with the specified database.
+ * Creates a new DatabaseService instance using the given database connection.
  *
- * @returns A DatabaseService instance configured with the provided database.
+ * @returns The initialized DatabaseService
  */
 export function createDatabaseService(db: WebTimeTrackerDB): DatabaseService {
   return new DatabaseService(db);
