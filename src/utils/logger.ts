@@ -1,14 +1,11 @@
 /**
  * Unified Logging System for WebTime Tracker
  *
- * Based on loglevel library with prefix plugin for consistent logging across
- * all WXT framework contexts (content/background/popup).
- *
  * Features:
  * - Environment-based log level control (dev: debug+, prod: warn+)
- * - Module-based logger creation with prefixed output
+ * - Hierarchical configuration: global default + per-module overrides
  * - Persistent configuration using WXT storage
- * - Cross-browser compatibility
+ * - Live-reloading of log levels across all contexts
  * - TypeScript support
  *
  * @module utils/logger
@@ -16,7 +13,16 @@
 
 import log from 'loglevel';
 import prefix from 'loglevel-plugin-prefix';
-import { storage } from '#imports';
+import {
+  logConfigStorage,
+  getLogConfig,
+  watchLogConfig,
+  setGlobalLogLevel,
+  setModuleLogLevel as setModuleLogLevelInConfig,
+  type LogLevel,
+  type LogConfig,
+  LOG_LEVELS,
+} from '@/config/logging';
 
 /**
  * Logger interface compatible with existing console usage patterns
@@ -30,82 +36,66 @@ export interface Logger {
   trace(...args: unknown[]): void;
 }
 
-/**
- * Available log levels in order of verbosity
- */
-export const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'silent'] as const;
+const DEFAULT_TEMPLATE = `[tracker] [%l] [%n]`;
 
 /**
- * Log levels supported by the system
+ * A Map of all module loggers that have been instantiated.
+ * This allows us to update their levels individually when the config changes.
  */
-export type LogLevel = (typeof LOG_LEVELS)[number];
+const registeredLoggers = new Map<string, log.Logger>();
 
 /**
- * Logger configuration options
+ * A local, in-memory cache of the current logging configuration.
+ * Avoids repeated async storage calls for synchronous operations.
  */
-export interface LoggerConfig {
-  /** Default log level for all loggers */
-  defaultLevel: LogLevel;
-  /** Custom format template for log messages */
-  template?: string;
+let currentLogConfig: LogConfig | null = null;
+
+/**
+ * Applies the given configuration to the root logger and all registered module loggers.
+ * This is the core function for synchronizing state from config to the logging instances.
+ */
+function applyLogConfig(config: LogConfig): void {
+  // 1. Update our in-memory cache
+  currentLogConfig = config;
+
+  // 2. Set the global (root) log level. This acts as the default.
+  log.setLevel(config.global, false);
+
+  // 3. Apply specific levels to all registered module loggers
+  registeredLoggers.forEach((logger, name) => {
+    const moduleLevel = config.modules[name];
+    // Use the module-specific level, or fall back to the new global level
+    logger.setLevel(moduleLevel || config.global, false);
+  });
 }
 
 /**
- * Default configuration based on environment
- */
-const DEFAULT_CONFIG: LoggerConfig = {
-  defaultLevel: import.meta.env.MODE === 'production' ? 'warn' : 'debug',
-  // template: `[${__APP_NAME__}] [%n] [%l]`,
-  template: `[tracker] [%l] [%n]`,
-};
-
-/**
- * WXT storage item for persisting log level configuration
- */
-const logLevelStorage = storage.defineItem<LogLevel>(`local:log-level`, {
-  fallback: DEFAULT_CONFIG.defaultLevel,
-});
-
-// Initialize the prefix plugin
-prefix.reg(log);
-
-/**
- * Initializes the logging system with the specified configuration.
+ * Initializes the logging system.
  *
- * Applies a consistent prefix format to log messages, sets the default log level,
- * and loads the persisted log level from WXT storage.
+ * Applies a consistent prefix format, loads the persisted log configuration,
+ * applies it, and sets up a watcher to automatically apply future changes.
  */
-async function initializeLogging(config: LoggerConfig = DEFAULT_CONFIG): Promise<void> {
-  // Apply prefix template
+async function initializeLogging(): Promise<void> {
+  // Apply the prefix plugin formatting
+  prefix.reg(log);
   prefix.apply(log, {
-    template: config.template || DEFAULT_CONFIG.template,
+    template: DEFAULT_TEMPLATE,
     levelFormatter: level => level.toUpperCase(),
     nameFormatter: name => name || 'ROOT',
     timestampFormatter: date => date.toISOString(),
   });
 
-  // Set default log level
-  log.setLevel(config.defaultLevel, false);
+  // Load the initial config from storage and apply it
+  const initialConfig = await getLogConfig();
+  applyLogConfig(initialConfig);
 
-  // Load persisted level from WXT storage
-  await loadPersistedLogLevel();
-}
-
-/**
- * Loads the saved log level from WXT storage and applies it as the default log level.
- */
-async function loadPersistedLogLevel(): Promise<void> {
-  const savedLevel = await logLevelStorage.getValue();
-  if (savedLevel && isValidLogLevel(savedLevel)) {
-    log.setLevel(savedLevel, false);
-  }
-}
-
-/**
- * Persists the specified log level to WXT storage.
- */
-async function saveLogLevel(level: LogLevel): Promise<void> {
-  await logLevelStorage.setValue(level);
+  // Watch for any subsequent changes and re-apply them
+  watchLogConfig(newConfig => {
+    if (newConfig) {
+      console.log('🔄 Log configuration changed, applying new levels...', newConfig);
+      applyLogConfig(newConfig);
+    }
+  });
 }
 
 /**
@@ -119,23 +109,23 @@ function isValidLogLevel(level: string): level is LogLevel {
 }
 
 /**
- * Creates a logger instance with a module-specific prefix for structured logging.
+ * Creates a logger instance with a module-specific prefix.
  *
- * The returned logger prepends each message with a timestamp, the provided module name, and the log level.
- * Supports variable arguments like native console methods.
- *
- * @param moduleName - The name to identify the logger's module context (e.g., 'TimeTracker', 'DatabaseService')
- * @returns A logger with standard logging methods that include the module prefix
- *
- * @example
- * const logger = createLogger('TimeTracker');
- * logger.info('Tracker started successfully');
- * logger.debug('User data:', userData, 'Session:', sessionId);
- * // Output: [🕒] [TimeTracker] Tracker started successfully
- * // Output: [🕒] [TimeTracker] User data: {...} Session: abc123
+ * @param moduleName - The name to identify the logger's module context (e.g., 'TimeTracker')
+ * @returns A logger with standard logging methods.
  */
 export function createLogger(moduleName: string): Logger {
   const moduleLogger = log.getLogger(moduleName);
+
+  // If a config has already been loaded, set the initial level for this new logger.
+  // Otherwise, it will be configured once the async initialization completes.
+  if (currentLogConfig) {
+    const level = currentLogConfig.modules[moduleName] || currentLogConfig.global;
+    moduleLogger.setLevel(level);
+  }
+
+  // Register the logger so it receives future configuration updates
+  registeredLoggers.set(moduleName, moduleLogger);
 
   return {
     debug: (...args) => moduleLogger.debug(...args),
@@ -147,75 +137,51 @@ export function createLogger(moduleName: string): Logger {
 }
 
 /**
- * Sets the global log level for all loggers.
+ * Sets the global log level for all loggers and persists the change.
+ * Modules without a specific override will use this level.
  *
- * @param level - The log level to apply globally
- * @param persist - If true, saves the log level to WXT storage
+ * @param level - The log level to apply globally.
  */
-export async function setLogLevel(level: LogLevel, persist: boolean = true): Promise<void> {
-  log.setLevel(level, false);
-
-  if (persist) {
-    await saveLogLevel(level);
+export async function setLogLevel(level: LogLevel): Promise<void> {
+  if (isValidLogLevel(level)) {
+    await setGlobalLogLevel(level);
   }
 }
 
 /**
- * Get current global log level
- */
-const LEVEL_MAP: Record<number, LogLevel> = {
-  [log.levels.TRACE]: 'trace',
-  [log.levels.DEBUG]: 'debug',
-  [log.levels.INFO]: 'info',
-  [log.levels.WARN]: 'warn',
-  [log.levels.ERROR]: 'error',
-  [log.levels.SILENT]: 'silent',
-};
-
-/**
- * Retrieves the current global log level as a string.
- *
- * If the log level is not recognized, returns the default log level from the configuration.
+ * Retrieves the current global log level from the in-memory cache.
  *
  * @returns The current global log level.
  */
 export function getLogLevel(): LogLevel {
-  const raw = log.getLevel();
-  if (typeof raw === 'string' && isValidLogLevel(raw)) {
-    return raw as LogLevel;
-  }
-  if (typeof raw === 'number' && raw in LEVEL_MAP) {
-    return LEVEL_MAP[raw];
-  }
-  // fallback: return default level
-  return DEFAULT_CONFIG.defaultLevel;
+  return currentLogConfig?.global || logConfigStorage.fallback.global;
 }
 
 /**
- * Retrieves the persisted log level from WXT storage.
+ * Retrieves the full, persisted log configuration object from storage.
  *
- * @returns Promise that resolves to the stored log level or null if not set
+ * @returns A promise resolving to the LogConfig object.
  */
-export async function getPersistedLogLevel(): Promise<LogLevel | null> {
-  const value = await logLevelStorage.getValue();
-  return value || null;
+export async function getPersistedConfig(): Promise<LogConfig> {
+  return await getLogConfig();
 }
 
 /**
- * Sets the log level for a specific module logger.
+ * Sets the log level for a specific module and persists the change.
  *
- * Adjusts the verbosity of log output for the given module, or disables logging for that module if set to 'silent'.
- *
- * @param moduleName - The name of the module whose logger will be updated
- * @param level - The log level to apply to this module
+ * @param moduleName - The name of the module whose logger will be updated.
+ * @param level - The log level to apply. If `undefined`, the override is removed.
  */
-export function setModuleLogLevel(moduleName: string, level: LogLevel): void {
-  const moduleLogger = log.getLogger(moduleName);
-  moduleLogger.setLevel(level, false);
+export async function setModuleLogLevel(
+  moduleName: string,
+  level: LogLevel | undefined,
+): Promise<void> {
+  if (level && !isValidLogLevel(level)) return;
+  await setModuleLogLevelInConfig(moduleName, level);
 }
 
 /**
- * Returns the list of all supported log levels in order of increasing severity.
+ * Returns the list of all supported log levels.
  *
  * @returns An array of valid log level strings.
  */
@@ -223,19 +189,9 @@ export function getAvailableLogLevels(): readonly LogLevel[] {
   return LOG_LEVELS;
 }
 
-/**
- * Watches for changes to the log level in storage and applies them automatically.
- *
- * @returns Function to stop watching for changes
- */
-export function watchLogLevel(): () => void {
-  return logLevelStorage.watch(newLevel => {
-    if (newLevel && isValidLogLevel(newLevel)) {
-      log.setLevel(newLevel, false);
-    }
-  });
-}
-
+// Kick off the async initialization of the logging system.
+// This is non-blocking. Any loggers created before it completes will
+// be updated once the configuration is loaded and the watcher is attached.
 initializeLogging();
 
 export const rootLogger = createLogger('ROOT');
