@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { createLogger } from '@/utils/logger';
 import DataMonitoringCard from './settings/components/DataMonitoringCard.vue';
 import DataCleanupCard from './settings/components/DataCleanupCard.vue';
+import LogLevelSelector from './settings/components/LogLevelSelector.vue';
 
 const logger = createLogger('SettingsView');
 
@@ -46,6 +47,9 @@ onMounted(() => {
 
     <div v-else class="space-y-4">
       <h1 class="text-xl font-bold text-gray-800">Settings</h1>
+
+      <!-- Log Level Configuration -->
+      <LogLevelSelector />
 
       <!-- Data Storage Monitoring -->
       <DataMonitoringCard />
